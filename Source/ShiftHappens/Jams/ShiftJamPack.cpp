@@ -1,10 +1,15 @@
 // Shift Happens - Game Off 2026
 
 #include "Jams/ShiftJamPack.h"
-#include "Game/ShiftContent.h"
-#include "ShiftHappens.h"
 
+#include "Containers/Array.h"
 #include "Engine/DataTable.h"
+#include "Game/ShiftContent.h"
+#include "GameFeatureAction.h"
+#include "HAL/Platform.h"
+#include "Logging/LogMacros.h"
+#include "ShiftHappens.h"
+#include "UObject/StrongObjectPtrTemplates.h"
 
 void UGameFeatureAction_ShiftJam::OnGameFeatureActivating(FGameFeatureActivatingContext& Context)
 {

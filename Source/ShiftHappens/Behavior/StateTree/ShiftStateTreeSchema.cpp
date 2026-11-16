@@ -1,11 +1,12 @@
 // Shift Happens - Game Off 2026
 
 #include "Behavior/StateTree/ShiftStateTreeSchema.h"
-#include "Behavior/StateTree/ShiftBehaviorContext.h"
 
+#include "Behavior/StateTree/ShiftBehaviorContext.h"
 #include "StateTreeConditionBase.h"
 #include "StateTreeEvaluatorBase.h"
 #include "StateTreeTaskBase.h"
+#include "UObject/Class.h"
 
 bool UShiftStateTreeSchema::IsStructAllowed(const UScriptStruct* InScriptStruct) const
 {

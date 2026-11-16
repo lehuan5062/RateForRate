@@ -2,14 +2,17 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Behavior/StateTree/ShiftBehaviorContext.h"
 #include "GameplayTagContainer.h"
+#include "HAL/Platform.h"
 #include "StateTreeConditionBase.h"
 #include "StateTreeEvaluatorBase.h"
 #include "StateTreeExecutionContext.h"
+#include "StateTreeExecutionTypes.h"
 #include "StateTreeLinker.h"
 #include "StateTreeTaskBase.h"
-#include "Behavior/StateTree/ShiftBehaviorContext.h"
+#include "UObject/Class.h"
+#include "UObject/ObjectMacros.h"
 #include "ShiftStateTreeNodes.generated.h"
 
 // The tasks and conditions are thin: they sequence and decide, and call the policy building blocks in Behavior/ShiftPolicies.h (the

@@ -4,11 +4,25 @@
 
 #include "Brushes/SlateColorBrush.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
+#include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/UnrealString.h"
 #include "Fonts/FontMeasure.h"
 #include "Fonts/SlateFontInfo.h"
 #include "Framework/Application/SlateApplication.h"
+#include "HAL/Platform.h"
+#include "Layout/PaintGeometry.h"
+#include "Math/Color.h"
+#include "Math/MathFwd.h"
+#include "Math/UnrealMathUtility.h"
+#include "Rendering/DrawElementTypes.h"
+#include "Rendering/RenderingCommon.h"
+#include "Rendering/SlateLayoutTransform.h"
 #include "Rendering/SlateRenderer.h"
 #include "Styling/CoreStyle.h"
+#include "Styling/SlateBrush.h"
+#include "Templates/SharedPointer.h"
+#include "Templates/UniquePtr.h"
 
 namespace
 {

@@ -2,14 +2,20 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Components/AudioComponent.h"
+#include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/UnrealString.h"
+#include "Engine/World.h"
+#include "HAL/Platform.h"
+#include "HarmonixMetasound/Components/MusicClockComponent.h"
+#include "MetasoundOutput.h"
+#include "UObject/NameTypes.h"
 #include "UObject/Object.h"
-#include "MetasoundGeneratorHandle.h"
+#include "UObject/ObjectMacros.h"
+#include "UObject/ObjectPtr.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 #include "ShiftAudioMeter.generated.h"
-
-class UAudioComponent;
-class UMusicClockComponent;
-class UWorld;
 
 /**
  * QA only (-ShiftAudioMeter=<spec>): verifies the audio without hearing it and without recording anything.

@@ -1,9 +1,15 @@
 // Shift Happens - Game Off 2026
 
 #include "Game/ShiftBuild.h"
-#include "Behavior/ShiftPolicies.h"
 
+#include "Behavior/ShiftPolicies.h"
+#include "Containers/UnrealString.h"
+#include "CoreGlobals.h"
+#include "HAL/Platform.h"
+#include "Math/UnrealMathUtility.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Sim/ShiftParams.h"
+#include "Sim/ShiftSim.h"
 
 namespace
 {

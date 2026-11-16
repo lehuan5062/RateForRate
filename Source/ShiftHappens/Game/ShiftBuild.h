@@ -2,8 +2,9 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Sim/ShiftSim.h"
+#include "Containers/Array.h"
+#include "HAL/Platform.h"
+#include "Sim/ShiftParams.h"
 
 /** The 12 hours before the deadline, split across the three things a jam entry can invest in. */
 struct FShiftBuild

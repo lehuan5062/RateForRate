@@ -1,9 +1,21 @@
 // Shift Happens - Game Off 2026
 
 #include "Behavior/StateTree/ShiftStateTreeNodes.h"
+
 #include "Behavior/ShiftPolicies.h"
 #include "Behavior/ShiftTags.h"
+#include "Containers/Array.h"
+#include "Containers/ContainerAllocationPolicies.h"
 #include "Game/ShiftRun.h"
+#include "GameplayTagContainer.h"
+#include "HAL/Platform.h"
+#include "Math/UnrealMathUtility.h"
+#include "ShiftBehaviorContext.h"
+#include "Sim/ShiftGraph.h"
+#include "Sim/ShiftParams.h"
+#include "Sim/ShiftSim.h"
+#include "StateTreeExecutionContext.h"
+#include "StateTreeExecutionTypes.h"
 
 namespace
 {

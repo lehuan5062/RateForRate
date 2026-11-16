@@ -2,11 +2,27 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/UnrealString.h"
+#include "Delegates/DelegateCombinations.h"
+#include "HAL/Platform.h"
+#include "Input/CursorReply.h"
+#include "Input/Events.h"
+#include "Input/Reply.h"
+#include "InputCoreTypes.h"
+#include "Layout/Geometry.h"
+#include "Layout/SlateRect.h"
+#include "Math/Color.h"
+#include "Math/MathFwd.h"
+#include "Rendering/DrawElements.h"
+#include "Styling/WidgetStyle.h"
+#include "Templates/UnrealTemplate.h"
+#include "Types/PaintArgs.h"
 #include "UI/ShiftHudModel.h"
+#include "UI/ShiftPaint.h"
+#include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SLeafWidget.h"
-
-struct FShiftPainter;
 
 DECLARE_DELEGATE_ThreeParams(FOnShiftHudClick, const FVector2D& /*LocalPos*/, bool /*bShift*/, bool /*bRightButton*/);
 DECLARE_DELEGATE_TwoParams(FOnShiftHudUi, int32 /*EShiftUi::Id*/, float /*Value01 for sliders, else 0*/);
@@ -50,7 +66,20 @@ public:
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 private:
-	struct FPal;
+	struct FPal
+	{
+		float N = 0.0f;
+		FLinearColor Ink;
+		FLinearColor InkDim;
+		FLinearColor Panel;
+		FLinearColor PanelSolid;
+		FLinearColor Stroke;
+		FLinearColor Track;
+		FLinearColor Teal;
+		FLinearColor Red;
+		FLinearColor Amber;
+		FLinearColor Violet;
+	};
 
 	struct FHit
 	{

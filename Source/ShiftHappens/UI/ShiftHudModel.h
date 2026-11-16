@@ -2,7 +2,11 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "Containers/UnrealString.h"
+#include "HAL/Platform.h"
+#include "Math/Color.h"
+#include "Math/MathFwd.h"
 
 enum class EShiftScreen : uint8
 {

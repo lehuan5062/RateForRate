@@ -2,14 +2,16 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Containers/Array.h"
 #include "GameFramework/Actor.h"
+#include "HAL/Platform.h"
+#include "Materials/MaterialParameterCollection.h"
+#include "Math/MathFwd.h"
+#include "Sim/ShiftSim.h"
+#include "UObject/ObjectMacros.h"
+#include "UObject/ObjectPtr.h"
 #include "ShiftBoard.generated.h"
-
-namespace ShiftSim { class Sim; }
-
-class UInstancedStaticMeshComponent;
-class UMaterialParameterCollection;
 
 /** Presentation state that is not part of the simulation. */
 struct FShiftBoardView

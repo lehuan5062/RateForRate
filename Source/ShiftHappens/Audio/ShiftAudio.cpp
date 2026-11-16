@@ -1,15 +1,23 @@
 // Shift Happens - Game Off 2026
 
 #include "Audio/ShiftAudio.h"
-#include "ShiftHappens.h"
 
 #include "Components/AudioComponent.h"
+#include "Containers/UnrealString.h"
+#include "Delegates/Delegate.h"
 #include "Engine/World.h"
+#include "HAL/Platform.h"
 #include "HAL/PlatformTime.h"
 #include "HarmonixMetasound/Components/MusicClockComponent.h"
 #include "HarmonixMetasound/MusicClock/MusicClockState.h"
 #include "Kismet/GameplayStatics.h"
+#include "Logging/LogMacros.h"
+#include "Math/UnrealMathUtility.h"
+#include "ShiftHappens.h"
 #include "Sound/SoundBase.h"
+#include "UObject/Object.h"
+#include "UObject/ObjectMacros.h"
+#include "UObject/UObjectGlobals.h"
 
 namespace
 {

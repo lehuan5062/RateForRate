@@ -2,13 +2,16 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "Containers/UnrealString.h"
 #include "Engine/DataAsset.h"
+#include "Engine/DataTable.h"
 #include "GameFeatureAction.h"
-#include "UObject/StrongObjectPtr.h"
+#include "HAL/Platform.h"
+#include "UObject/ObjectMacros.h"
+#include "UObject/SoftObjectPtr.h"
+#include "UObject/StrongObjectPtrTemplates.h"
 #include "ShiftJamPack.generated.h"
-
-class UDataTable;
 
 /** What a jam pack plugin ships: which built-in jam it plays (sim parameters live in Data/Jams.csv), its card text, and its own entry table. */
 UCLASS(BlueprintType)

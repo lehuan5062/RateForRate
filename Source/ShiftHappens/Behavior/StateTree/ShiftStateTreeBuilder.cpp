@@ -1,23 +1,32 @@
 // Shift Happens - Game Off 2026
 
 #include "Behavior/StateTree/ShiftStateTreeBuilder.h"
-#include "ShiftHappens.h"
 
-#if WITH_EDITOR
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Behavior/ShiftTags.h"
 #include "Behavior/StateTree/ShiftStateTreeNodes.h"
 #include "Behavior/StateTree/ShiftStateTreeSchema.h"
-
-#include "AssetRegistry/AssetRegistryModule.h"
+#include "Conditions/StateTreeGameplayTagConditions.h"
+#include "Containers/UnrealString.h"
+#include "GameplayTagContainer.h"
+#include "HAL/Platform.h"
+#include "Logging/LogMacros.h"
 #include "Misc/PackageName.h"
+#include "ShiftHappens.h"
 #include "StateTree.h"
 #include "StateTreeCompilerLog.h"
 #include "StateTreeEditingSubsystem.h"
-#include "Conditions/StateTreeGameplayTagConditions.h"
 #include "StateTreeEditorData.h"
+#include "StateTreeEditorNode.h"
 #include "StateTreeState.h"
+#include "StateTreeTypes.h"
+#include "UObject/NameTypes.h"
+#include "UObject/ObjectMacros.h"
 #include "UObject/Package.h"
 #include "UObject/SavePackage.h"
+#include "UObject/UObjectGlobals.h"
+
+#if WITH_EDITOR
 
 namespace
 {

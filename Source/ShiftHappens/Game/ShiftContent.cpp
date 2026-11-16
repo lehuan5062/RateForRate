@@ -1,11 +1,25 @@
 // Shift Happens - Game Off 2026
 
 #include "Game/ShiftContent.h"
-#include "Data/ShiftRows.h"
-#include "ShiftHappens.h"
-#include "Sim/ShiftSim.h"
 
+#include "Containers/AllowShrinking.h"
+#include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/SparseSet.h"
+#include "Containers/UnrealString.h"
+#include "Data/ShiftRows.h"
 #include "Engine/DataTable.h"
+#include "HAL/Platform.h"
+#include <initializer_list>
+#include "Logging/LogMacros.h"
+#include "Math/RandomStream.h"
+#include "ShiftHappens.h"
+#include "Sim/ShiftGraph.h"
+#include "Sim/ShiftSim.h"
+#include "Templates/TupleFwd.h"
+#include "Templates/UnrealTemplate.h"
+#include "UObject/NameTypes.h"
+#include "UObject/UObjectGlobals.h"
 
 namespace
 {
@@ -74,61 +88,61 @@ bool FShiftContent::EnsureLoaded()
 	if (UDataTable* T = LoadTable<FShiftHandleRow>(TEXT("DT_Handles")))
 	{
 		T->ForeachRow<FShiftHandleRow>(TEXT("Handles"), [&C](const FName&, const FShiftHandleRow& Row)
-		{
-			C.HandlesByKind.FindOrAdd(Row.Kind).Add(Row.Handle);
-		});
+			{
+				C.HandlesByKind.FindOrAdd(Row.Kind).Add(Row.Handle);
+			});
 	}
 	if (UDataTable* T = LoadTable<FShiftBioRow>(TEXT("DT_Bios")))
 	{
 		T->ForeachRow<FShiftBioRow>(TEXT("Bios"), [&C](const FName&, const FShiftBioRow& Row)
-		{
-			C.BiosByKind.FindOrAdd(Row.Kind).Add(Row.Text);
-		});
+			{
+				C.BiosByKind.FindOrAdd(Row.Kind).Add(Row.Text);
+			});
 	}
 	if (UDataTable* T = LoadTable<FShiftCommentRow>(TEXT("DT_Comments")))
 	{
 		T->ForeachRow<FShiftCommentRow>(TEXT("Comments"), [&C](const FName&, const FShiftCommentRow& Row)
-		{
-			C.CommentsByContext.FindOrAdd(Row.Context).Add(Row.Text);
-		});
+			{
+				C.CommentsByContext.FindOrAdd(Row.Context).Add(Row.Text);
+			});
 	}
 	if (UDataTable* T = LoadTable<FShiftHeadlineRow>(TEXT("DT_Headlines")))
 	{
 		T->ForeachRow<FShiftHeadlineRow>(TEXT("Headlines"), [&C](const FName&, const FShiftHeadlineRow& Row)
-		{
-			C.HeadlinesByEvent.FindOrAdd(Row.Event).Add(Row.Text);
-		});
+			{
+				C.HeadlinesByEvent.FindOrAdd(Row.Event).Add(Row.Text);
+			});
 	}
 	if (UDataTable* T = LoadTable<FShiftBlurbRow>(TEXT("DT_Blurbs")))
 	{
 		T->ForeachRow<FShiftBlurbRow>(TEXT("Blurbs"), [&C](const FName&, const FShiftBlurbRow& Row)
-		{
-			C.BlurbsByKey.FindOrAdd(Row.Outcome + TEXT("/") + Row.Condition).Add(Row.Text);
-		});
+			{
+				C.BlurbsByKey.FindOrAdd(Row.Outcome + TEXT("/") + Row.Condition).Add(Row.Text);
+			});
 	}
 	if (UDataTable* T = LoadTable<FShiftTutorialRow>(TEXT("DT_Tutorial")))
 	{
 		T->ForeachRow<FShiftTutorialRow>(TEXT("Tutorial"), [&C](const FName&, const FShiftTutorialRow& Row)
-		{
-			if (!C.TutorialByTrigger.Contains(Row.Trigger))
 			{
-				C.TutorialByTrigger.Add(Row.Trigger, Row.Text);
-			}
-		});
+				if (!C.TutorialByTrigger.Contains(Row.Trigger))
+				{
+					C.TutorialByTrigger.Add(Row.Trigger, Row.Text);
+				}
+			});
 	}
 	if (UDataTable* T = LoadTable<FShiftEntryRow>(TEXT("DT_Entries")))
 	{
 		T->ForeachRow<FShiftEntryRow>(TEXT("Entries"), [&C](const FName&, const FShiftEntryRow& Row)
-		{
-			if (Row.Role == TEXT("You"))
 			{
-				C.YouRows.Add(Row);
-			}
-			else
-			{
-				C.EntriesByJam.FindOrAdd(Row.Jam).Add(Row);
-			}
-		});
+				if (Row.Role == TEXT("You"))
+				{
+					C.YouRows.Add(Row);
+				}
+				else
+				{
+					C.EntriesByJam.FindOrAdd(Row.Jam).Add(Row);
+				}
+			});
 	}
 
 	C.bHaveCore = C.HandlesByKind.Num() > 0 && C.EntriesByJam.Num() > 0;
@@ -147,12 +161,12 @@ void FShiftContent::OverrideEntries(const FString& JamKey, const UDataTable* Tab
 	}
 	TArray<FShiftEntryRow> Rows;
 	Table->ForeachRow<FShiftEntryRow>(TEXT("PackEntries"), [&Rows](const FName&, const FShiftEntryRow& Row)
-	{
-		if (Row.Role != TEXT("You"))
 		{
-			Rows.Add(Row);
-		}
-	});
+			if (Row.Role != TEXT("You"))
+			{
+				Rows.Add(Row);
+			}
+		});
 	if (Rows.Num() > 0)
 	{
 		UE_LOG(LogShift, Log, TEXT("Content: jam pack supplies %d entries for %s"), Rows.Num(), *JamKey);
@@ -262,22 +276,22 @@ void FShiftContent::BuildIdentities(const ShiftSim::Sim& Sim, uint32 Seed, TArra
 	}
 	TSet<FString> Used;
 	auto TakeHandle = [&](std::initializer_list<const TCHAR*> Kinds) -> FString
-	{
-		for (const TCHAR* Kind : Kinds)
 		{
-			TArray<FString>* Pool = HandlePools.Find(Kind);
-			while (Pool && Pool->Num() > 0)
+			for (const TCHAR* Kind : Kinds)
 			{
-				const FString H = Pool->Pop(EAllowShrinking::No);
-				if (!Used.Contains(H))
+				TArray<FString>* Pool = HandlePools.Find(Kind);
+				while (Pool && Pool->Num() > 0)
 				{
-					Used.Add(H);
-					return H;
+					const FString H = Pool->Pop(EAllowShrinking::No);
+					if (!Used.Contains(H))
+					{
+						Used.Add(H);
+						return H;
+					}
 				}
 			}
-		}
-		return FString();
-	};
+			return FString();
+		};
 
 	for (int32 i = 0; i < N; ++i)
 	{

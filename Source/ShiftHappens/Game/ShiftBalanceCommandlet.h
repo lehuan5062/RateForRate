@@ -2,8 +2,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Commandlets/Commandlet.h"
+#include "Containers/UnrealString.h"
+#include "HAL/Platform.h"
+#include "UObject/ObjectMacros.h"
 #include "ShiftBalanceCommandlet.generated.h"
 
 /**

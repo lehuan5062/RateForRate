@@ -2,14 +2,18 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Game/ShiftRun.h"
 #include "Behavior/StateTree/ShiftBehaviorContext.h"
+#include "Containers/Array.h"
+#include "Containers/UnrealString.h"
+#include "Game/ShiftRun.h"
+#include "HAL/Platform.h"
+#include "StateTree.h"
 #include "StateTreeInstanceData.h"
+#include "Templates/SharedPointer.h"
+#include "Templates/UniquePtr.h"
 #include "UObject/GCObject.h"
-
-class UShiftBehaviorContext;
-class UStateTree;
+#include "UObject/ObjectPtr.h"
+#include "UObject/UObjectGlobals.h"
 
 /**
  * Runs the behaviour StateTrees for one jam run, ticked by hand once per fixed sim step (no components, controllers or world ticking):

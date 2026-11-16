@@ -2,14 +2,17 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Components/AudioComponent.h"
+#include "Containers/Array.h"
+#include "Engine/World.h"
+#include "HAL/Platform.h"
+#include "HarmonixMetasound/Components/MusicClockComponent.h"
+#include "Sound/SoundBase.h"
 #include "UObject/Object.h"
+#include "UObject/ObjectMacros.h"
+#include "UObject/ObjectPtr.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 #include "ShiftAudio.generated.h"
-
-class UAudioComponent;
-class UMusicClockComponent;
-class USoundBase;
-class UWorld;
 
 /** One-shot sound effects. Each maps to /Game/Shift/Audio/MS_Sfx_<Name> (a MetaSound Source built by Tools/py/build_audio.py). */
 UENUM()

@@ -2,17 +2,27 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "GameFramework/PlayerController.h"
 #include "Audio/ShiftAudio.h"
+#include "Audio/ShiftAudioMeter.h"
+#include "Board/ShiftBoard.h"
+#include "Containers/Array.h"
+#include "Containers/UnrealString.h"
+#include "Engine/EngineTypes.h"
+#include "Engine/TimerHandle.h"
 #include "Game/ShiftBuild.h"
 #include "Game/ShiftRun.h"
+#include "GameFramework/PlayerController.h"
+#include "HAL/Platform.h"
+#include "InputCoreTypes.h"
+#include "Math/Color.h"
+#include "Math/MathFwd.h"
+#include "Math/RandomStream.h"
+#include "Templates/SharedPointer.h"
 #include "UI/ShiftHudModel.h"
+#include "UI/SShiftHud.h"
+#include "UObject/ObjectMacros.h"
+#include "UObject/ObjectPtr.h"
 #include "ShiftPlayerController.generated.h"
-
-class AShiftBoard;
-class SShiftHud;
-class UShiftAudioMeter;
 
 /**
  * Owns the screen flow (title, jam select, build, play), the jam run, the board and the HUD; turns clicks into Plug / Sockpuppet

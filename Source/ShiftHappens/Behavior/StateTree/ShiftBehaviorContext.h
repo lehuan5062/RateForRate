@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Game/ShiftRun.h"
+#include "HAL/Platform.h"
 #include "Sim/ShiftRng.h"
 #include "UObject/Object.h"
+#include "UObject/ObjectMacros.h"
 #include "ShiftBehaviorContext.generated.h"
-
-class FShiftRun;
 
 /** What the behaviour tasks did; every action task bumps one, FShiftBehavior logs the totals when the run ends (proof the trees drive the behaviour). */
 enum class EShiftBehaviorCounter : uint8

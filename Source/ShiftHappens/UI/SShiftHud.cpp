@@ -1,10 +1,28 @@
 // Shift Happens - Game Off 2026
 
 #include "UI/SShiftHud.h"
-#include "UI/ShiftPaint.h"
 
+#include <cfloat>
+#include "Containers/Array.h"
+#include "Containers/SparseSet.h"
+#include "Containers/UnrealString.h"
+#include "GenericPlatform/GenericApplication.h"
+#include "GenericPlatform/ICursor.h"
+#include "HAL/Platform.h"
 #include "Input/CursorReply.h"
 #include "Input/Events.h"
+#include "Input/Reply.h"
+#include "InputCoreTypes.h"
+#include "Layout/Geometry.h"
+#include "Layout/SlateRect.h"
+#include "Math/Color.h"
+#include "Math/MathFwd.h"
+#include "Math/UnrealMathUtility.h"
+#include "Rendering/DrawElements.h"
+#include "ShiftHudModel.h"
+#include "Styling/WidgetStyle.h"
+#include "Types/PaintArgs.h"
+#include "UI/ShiftPaint.h"
 
 namespace
 {
@@ -53,21 +71,6 @@ namespace
 		return FString::Printf(TEXT("%d%s"), N, Suffix);
 	}
 }
-
-struct SShiftHud::FPal
-{
-	float N = 0.0f;
-	FLinearColor Ink;
-	FLinearColor InkDim;
-	FLinearColor Panel;
-	FLinearColor PanelSolid;
-	FLinearColor Stroke;
-	FLinearColor Track;
-	FLinearColor Teal;
-	FLinearColor Red;
-	FLinearColor Amber;
-	FLinearColor Violet;
-};
 
 void SShiftHud::Construct(const FArguments& InArgs)
 {
@@ -480,32 +483,32 @@ void SShiftHud::PaintBuild(FShiftPainter& P, const FPal& C) const
 
 	// forecast lists
 	auto PaintList = [&](float X, const TCHAR* Title, const TArray<FShiftHudForecastRow>& Rows, bool bShares)
-	{
-		P.Rect(X, 150.0f, 262.0f, 318.0f, C.PanelSolid, 14.0f);
-		P.Text(Title, X + 16.0f, 164.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
-		float MaxValue = 0.001f;
-		for (const FShiftHudForecastRow& R : Rows)
 		{
-			MaxValue = FMath::Max(MaxValue, R.Value);
-		}
-		for (int32 r = 0; r < Rows.Num(); ++r)
-		{
-			const FShiftHudForecastRow& R = Rows[r];
-			const float Y = 190.0f + 30.0f * static_cast<float>(r);
-			if (R.bPlayer)
+			P.Rect(X, 150.0f, 262.0f, 318.0f, C.PanelSolid, 14.0f);
+			P.Text(Title, X + 16.0f, 164.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
+			float MaxValue = 0.001f;
+			for (const FShiftHudForecastRow& R : Rows)
 			{
-				P.Rect(X + 6.0f, Y - 3.0f, 250.0f, 28.0f, WithAlpha(C.Teal, 0.18f), 8.0f);
+				MaxValue = FMath::Max(MaxValue, R.Value);
 			}
-			P.Text(FString::FromInt(r + 1), X + 22.0f, Y + 2.0f, 13.0f, R.bPlayer ? C.Teal : C.Ink, EShiftAlign::Center, true);
-			P.Disc(X + 42.0f, Y + 11.0f, 5.5f, R.Color);
-			P.Text(P.Fit(R.Name, 132.0f, 12.0f, R.bPlayer), X + 54.0f, Y + 1.0f, 12.0f, C.Ink, EShiftAlign::Left, R.bPlayer);
-			const FString ValueText = bShares ? (R.Value < 0.095f ? FString::Printf(TEXT("%.1f%%"), R.Value * 100.0f) : FString::Printf(TEXT("%.0f%%"), R.Value * 100.0f))
-				: FString::Printf(TEXT("%.1f"), R.Value);
-			P.Text(ValueText, X + 250.0f, Y + 1.0f, 12.0f, C.InkDim, EShiftAlign::Right);
-			P.Rect(X + 54.0f, Y + 19.0f, 150.0f, 3.0f, C.Track, 1.5f);
-			P.Rect(X + 54.0f, Y + 19.0f, 150.0f * FMath::Clamp(R.Value / MaxValue, 0.0f, 1.0f), 3.0f, R.Color, 1.5f);
-		}
-	};
+			for (int32 r = 0; r < Rows.Num(); ++r)
+			{
+				const FShiftHudForecastRow& R = Rows[r];
+				const float Y = 190.0f + 30.0f * static_cast<float>(r);
+				if (R.bPlayer)
+				{
+					P.Rect(X + 6.0f, Y - 3.0f, 250.0f, 28.0f, WithAlpha(C.Teal, 0.18f), 8.0f);
+				}
+				P.Text(FString::FromInt(r + 1), X + 22.0f, Y + 2.0f, 13.0f, R.bPlayer ? C.Teal : C.Ink, EShiftAlign::Center, true);
+				P.Disc(X + 42.0f, Y + 11.0f, 5.5f, R.Color);
+				P.Text(P.Fit(R.Name, 132.0f, 12.0f, R.bPlayer), X + 54.0f, Y + 1.0f, 12.0f, C.Ink, EShiftAlign::Left, R.bPlayer);
+				const FString ValueText = bShares ? (R.Value < 0.095f ? FString::Printf(TEXT("%.1f%%"), R.Value * 100.0f) : FString::Printf(TEXT("%.0f%%"), R.Value * 100.0f))
+					: FString::Printf(TEXT("%.1f"), R.Value);
+				P.Text(ValueText, X + 250.0f, Y + 1.0f, 12.0f, C.InkDim, EShiftAlign::Right);
+				P.Rect(X + 54.0f, Y + 19.0f, 150.0f, 3.0f, C.Track, 1.5f);
+				P.Rect(X + 54.0f, Y + 19.0f, 150.0f * FMath::Clamp(R.Value / MaxValue, 0.0f, 1.0f), 3.0f, R.Color, 1.5f);
+			}
+		};
 	PaintList(680.0f, TEXT("IF VOTERS JUDGED QUALITY"), B.ByQuality, false);
 	PaintList(958.0f, TEXT("WHAT THE VOTE WILL ACTUALLY DO"), B.ByForecast, true);
 

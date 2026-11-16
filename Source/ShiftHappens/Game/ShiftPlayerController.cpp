@@ -1,37 +1,57 @@
 // Shift Happens - Game Off 2026
 
 #include "Game/ShiftPlayerController.h"
-#include "Board/ShiftBoard.h"
-#include "Board/ShiftPalette.h"
-#include "Behavior/StateTree/ShiftBehavior.h"
-#include "Game/ShiftContent.h"
-#include "Jams/ShiftJamPack.h"
-#include "ShiftHappens.h"
-#include "UI/SShiftHud.h"
 
+#include "Audio/ShiftAudio.h"
 #include "Audio/ShiftAudioMeter.h"
 #include "AudioDevice.h"
+#include "Behavior/ShiftPolicies.h"
+#include "Behavior/StateTree/ShiftBehavior.h"
+#include "Board/ShiftBoard.h"
+#include "Board/ShiftPalette.h"
+#include "Camera/CameraTypes.h"
 #include "Camera/PlayerCameraManager.h"
-#include "Components/StaticMeshComponent.h"
+#include "Containers/Array.h"
+#include "Containers/StringConv.h"
+#include "Containers/UnrealString.h"
 #include "Engine/Engine.h"
+#include "Engine/EngineBaseTypes.h"
+#include "Engine/EngineTypes.h"
 #include "Engine/GameViewportClient.h"
-#include "Engine/StaticMesh.h"
-#include "Engine/StaticMeshActor.h"
-#include "EngineUtils.h"
 #include "Framework/Application/SlateApplication.h"
-#include "GenericPlatform/GenericPlatformMisc.h"
-#include "GenericPlatform/GenericPlatformApplicationMisc.h"
+#include "Game/ShiftContent.h"
+#include "GameFramework/PlayerController.h"
 #include "HAL/FileManager.h"
+#include "HAL/Platform.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "HAL/PlatformMisc.h"
 #include "InputCoreTypes.h"
-#include "Materials/MaterialInterface.h"
-#include "Misc/App.h"
+#include "Jams/ShiftJamPack.h"
+#include "Logging/LogMacros.h"
+#include "Math/Color.h"
+#include "Math/MathFwd.h"
+#include "Math/RandomStream.h"
+#include "Math/UnrealMathUtility.h"
 #include "Misc/CommandLine.h"
+#include "Misc/CString.h"
 #include "Misc/DateTime.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "ShiftBuild.h"
+#include "ShiftHappens.h"
+#include "ShiftRun.h"
+#include "Sim/ShiftGraph.h"
+#include "Sim/ShiftParams.h"
+#include "Sim/ShiftSim.h"
+#include "Templates/SharedPointer.h"
+#include "Templates/UnrealTemplate.h"
 #include "TimerManager.h"
+#include "UI/ShiftHudModel.h"
+#include "UI/SShiftHud.h"
 #include "UnrealClient.h"
+#include "UObject/UObjectGlobals.h"
+#include <vector>
+#include "Widgets/DeclarativeSyntaxSupport.h"
 
 namespace
 {
@@ -486,23 +506,23 @@ void AShiftPlayerController::RefreshJamCards()
 	LastRegistryVersion = FShiftJamRegistry::Get().Version();
 
 	auto AddCard = [this](int32 Jam, const FString& Title, const FString& Subtitle)
-	{
-		const ShiftSim::JamDef Def = ShiftSim::DefaultJam(Jam);
-		FShiftHudJamCard Card;
-		Card.Title = Title;
-		Card.Subtitle = Subtitle;
-		Card.RivalGame = FShiftContent::EntryName(Jam, 1, Seed);
-		Card.RivalAuthor = FShiftContent::EntryAuthor(Jam, 1, Seed);
-		Card.RivalAuthor.RemoveFromStart(TEXT("@"));
-		Card.RivalBlurb = FShiftContent::EntryBlurb(Jam, 1, Seed);
-		Card.Facts.Add(FString::Printf(TEXT("%d voters in %d communities"), Def.nodes, Def.communities));
-		Card.Facts.Add(FString::Printf(TEXT("%d celebrity hubs behind gates"), Def.celebs));
-		Card.Facts.Add(FString::Printf(TEXT("Mod sweeps every %.0f-%.0f seconds"), Def.modIntervalMin, Def.modIntervalMax));
-		Card.Difficulty = Jam + 1;
-		Card.BestRank = ShiftSave::BestRank(Jam);
-		JamCards.Add(Card);
-		CardJam.Add(Jam);
-	};
+		{
+			const ShiftSim::JamDef Def = ShiftSim::DefaultJam(Jam);
+			FShiftHudJamCard Card;
+			Card.Title = Title;
+			Card.Subtitle = Subtitle;
+			Card.RivalGame = FShiftContent::EntryName(Jam, 1, Seed);
+			Card.RivalAuthor = FShiftContent::EntryAuthor(Jam, 1, Seed);
+			Card.RivalAuthor.RemoveFromStart(TEXT("@"));
+			Card.RivalBlurb = FShiftContent::EntryBlurb(Jam, 1, Seed);
+			Card.Facts.Add(FString::Printf(TEXT("%d voters in %d communities"), Def.nodes, Def.communities));
+			Card.Facts.Add(FString::Printf(TEXT("%d celebrity hubs behind gates"), Def.celebs));
+			Card.Facts.Add(FString::Printf(TEXT("Mod sweeps every %.0f-%.0f seconds"), Def.modIntervalMin, Def.modIntervalMax));
+			Card.Difficulty = Jam + 1;
+			Card.BestRank = ShiftSave::BestRank(Jam);
+			JamCards.Add(Card);
+			CardJam.Add(Jam);
+		};
 
 	// The jam select screen lists the jam pack plugins (Game Features) that are active; without any it falls back to the three built-in jams.
 	const TArray<const UShiftJamPackData*> Packs = FShiftJamRegistry::Get().Active();
@@ -1099,17 +1119,17 @@ void AShiftPlayerController::BuildResults(FShiftHudModel& Out) const
 	const double Votes = S.Tally(ShiftSim::kPlayerId);
 	const double SockVotes = S.SockpuppetWeight();
 	const int32 QualityRank = [&S]()
-	{
-		int32 Better = 0;
-		for (int32 E = 1; E < S.NumEntries(); ++E)
 		{
-			if (S.GetEntry(E).quality > S.GetEntry(ShiftSim::kPlayerId).quality)
+			int32 Better = 0;
+			for (int32 E = 1; E < S.NumEntries(); ++E)
 			{
-				++Better;
+				if (S.GetEntry(E).quality > S.GetEntry(ShiftSim::kPlayerId).quality)
+				{
+					++Better;
+				}
 			}
-		}
-		return Better + 1;
-	}();
+			return Better + 1;
+		}();
 	const int32 Leader = S.Leader();
 	const bool bWon = !bDq && Leader == ShiftSim::kPlayerId;
 	const double Runner = [&S, Leader]() { double Best = 0.0; for (int32 E = 0; E < S.NumEntries(); ++E) { if (E != Leader) { Best = FMath::Max(Best, S.Tally(E)); } } return Best; }();

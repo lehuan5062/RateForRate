@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "HAL/Platform.h"
+#include "Math/Color.h"
 
 /** Design colours for the entries. Written as sRGB hex and converted to linear for the unlit HDR materials. */
 namespace ShiftPalette

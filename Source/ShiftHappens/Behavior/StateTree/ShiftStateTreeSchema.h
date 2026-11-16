@@ -2,8 +2,9 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "StateTreeSchema.h"
+#include "UObject/Class.h"
+#include "UObject/ObjectMacros.h"
 #include "ShiftStateTreeSchema.generated.h"
 
 /**

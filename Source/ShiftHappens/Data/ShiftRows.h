@@ -2,8 +2,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/UnrealString.h"
 #include "Engine/DataTable.h"
+#include "HAL/Platform.h"
+#include "UObject/ObjectMacros.h"
 #include "ShiftRows.generated.h"
 
 // Row structs for the text tables in Data/*.csv. Property names match the CSV headers (case-insensitive); the first CSV column

@@ -1,17 +1,29 @@
 // Shift Happens - Game Off 2026
 
 #include "Game/ShiftBalanceCommandlet.h"
+
+#include "Behavior/ShiftPolicies.h"
 #include "Behavior/StateTree/ShiftBehavior.h"
+#include "Containers/Array.h"
+#include "Containers/UnrealString.h"
 #include "Game/ShiftBuild.h"
 #include "Game/ShiftRun.h"
-#include "ShiftHappens.h"
-#include "UI/ShiftHudModel.h"
-
+#include "GenericPlatform/GenericPlatformMisc.h"
 #include "HAL/FileManager.h"
+#include "HAL/Platform.h"
+#include "Logging/LogMacros.h"
+#include "Math/UnrealMathUtility.h"
+#include "Misc/CString.h"
 #include "Misc/DateTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "ShiftHappens.h"
+#include "Sim/ShiftParams.h"
+#include "Sim/ShiftSim.h"
+#include "Templates/SharedPointer.h"
+#include "UI/ShiftHudModel.h"
+#include "UObject/ObjectMacros.h"
 #include "UObject/UObjectGlobals.h"
 
 UShiftBalanceCommandlet::UShiftBalanceCommandlet()
@@ -75,9 +87,11 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 	}
 
 	TArray<int32> Jams;
-	if (JamArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { Jams = { 0, 1, 2 }; } else { Jams.Add(FCString::Atoi(*JamArg)); }
+	if (JamArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { Jams = { 0, 1, 2 }; }
+	else { Jams.Add(FCString::Atoi(*JamArg)); }
 	TArray<FString> BotNames;
-	if (BotArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { BotNames = { TEXT("idle"), TEXT("random"), TEXT("greedy"), TEXT("sock") }; } else { BotArg.ParseIntoArray(BotNames, TEXT(",")); }
+	if (BotArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { BotNames = { TEXT("idle"), TEXT("random"), TEXT("greedy"), TEXT("sock") }; }
+	else { BotArg.ParseIntoArray(BotNames, TEXT(",")); }
 
 	UE_LOG(LogShift, Display, TEXT("Balance: %d runs per cell, build %d/%d/%d, behaviour %s, mods %d"), Runs, Build.Quality, Build.Thumbnail, Build.Network,
 		bNoStateTree ? TEXT("native") : TEXT("StateTree"), bMods ? 1 : 0);

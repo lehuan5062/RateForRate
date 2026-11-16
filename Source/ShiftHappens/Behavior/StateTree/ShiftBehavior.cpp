@@ -1,13 +1,28 @@
 // Shift Happens - Game Off 2026
 
 #include "Behavior/StateTree/ShiftBehavior.h"
-#include "Behavior/StateTree/ShiftBehaviorContext.h"
-#include "Behavior/ShiftPolicies.h"
-#include "ShiftHappens.h"
 
+#include "Behavior/ShiftPolicies.h"
+#include "Behavior/StateTree/ShiftBehaviorContext.h"
+#include "Containers/ArrayView.h"
+#include "Containers/UnrealString.h"
+#include "Game/ShiftRun.h"
+#include "GenericPlatform/GenericPlatformMisc.h"
+#include "HAL/Platform.h"
+#include "Logging/LogMacros.h"
+#include "ShiftHappens.h"
+#include "Sim/ShiftParams.h"
+#include "Sim/ShiftRng.h"
+#include "Sim/ShiftSim.h"
 #include "StateTree.h"
 #include "StateTreeExecutionContext.h"
-#include "UObject/Package.h"
+#include "StateTreeExecutionTypes.h"
+#include "StateTreeTypes.h"
+#include "Templates/SharedPointer.h"
+#include "Templates/UniquePtr.h"
+#include "Templates/UnrealTemplate.h"
+#include "UObject/ObjectMacros.h"
+#include "UObject/UObjectGlobals.h"
 
 namespace
 {
@@ -45,19 +60,19 @@ TSharedPtr<FShiftBehavior> FShiftBehavior::Create(FShiftRun& Run)
 	const uint32 RunSeed = Run.GetSeed();
 
 	auto Add = [&](const FString& Name, UStateTree* Tree, int32 EntryId, double FirstTime, uint32 Salt)
-	{
-		TUniquePtr<FInstance> Instance = MakeUnique<FInstance>();
-		Instance->Name = Name;
-		Instance->Tree = Tree;
-		Instance->Context = NewObject<UShiftBehaviorContext>(GetTransientPackage());
-		Instance->Context->Run = &Run;
-		Instance->Context->EntryId = EntryId;
-		Instance->Context->NextTime = FirstTime;
-		const uint32 Derived = ShiftSim::Rng::Derive(RunSeed, Salt);
-		Instance->Context->Rng.Seed(Derived);
-		Instance->Seed = static_cast<int32>(Derived & 0x7FFFFFFFu);
-		Behavior->Instances.Add(MoveTemp(Instance));
-	};
+		{
+			TUniquePtr<FInstance> Instance = MakeUnique<FInstance>();
+			Instance->Name = Name;
+			Instance->Tree = Tree;
+			Instance->Context = NewObject<UShiftBehaviorContext>(GetTransientPackage());
+			Instance->Context->Run = &Run;
+			Instance->Context->EntryId = EntryId;
+			Instance->Context->NextTime = FirstTime;
+			const uint32 Derived = ShiftSim::Rng::Derive(RunSeed, Salt);
+			Instance->Context->Rng.Seed(Derived);
+			Instance->Seed = static_cast<int32>(Derived & 0x7FFFFFFFu);
+			Behavior->Instances.Add(MoveTemp(Instance));
+		};
 
 	// Order = the order the native stand-ins ran in: rival, other entries, then the director.
 	Add(TEXT("Rival"), Rival, S.RivalId(), ShiftSim::StandInRival::IntervalFor(S, PP), 0x52495641u);

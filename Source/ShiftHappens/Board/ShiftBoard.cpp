@@ -1,16 +1,27 @@
 // Shift Happens - Game Off 2026
 
 #include "Board/ShiftBoard.h"
-#include "Board/ShiftPalette.h"
-#include "ShiftHappens.h"
-#include "Sim/ShiftSim.h"
 
+#include "Board/ShiftPalette.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Components/SceneComponent.h"
+#include "Containers/ArrayView.h"
+#include "Engine/EngineTypes.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "HAL/Platform.h"
+#include "Logging/LogMacros.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialParameterCollection.h"
 #include "Materials/MaterialParameterCollectionInstance.h"
+#include "Math/Color.h"
+#include "Math/MathFwd.h"
+#include "Math/NumericLimits.h"
+#include "Math/UnrealMathUtility.h"
+#include "ShiftHappens.h"
+#include "Sim/ShiftGraph.h"
+#include "Sim/ShiftSim.h"
+#include "UObject/UObjectGlobals.h"
 
 namespace
 {
@@ -53,16 +64,16 @@ AShiftBoard::AShiftBoard()
 	SetRootComponent(Root);
 
 	auto MakeIsm = [this, Root](const TCHAR* Name, int32 SortPriority)
-	{
-		UInstancedStaticMeshComponent* Comp = CreateDefaultSubobject<UInstancedStaticMeshComponent>(Name);
-		Comp->SetupAttachment(Root);
-		Comp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		Comp->SetCastShadow(false);
-		Comp->bAffectDistanceFieldLighting = false;
-		Comp->SetCanEverAffectNavigation(false);
-		Comp->SetTranslucentSortPriority(SortPriority);
-		return Comp;
-	};
+		{
+			UInstancedStaticMeshComponent* Comp = CreateDefaultSubobject<UInstancedStaticMeshComponent>(Name);
+			Comp->SetupAttachment(Root);
+			Comp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Comp->SetCastShadow(false);
+			Comp->bAffectDistanceFieldLighting = false;
+			Comp->SetCanEverAffectNavigation(false);
+			Comp->SetTranslucentSortPriority(SortPriority);
+			return Comp;
+		};
 	EdgeISM = MakeIsm(TEXT("Edges"), 0);
 	GlowISM = MakeIsm(TEXT("Glows"), 1);
 	NodeISM = MakeIsm(TEXT("Nodes"), 2);

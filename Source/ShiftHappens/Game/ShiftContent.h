@@ -2,10 +2,12 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-
-namespace ShiftSim { class Sim; }
-class UDataTable;
+#include "Containers/Array.h"
+#include "Containers/UnrealString.h"
+#include "Engine/DataTable.h"
+#include "HAL/Platform.h"
+#include "Math/RandomStream.h"
+#include "Sim/ShiftSim.h"
 
 /**
  * Text content from the imported DataTables (/Game/Shift/Data/DT_*). Every accessor has a built-in fallback, so the game still

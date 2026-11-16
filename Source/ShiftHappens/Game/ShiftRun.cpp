@@ -1,7 +1,19 @@
 // Shift Happens - Game Off 2026
 
 #include "Game/ShiftRun.h"
+
+#include "Behavior/ShiftPolicies.h"
+#include "Containers/Array.h"
+#include "GenericPlatform/GenericPlatformMisc.h"
+#include "HAL/Platform.h"
+#include "Logging/LogMacros.h"
+#include "Math/UnrealMathUtility.h"
+#include "ShiftBuild.h"
 #include "ShiftHappens.h"
+#include "Sim/ShiftParams.h"
+#include "Sim/ShiftRng.h"
+#include "Sim/ShiftSim.h"
+#include "Templates/UniquePtr.h"
 
 bool FShiftRun::Start(int32 InJamIndex, uint32 InSeed, const FShiftBuild& InBuild, bool bInModsEnabled)
 {

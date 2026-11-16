@@ -2,10 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Behavior/ShiftPolicies.h"
+#include "Containers/Array.h"
 #include "Game/ShiftBuild.h"
+#include "HAL/Platform.h"
+#include "Math/UnrealMathUtility.h"
+#include "Sim/ShiftRng.h"
 #include "Sim/ShiftSim.h"
+#include "Templates/SharedPointer.h"
+#include "Templates/UniquePtr.h"
 
 /** Things the presentation layers (HUD, board, audio, feed) react to. */
 enum class EShiftEventType : uint8
