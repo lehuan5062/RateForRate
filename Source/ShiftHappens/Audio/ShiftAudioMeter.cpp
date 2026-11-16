@@ -21,7 +21,7 @@ namespace
 	constexpr float PeakCeiling = 0.891f;     // -1 dBFS
 	constexpr float PeakFloor = 0.02f;        // about -34 dBFS: anything quieter is inaudible
 	constexpr float StepSeconds = 60.0f / 112.5f / 4.0f;
-	constexpr float BeatSeconds = 60.0f / 112.5f;
+	constexpr float MeterBeatSeconds = 60.0f / 112.5f;
 	constexpr float LoopSeconds = 128.0f * StepSeconds;
 	constexpr TCHAR WarmUpLabel[] = TEXT("(warm-up)");
 
@@ -364,9 +364,9 @@ void UShiftAudioMeter::CheckMusicClock(const FCase& C)
 		if (BeatTimes.Num() >= 8)
 		{
 			const double Mean = (BeatTimes.Last() - BeatTimes[0]) / (BeatTimes.Num() - 1);
-			const bool bOk = FMath::Abs(Mean - BeatSeconds) < 0.004;
+			const bool bOk = FMath::Abs(Mean - MeterBeatSeconds) < 0.004;
 			UE_LOG(LogShift, Log, TEXT("AudioMeter:   Harmonix clock component: %d beat events, %.2f ms apart (expected %.2f) [%s]"), BeatTimes.Num(), Mean * 1000.0,
-				BeatSeconds * 1000.0, bOk ? TEXT("PASS") : TEXT("FAIL"));
+				MeterBeatSeconds * 1000.0, bOk ? TEXT("PASS") : TEXT("FAIL"));
 			Failures += bOk ? 0 : 1;
 		}
 		else

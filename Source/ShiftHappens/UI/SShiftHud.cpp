@@ -36,7 +36,7 @@ namespace
 		return Votes >= 1000.0f ? FString::Printf(TEXT("%.1fk"), Votes / 1000.0f) : FString::Printf(TEXT("%.0f"), Votes);
 	}
 
-	FString Ordinal(int32 N)
+	FString HudOrdinal(int32 N)
 	{
 		const int32 Mod100 = N % 100;
 		const TCHAR* Suffix = TEXT("th");
@@ -410,7 +410,7 @@ void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 		{
 			P.Disc(X + 28.0f + 24.0f * static_cast<float>(s), Y + 392.0f, 8.0f, s < Card.Difficulty ? C.Amber : C.Track);
 		}
-		const FString Best = Card.BestRank > 0 ? FString::Printf(TEXT("Best: %s place"), *Ordinal(Card.BestRank)) : FString(TEXT("Not played yet"));
+		const FString Best = Card.BestRank > 0 ? FString::Printf(TEXT("Best: %s place"), *HudOrdinal(Card.BestRank)) : FString(TEXT("Not played yet"));
 		P.Text(Best, X + CardW - 24.0f, Y + 383.0f, 15.0f, Card.BestRank == 1 ? C.Teal : C.Ink, EShiftAlign::Right, Card.BestRank == 1);
 
 		P.Rect(X + 24.0f, Y + CardH - 62.0f, CardW - 48.0f, 40.0f, bHover ? C.Teal : WithAlpha(C.Teal, 0.16f), 20.0f);
@@ -510,7 +510,7 @@ void SShiftHud::PaintBuild(FShiftPainter& P, const FPal& C) const
 	PaintList(958.0f, TEXT("WHAT THE VOTE WILL ACTUALLY DO"), B.ByForecast, true);
 
 	P.Rect(680.0f, 484.0f, 540.0f, 92.0f, C.PanelSolid, 14.0f);
-	P.Text(FString::Printf(TEXT("Your game: %s on quality  ->  %s on votes"), *Ordinal(B.QualityRank), *Ordinal(B.ForecastRank)), 700.0f, 498.0f, 20.0f,
+	P.Text(FString::Printf(TEXT("Your game: %s on quality  ->  %s on votes"), *HudOrdinal(B.QualityRank), *HudOrdinal(B.ForecastRank)), 700.0f, 498.0f, 20.0f,
 		B.ForecastRank > B.QualityRank ? C.Red : C.Teal, EShiftAlign::Left, true);
 	P.TextBlock(FString::Printf(TEXT("Forecast for a casual player, a Plug every couple of seconds. The rival has %s followers; you have a few. Beat that with sharper clicks, and with the night shift."),
 		*B.RivalFollowers), 700.0f, 530.0f, 500.0f, 13.0f, 17.0f, C.InkDim);
