@@ -1,6 +1,8 @@
 # Toolchain spike log (M0)
 
 Each spike is gated: it passes, or we switch to the named fallback. Evidence is a log line or a screenshot under `Saved/`.
+Doc links must carry `?application_version=5.8`: the unversioned Epic pages describe 5.9 (see "Doc drift" at the end), and every "missing" or
+"cannot" claim below was re-checked on 5.8 against those pages, the engine source and a runtime probe (see "Claim register").
 Engine: Unreal Engine **5.8.4** (`C:\Program Files\Epic Games\UE_5.8`), MSVC 14.44.35207, Windows SDK 22621, DX12 SM6 only.
 
 ## S0 - C++ project builds, boots, screenshots (PASS)
@@ -18,17 +20,19 @@ Engine: Unreal Engine **5.8.4** (`C:\Program Files\Epic Games\UE_5.8`), MSVC 14.
 ## S2 - Unreal MCP (PASS, with caveats)
 - `Tools\mcp_editor.ps1 start` launches a headless `UnrealEditor-Cmd` with `-ModelContextProtocolStartServer`; port 8000 opened in under a
   minute and `Tools\mcp_call.mjs` (Node, Streamable HTTP) talks to it. No restart of Claude Code needed: the client is our own script.
-- **5.8 differs from the 5.9 docs:** the meta-tools are `list_toolsets`, `describe_toolset {toolset_name}` and
-  `call_tool {toolset_name, tool_name, arguments}`.
-- Toolsets available (full tool lists in `Docs/mcp-toolsets.md`): material, material instance, data table, curve table, data asset, asset,
-  scene, actor, object, texture, static/skeletal mesh, blueprint, programmatic batch, Niagara (5 sets), Sequencer (7), Slate Inspector,
-  Logs, Automation Test, Game Features, Plugin, Config Settings, Data Registry, Gameplay Tags, UMG, PCG, GAS and more.
-- **Gaps that shape the plan:** there is **no MetaSound toolset** (audio authoring stays on the Python Builder API, S4) and the **StateTree
-  toolset is read-only** (get_* tools only), so StateTree assets cannot be authored over MCP (S7 needs another route).
+- **5.8 differs from the unversioned (5.9) docs:** the 5.8 page lists three meta-tools, `list_toolsets`, `describe_toolset {toolset_name}` and
+  `call_tool {tool_name, toolset_name (optional), arguments}` (source: `ModelContextProtocolToolSearch.cpp`, active while `bEnableToolSearch` is on, which is the
+  default); the 5.9 page lists four.
+- Toolsets: **52 toolsets / 830 tools** are registered in this project's editor (runtime dump, `Tools/py/probe_toolsets.py` -> `Docs/mcp-toolsets.md`); the engine source has
+  58 / 878 (the rest belong to plugins that are not enabled here). The earlier hand-written list covered only 18 and was wrong to call itself complete.
+- **Gaps that shape the plan (re-verified):** there is **no audio toolset** (no MetaSound, Harmonix or Synthesis tools: audio authoring stays on the Python Builder API,
+  S4/S8). The StateTree toolset has 9 `get_*` tools; the generic `ObjectTools.set_properties` can edit reflected StateTree fields, but creating the editor data, the
+  schema, property bindings and compiling are not reachable from MCP or Python (S7). Game Feature plugins **can** be authored through MCP/Python (S6, corrected).
 - Plugins `ModelContextProtocol`, `ToolsetRegistry`, `AllToolsets` are enabled editor-only in the `.uproject`. The server is unauthenticated
   and loopback-only, so it is only ever started on demand by the script.
-- Noise to ignore in editor logs: `LogGameFeatures: Error: Asset manager settings do not include a rule for ... GameFeatureData` appears
-  because the Game Features plugin is loaded for the toolset; add a `GameFeatureData` PrimaryAssetTypesToScan entry if/when we use GFPs.
+- Noise to ignore in editor logs: the engine's own toolset Python (`init_unreal.py` of StateTreeToolset, NiagaraToolsets, ...) fails with `unreal has no attribute
+  ToolsetDefinition / AgentSkill` when a game process loads it; harmless. `LogGameFeatures: Error: Asset manager settings do not include a rule for ... GameFeatureData`
+  is fixed by the `GameFeatureData` PrimaryAssetTypesToScan entry in `DefaultGame.ini`.
 
 ## S3 - world-space SDF board (PASS)
 Screenshots `Saved/Shots/s3_day.png` and `s3_night.png` (Jam 3, 72 nodes, 170 edges, warped 40 s).
@@ -63,21 +67,24 @@ Rendering lessons:
 - Gotcha: the editor writes unrelated plugin settings into `DefaultEngine.ini` (AndroidFileServer, with a security token). The plugin is now disabled in the `.uproject`.
 - Open: confirm the Substrate material renders (additive vs over blending, transmittance) and that bloom picks up HDR emissive.
 
-## S4 - MetaSound authoring (PASS, with the stems approach)
-Probe logs: `Saved/py_probe_metasound.log`, `Saved/py_probe_metasound2.log`.
-- `UMetaSoundBuilderSubsystem` works from Python: `create_source_builder(name)` returns `(builder, on_play, on_finished, audio_outs, result)`;
-  `add_graph_input/output_node`, `add_node_by_class_name(MetasoundFrontendClassName{namespace,name,variant}, 1)`, `find_node_input/output_by_name`,
-  `connect_nodes`, `set_node_input_default`, `build_new_meta_sound` / `build_and_overwrite_meta_sound` all exist and a minimal source built.
-- Node classes that exist (namespace `UE`, name.variant -> pins): `Wave Player.Mono` / `Wave Player.Stereo` (in: Play, Stop, Wave Asset, Start Time, Pitch Shift,
-  Loop, Loop Start, Loop Duration; out: On Play, On Finished, Out Mono / Out Left, Out Right); `Multiply.Audio by Float` (PrimaryOperand, AdditionalOperands -> Out),
-  `Multiply.Audio`, `Multiply.Float`, `Add.Audio`, `Add.Float`; `Trigger Counter`, `Trigger Delay`; oscillators `Sine/Saw/Square/Triangle.Audio`, `Noise.Audio`;
-  `One-Pole Low Pass Filter.Audio`, `State Variable Filter.Audio`; `Delay.Audio`, `Stereo Delay.Audio`, `Plate Reverb.Stereo`; `MIDI To Frequency.Float`;
-  `Compressor.Audio`, `Limiter.Audio`. Not found under the names I tried: mixers, Interpolate To, AD/ADSR envelopes, Biquad, panners (so mixing is Add.Audio and levels are
-  Multiply.Audio by Float).
-- Decision: music and SFX are **rendered offline by a small C++ synth tool** (`Tools/AudioRender`) into stems and one-shots, imported as SoundWaves, and **mixed in
-  MetaSound Sources** built by script: `MS_Music` (day stem x (1-Night) + night stem x Night + tension layer x Intensity; parameters `Night`, `Intensity`, `Volume`) and one
-  `MS_Sfx_*` per effect (Wave Player on trigger, `Pitch`/`Volume` inputs). I cannot listen, so the render tool prints peak/RMS/clipping/spectrum analysis and the user does the
-  taste check.
+## S4 - MetaSound authoring (PASS; superseded by S8: no stems, no wave pipeline)
+The first attempt rendered the music and effects offline with a C++ synth into WAVs and played them from `Wave Player` nodes. That is gone: **all audio is MetaSound and
+Harmonix, no `.wav`, no SoundWave asset** (S8). What the first probes got wrong, re-checked on 5.8 (`Docs/metasound-nodes-5.8.md`, runtime-probed):
+- `UMetaSoundBuilderSubsystem` works from Python: `create_source_builder(name, format, is_one_shot)` returns `(builder, on_play, on_finished, audio_outs, result)`,
+  `create_patch_builder(name)`, `add_graph_input_node` / `add_graph_output_node`, `add_node_by_class_name(MetasoundFrontendClassName{namespace,name,variant}, major)`,
+  `add_node(patch asset)`, `find_node_input/output_by_name`, `connect_nodes`, `set_node_input_default` with float / int / bool / array literals (enum pins take the int
+  value; Time pins take a float). `MetaSoundEditorSubsystem.build_to_asset` writes serialised assets; `build_and_overwrite_meta_sound` only works for transient ones, and an
+  existing asset cannot be overwritten in the same editor session (`Tools/build_audio.ps1` deletes the old `MS*.uasset` first).
+- **Wrong earlier claim: "no mixers, Interpolate To, AD/ADSR envelopes, Biquad, panners".** They all exist, under keys I had not guessed: `AudioMixer :: Audio Mixer (Mono|Stereo, N)`
+  (N = 2..8), `AD Envelope :: AD Envelope :: Audio|Float`, `ADSR Envelope :: ADSR Envelope :: Audio|Float`, `UE :: InterpTo :: Audio`, `UE :: Stereo Panner`,
+  `UE :: Biquad Filter :: Audio` (major 2), plus `Ladder` / `State Variable` / one-pole filters, `Trigger Sequence (N)`, `TriggerCompare :: Clamp :: Int32|Float`,
+  `Array :: Get|Num|Random Get`, `UE :: Modulo :: Int32`, `UE :: Linear To Log Frequency`, `UE :: Plate Reverb`, `Limiter`, `Compressor`, `Envelope Follower`.
+  The node keys are `namespace :: name :: variant @major`; there is no listing API from Python, so `Tools/py/probe_metasound_nodes.py` probes a key list and writes the register.
+- Truly absent: Gain, Mono-to-Stereo, Chorus, Phaser, Make Array, Pink-Noise-as-a-separate-node, a Band Splitter under any key I tried (gain is `Multiply (Audio by Float)`,
+  arrays are literals, band meters use the State Variable Filter).
+- Pitfalls found while building: the `Noise` node defaults to **pink** noise (pin `Type`, White = 1), which has far less energy above a few kHz than the white noise the recipes
+  assumed; Float/Time pins and Float envelopes update at block rate (about 100 Hz), so pitch sweeps go through an oscillator's `Modulation` pin (a per-sample Hz offset) driven by
+  an Audio-typed envelope; mixer / sequence nodes top out at 8 inputs; the AD envelope decays as `1 - fraction ^ curve`, so an exponential decay is a fitted curve.
 
 ## M5 - screen flow (PASS)
 - Title (live attract run behind it, keycap that presses when SHIFT is held), jam select (three cards with rival, facts, difficulty, best rank), build screen (three sliders
@@ -96,37 +103,43 @@ Probe logs: `Saved/py_probe_metasound.log`, `Saved/py_probe_metasound2.log`.
 - Tonemapper note: the filmic tonemapper darkens and desaturates, so the day paper colour is set above 1.0 in `MPC_Theme` (`PaperDay` = 1.40, 1.27, 1.06) to land on warm
   near-white; day edges get a 1.7x alpha boost so they stay readable on pale paper.
 
-## M4 - audio (PASS; Harmonix not used)
-- `Tools/build_audio.ps1` builds and runs `Tools/AudioRender` (plain C++17 synth: marimba, bell, pads, bass, kick/snare/hats, noise sweeps; deterministic) and writes 29
-  WAVs to `Audio/`: `Music_Day` (C major), `Music_Night` (A minor), `Music_Tension` (neutral percussion, riser, snare roll) - identical 8 bar loops at 112.5 BPM
-  (6400 samples per 16th, so the stems stay sample-aligned) - and 26 `Sfx_*`. The tool prints peak / RMS / clipping / DC / spectral centroid / loop seam for each file
-  (all clean: no clipping, DC under 0.003, seams under 0.07).
-- `Tools/py/build_audio.py` imports them as PCM SoundWaves (no codec, so loops are exact) and builds `MS_Music` (three Wave Players with `DayGain`, `NightGain`,
-  `TensionGain`, `Volume`, summed, master gain, Limiter) and one `MS_Sfx_*` per effect (Wave Player -> Multiply by `Volume`, `Pitch` input) through the Builder API. Saving
-  serialised assets needs `MetaSoundEditorSubsystem.build_to_asset` (not `build_and_overwrite_meta_sound`), and the old asset must be removed first
-  (`Remove-Item Content\Shift\Audio\MS_*.uasset` before re-running).
-- `UShiftAudio` (C++) loads the sources by path and drives the music component; the controller maps events to effects and sets Night / Intensity (heat and the last days).
-- Verified in the real engine with the master submix recorder (`-ShiftRecordAudio=<wav>`, `-ShiftMasterVolume=0.1`, `-ShiftSfxCycle`) and `Tools/py/analyze_wav.py` /
-  `compare_spectra.py`: the recorded music matches the offline stems band for band (uniform -4.4 dB from gain staging), night shifts the centroid down, and all 26 effects
-  are audible above the music. I cannot judge taste, so the mix is for the user to check by ear.
-- Gotcha: Unreal mutes an unfocused window (`FApp` unfocused volume multiplier defaults to 0), which silenced early recordings until QA runs forced the multiplier to 1.
-  The game itself keeps the default and pauses automatically when the window loses focus.
-- Harmonix Music Clock is not used: the stems have a fixed tempo, so the beat pulse is derived from the music start time (`UShiftAudio::BeatPulse`).
-- Packaging: path-loaded assets (data tables, materials, audio) are cooked through `DirectoriesToAlwaysCook=/Game/Shift` in `DefaultGame.ini`.
+## M4 - audio (PASS; MetaSound + Harmonix, see S8)
+- Every sound is built by Python in the headless editor (`Tools/build_audio.ps1` -> `Tools/py/build_audio.py`, with `ms_graph.py` (builder wrapper), `ms_voices.py`,
+  `ms_sfx.py`, `ms_music.py`): 15 voice **Patches** (`MSP_*`), 26 one-shot **Sources** (`MS_Sfx_<Name>`, one per `EShiftSfx`) and the looping **Source** `MS_Music`
+  with the float parameters `DayGain`, `NightGain`, `TensionGain` and `Volume`. Nothing is sampled, rendered offline or AI-generated: oscillators, noise, envelopes, filters.
+- `UShiftAudio` (C++) loads the sources by path, drives the music component's parameters and plays effects; the beat pulse comes from a **Harmonix** `UMusicClockComponent` bound to
+  the music source's "MIDI Clock" output (the wall-clock estimate stays only as a fallback). `Config/DefaultGame.ini` always cooks `/Game/Shift`, which covers the sources and patches.
+- Plugins `Harmonix` and `MusicEnvironment` (both experimental, off by default) are enabled in the `.uproject`; the module list gained `MetasoundEngine`, `HarmonixMetasound` and friends.
+- The user does the taste check: I cannot listen, so the audio is verified by in-graph meters (S8), not by ear.
+- Gotcha kept from the first version: Unreal mutes an unfocused window (`FApp` unfocused volume multiplier defaults to 0); the game pauses automatically when the window loses
+  focus. The meter runs do not depend on it (they measure inside the graph).
 
 ## S7 - StateTree behaviour layer (PASS)
+**Yes, the game uses StateTree** (`AShiftPlayerController::StartRun` -> `FShiftBehavior::Create`; the log says `Behaviour: 10 StateTree instances (rival, 7 other entries, director,
+ambient)`, `Tools/verify.ps1` asserts it, and the cook contains the four assets). The vote model itself stays in the C++ sim core on purpose; the trees decide who acts and when.
 - `StateTree` plugin enabled in the `.uproject` (runtime); `Behavior/StateTree/` holds `UShiftStateTreeSchema` (tasks, conditions and evaluators from the common bases; the only
   external data is `UShiftBehaviorContext`; no scheduled ticking), the nodes (`ShiftStateTreeNodes.h/.cpp`, thin: they call the policy building blocks in
   `Behavior/ShiftPolicies.h`, so the calibrated numbers still live in the sim/policy code), `FShiftBehavior` (the runner) and `UShiftStateTreeBuilder` (editor-only authoring).
-- Trees (built from C++ by `Tools/py/build_statetrees.py` -> `UShiftStateTreeBuilder::BuildAll`, compiled with `UStateTreeEditingSubsystem::CompileStateTree`, saved to
-  `/Game/Shift/StateTrees`): `ST_Rival` (wait -> mega pulse / defend / attack), `ST_Others` (wait -> plug; one instance per other entry), `ST_Director` (global heat guard task,
-  idle -> telegraph -> sweep = the Mod Eye) and `ST_Ambient` (wait -> one of algorithm boost / streamer discovers / drama thread at random, paced by the jam phase).
+- Trees (built by `Tools/py/build_statetrees.py` -> `UShiftStateTreeBuilder::BuildAll`, compiled with `UStateTreeEditingSubsystem::CompileStateTree`, saved to
+  `/Game/Shift/StateTrees`; the script removes the old files first because an existing asset opens partially loaded and cannot be saved over): `ST_Rival` (wait -> mega pulse /
+  defend / attack), `ST_Others` (wait -> plug; one instance per other entry), `ST_Director` (global heat guard task, idle -> telegraph -> sweep = the Mod Eye) and `ST_Ambient`
+  (wait -> one of algorithm boost / streamer discovers / drama thread at random, paced by the jam phase).
 - `FShiftBehavior` is an `IShiftBehaviorDriver` that `FShiftRun` calls once per fixed 20 Hz step instead of the native stand-ins; each instance has its own
-  `FStateTreeInstanceData`, a context object with its own seeded RNG (`Rng::Derive(runSeed, salt)`, also passed as the StateTree `RandomSeed`), and a hand-built
-  `FStateTreeExecutionContext` per tick. If an asset is missing or does not link, the run falls back to the native policies (`-ShiftNoStateTree` forces that).
-- Result: jam 3, seed 7, sock bot at 40x: 10 StateTree instances run to the end (8 ambient events, mod sweeps and strikes work); the native path gives the same kind of
-  outcome (73.6% vs 78.8% for the bot, rival 24.4% vs 19.7%), the difference being the ambient events. In-engine balance calibration comes next because the ambient
-  events are new.
+  `FStateTreeInstanceData`, a context object with its own seeded RNG (`Rng::Derive(runSeed, salt)`, also passed as the StateTree `RandomSeed` through `FStartParameters`) and a
+  hand-built `FStateTreeExecutionContext` per tick.
+- **Hardening (round 2):** a missing or uncompiled tree now logs an **Error** (it used to be a Warning) before the run falls back to the native stand-ins (the fallback stays so
+  a broken install is still playable; `-ShiftNoStateTree` asks for it on purpose and the balance commandlet refuses to run without trees). Every action task bumps a counter and
+  `FShiftBehavior` logs `Behaviour activity: rival mega/defend/attack | other entries plugged | mods telegraphed/swept | ambient boosts/streamers/drama` when a run ends;
+  `Tools/verify.ps1` requires every kind to be non-zero. The two 5.8 deprecation warnings (`Start(nullptr, seed)`, raw `AddReferencedObject`) are fixed.
+- **Gameplay Tags (S9):** the rival tree's Mega Campaign and Defend gates are the stock `Has Tags` condition (`FGameplayTagContainerMatchCondition`) bound by the builder to the
+  output of a small `FShiftEvaluator_GameTags` evaluator (tags in `Behavior/ShiftTags.h`: `Shift.Rival.MegaPending`, `Shift.Rival.HasWeakHub`, `Shift.Player.Strike.1..3`, ...).
+  Gate passed: the full balance matrix (3 jams x 4 bots x 100 runs) is **identical** before and after.
+- The build-screen forecast stays on the native stand-ins (`ShiftBuildRules::Forecast`): it runs on every slider change and a tree run would add about 0.3 s each time.
+- Why the trees are authored in C++ (corrected reasons): `UStateTreeEditorData`, `UStateTreeState` and `FStateTreeEditorNode` **are** Python-visible (Epic's own StateTree
+  toolset uses them), but `UStateTreeEditingSubsystem::CompileStateTree`, the factory's schema class, `UStateTree::EditorData` and property bindings are not reachable from
+  Python or MCP (runtime probe: `hasattr(unreal, "StateTreeEditingSubsystem")` is False), so creating and compiling a tree from scratch needs the small C++ builder.
+- Result at the first build: jam 3, seed 7, sock bot at 40x: 10 StateTree instances run to the end; the native path gives the same kind of outcome. The balance table in M6 was
+  produced against the trees.
 - Pitfalls: tasks must be linked through `Linker.LinkExternalData`; `PropertyBindingUtils` is needed as a module dependency (link error otherwise).
 
 ## Headless runs
@@ -141,15 +154,22 @@ checks. `run_py.ps1` and `mcp_editor.ps1` were already windowless.
   `GameFeatureData` carrying one custom action (`UGameFeatureAction_ShiftJam`) that registers the pack with `FShiftJamRegistry` on activation and removes it on deactivation.
 - The jam select screen is built from the active packs (so another pack plugin adds a jam without touching code); the pack's entry table replaces the built-in fallback rows
   for its jam key (`FShiftContent::OverrideEntries`). With no pack active the game falls back to the built-in three jams and the global `DT_Entries`.
-- Authoring: `python Tools/make_jam_plugins.py` (descriptors and per-jam CSVs, plain Python), then `Tools/run_py.ps1 -Script Tools\py\build_jam_packs.py` (imports the tables
-  into each plugin's mount point and calls `UShiftJamPackBuilder` from C++). The Game Features subsystem is not exposed to Python, hence the small C++ builder.
-- Verified headless: all three `transitioned successfully. Ending state: Active`, the actions fired, `Content: jam pack supplies 9 entries for ...`, and the cards on screen come
-  from the packs. `GameFeatureData` has a primary asset rule (AlwaysCook) in `DefaultGame.ini` and the plugin mount points are in `DirectoriesToAlwaysCook`.
-- Not verified yet: a cooked build (the optional pre-flight cook covers it).
+- **Authoring is Python only** (round 2): `Tools/run_py.ps1 -Script Tools\py\build_jam_packs.py` splits `Data/Entries.csv` per jam, then for each pack calls the
+  **PluginToolset** through `unreal.ToolsetRegistry.execute_tool` (`CreatePlugin` with the "Game Feature (Content Only)" template, which also mounts the plugin and creates its
+  `GameFeatureData`; `AddPluginDependency`, `GetPluginDescriptor` / `UpdatePluginDescriptor`), imports `DT_Entries` with the CSV factory, creates `DA_Jam` through
+  `DataAssetFactory`, and puts an instance of `UGameFeatureAction_ShiftJam` into the `GameFeatureData`'s `Actions` array. The C++ `UShiftJamPackBuilder` and
+  `make_jam_plugins.py` are gone. Two limits found: the template descriptor has `EnabledByDefault: false` and the toolset cannot change that (`SetPluginEnabled` only reports
+  the request, `UpdatePluginDescriptor` has no such field), so the script sets that one flag in the `.uplugin` JSON; a plugin that was just enabled is not mounted until the
+  next editor start, so the script asks for a second run in that case.
+- The earlier claim "the Game Features subsystem is not exposed to Python, hence a C++ builder" was true of the subsystem (`UGameFeaturesSubsystem` is not Python-visible) but
+  wrong as a reason: creating and authoring packs never needed it.
+- Verified headless: the editor loads 282 built-in Game Feature plugins, all three packs activate (`Jam pack activated: DA_Jam (jam n, Key)`, `Content: jam pack supplies 9
+  entries for ...`), and the cards on screen come from the packs (`Tools/verify.ps1`). `GameFeatureData` has a primary asset rule (AlwaysCook) in `DefaultGame.ini` and the plugin
+  mount points are in `DirectoriesToAlwaysCook`.
 - QA runs never write progress (best ranks) to the player's settings: `bQaRunFlag` / bots skip `RecordResult`.
 
 ## M6 - balance (PASS) and pre-flight (PASS)
-`Toolsalance.ps1` (the `ShiftBalance` commandlet) runs full jam runs against the real StateTrees, ambient events included, headless and deterministic (two identical runs gave an
+`Tools\balance.ps1` (the `ShiftBalance` commandlet) runs full jam runs against the real StateTrees, ambient events included, headless and deterministic (two identical runs gave an
 identical table). Build 4/4/4, 200 runs per cell (400 for the retuned jam 3):
 
 | Jam | idle | random | greedy | greedy + night shift (DQ) |
@@ -164,6 +184,76 @@ Thesis check with nobody cheating: starting fame explains 79-88% of the final vo
 factor, so it sits slightly above the target). Build levers (greedy bot, jam 2): every lever has diminishing returns above an even split and a steep penalty below it, so neglecting
 any of them costs 8-12 points, and network is the best place for spare hours (4/0/8 = 59% vs 56% at 4/4/4), which suits the theme.
 
-Pre-flight: the Shipping game target compiles (`ShiftHappens-Win64-Shipping.exe`, no editor-only code leaks) and a headless cook (`-run=Cook -TargetPlatform=Windows`) finished with
-exit code 0 and no errors: 588 packages, including all 79 `/Game/Shift` packages (4 StateTrees, 9 data tables, 9 materials, the level, 29 waves, 27 MetaSounds) and the three jam
-packs' assets, shaders for D3D12 SM6. A packaged build itself was not run.
+Pre-flight (re-run after the round 2 changes): the Shipping game target compiles (`ShiftHappens-Win64-Shipping.exe`, Harmonix and MetaSound included, no editor-only code leaks) and a headless cook (`-run=Cook -TargetPlatform=Windows`) finished with exit code 0 and no errors: **574 packages** (588 before: minus 29 wave assets, plus 15 patches). The cooked asset registry holds `MS_Music`, the 26 `MS_Sfx_*` sources and the 15 `MSP_*` patches, the 4 StateTrees, 9 data tables, the level and materials, and the three jam packs' assets, shaders for D3D12 SM6, and **nothing under `/Game/Shift/Audio/Waves`**. A packaged build itself was not run.
+
+## S8 - audio rebuilt as MetaSound and Harmonix (PASS)
+Round 2 request: all audio must be MetaSound and/or Harmonix, no `.wav`. The spikes were gated, each with a named fallback; all three passed, so no fallback was needed.
+- **S8a - a voice as a graph.** A kick-style blip (a sine whose pitch falls 90 Hz through the oscillator's `Modulation` pin from an Audio-typed AD envelope, plus a noise click)
+  built inline and played as a one-shot (`OnFinished` from `Trigger Delay`): meters read -7.1 dB peak with the energy in the low band, and the source finished on time.
+- **S8c - patches, arrays, enums.** The same voice as a Patch (`create_patch_builder` -> `build_to_asset`) used inside a source with `add_node(patch)`: -4.6 dB peak. A Float array
+  literal on `Array::Get` with `Index` from `Modulo(Count, 128)` returned the right element at every step (the array is stored rotated by one because `Trigger Counter` counts
+  1..N). Enum pins take their integer value (`SixteenthNote` = 3 gave 133.19 ms steps).
+- **S8b - Harmonix as the clock.** `TriggerToTransport` (Play from `OnPlay`) -> `Metronome` (112.5 BPM, 4/4, 8-bar simple loop) -> `MidiClockSubdivisionTrigger` (16th notes) ->
+  `Trigger Counter`; the Metronome's MIDI Clock is a graph output named "MIDI Clock". In the spike: 74 steps over 9.86 s = 133.19 ms each (expected 133.33) and 19 beat events
+  531 ms apart (expected 533.3; game-thread jitter) from a `UMusicClockComponent` created with `CreateMetasoundDrivenMusicClock`. The core fallback (`TriggerRepeat` +
+  `BPMToSeconds`) stepped at 133.04 ms and stays available as `build_music(harmonix=False)`.
+- **The music** (`MS_Music`): a 128-step counter, one Float array per lane (0 = rest), `TriggerCompare` -> note trigger, polyphonic lanes dealt round-robin over a
+  `Trigger Sequence` so a note rings on its own voice while the next starts; day (C major), night (A minor) and tension layers summed by one `Audio Mixer (Stereo, 3)` whose gains
+  are the float parameters, then `Plate Reverb`, `Volume`, limiter. The 17.067 s loop has no seam because nothing is a loop of samples: the voices just keep running.
+- **No recording, no .wav, not even in QA.** Every source has graph outputs tapped before its master volume and limiter (`Peak`, `Rms`, `Low`, `Mid`, `High`; the music also
+  `StepCount`, `Hits_<lane>_<n>` per pattern lane and `Lvl_<voice>` per voice). `-ShiftAudioMeter=all` (`UShiftAudioMeter`) plays each source with the component volume at 0.0005
+  (inaudible, the generator still renders) and reads those outputs with `UMetaSoundOutputSubsystem::WatchOutput`. It needs a real audio device (`-Sound`), nothing is audible.
+  Result of the final run (32 cases, 0 failures): every effect finishes and peaks at its calibrated level (within 0.2 dB of `Tools/py/ms_targets.py`), music day / night / tension
+  alone peak at -5.0 / -7.9 / -7.0 dBFS (day and night 3.0 dB apart in mean rms), night shifts the spectrum down (low-band share 72% vs 61-63%), tension adds highs (35% vs 9%), the
+  Harmonix 16th clock stays at 133.24 ms per step across two loop wraps (270 steps, `StepCount` 1..128, 2 wraps) with 68 beat events 533.1 ms apart, all 28 pattern lanes fire
+  exactly their pattern and all 40 voices are audible. Levels are calibrated by `Tools/calibrate_audio.ps1` (build -> measure -> trim, two passes), which writes
+  `Tools/py/ms_trims.json`.
+- Things that bit: the `Noise` node defaults to pink noise (silent hats until set to white); the first MetaSound generator of a process takes a few hundred ms, so a short effect
+  played first lost its meter data (the meter run starts with a throw-away warm-up case); the editor picked the Git provider and staged assets (`Tools/run_py.ps1` passes
+  `-SCCProvider=None`); the `PreSaveAsset ... is doing nothing` warning in headless builds (no audio rendering) is harmless, the assets load and play.
+- Not verified: how it sounds. I cannot listen; the recipes are ports of the original offline synth (partial ratios, decay times, filter cutoffs, lane gains) and the levels are
+  measured, but timbre and mix balance need the user's ears.
+
+## S9 - Mass Entity and Gameplay Abilities evaluated (not adopted)
+Question: should Mass Entity or the Gameplay Ability System support the StateTree layer? Read against the 5.8-suffixed docs and the engine source.
+- **Mass Entity: no.** StateTree on Mass is the `MassAI` plugin. It needs a ticking `UWorld` (`UMassSimulationSubsystem`, `UMassSignalSubsystem`, `UMassStateTreeSubsystem` are world
+  subsystems), takes its delta time from `World->GetTimeSeconds()` instead of our fixed 20 Hz step, and starts StateTree with a clock-seeded random stream. It could not run in the
+  headless balance commandlet (60x time, no ticking world) or the standalone harness, and the world path is not reproducible by default (task-graph parallel,
+  `mass.FullyParallel`; command buffers flush by type). It also drags in about 15 experimental plugins (MassAI, MassGameplay, ZoneGraph, SmartObjects, ...), `UMassStateTreeSchema`
+  rejects our `FStateTreeTaskCommonBase` nodes (every task would be rewritten), and Mass is built for thousands of LOD-ed agents; this game has 10 to 72. Revisit only for many
+  visible autonomous agents, as a one-way presentation mirror (game-only, fed from `FShiftRun::DrainEvents`, cosmetic state only, gated by `Sim::StateHash()` and an unchanged balance table).
+- **Gameplay Ability System: runtime no, Gameplay Tags yes.** 5.8 ships no StateTree-to-GAS bridge. The Ability System Component needs an owner Actor and a `UWorld`; effect durations,
+  periods and cooldowns run on world timers (clamped delta, time dilation capped at 20x) and attributes are float32 against our double core, so a facade would be a second source of
+  truth that clashes with the fixed-step core, the commandlet and the 60x runs. What is worth taking is the tags: `GameplayTags` is an engine module (no plugin change) and the stock
+  `Has Tag` / `Has Tags` / `Tag Query` conditions already fit `UShiftStateTreeSchema`. Implemented (S7): native tags in `Behavior/ShiftTags.h`, one evaluator that derives a
+  `FGameplayTagContainer` from the sim each step, the rival tree's two gates on the stock condition. Gate: `Sim::StateHash()` unchanged and the whole balance table identical
+  (3 jams x 4 bots x 100 runs). Revisit GAS only for player-visible timed buffs or Blueprint-authored world cues, as a facade on `AShiftPlayerController` that `FShiftRun`, the
+  StateTree nodes and the commandlet can never reach.
+
+## Claim register (re-verified on 5.8)
+Evidence is the engine source under `C:\Program Files\Epic Games\UE_5.8\Engine`, the 5.8 docs (`?application_version=5.8`) and runtime probes (`Tools/py/probe_toolsets.py`,
+`probe_metasound_nodes.py`; run them with `Tools\run_py.ps1 -Script Tools\py\<probe>.py` to regenerate the registers).
+
+| Claim | Verdict | Evidence |
+|---|---|---|
+| 5.8 meta-tools are `list_toolsets`, `describe_toolset`, `call_tool` | true | 5.8 MCP page lists three; `ModelContextProtocolToolSearch.cpp`. The unversioned page lists four (5.9) |
+| No MetaSound toolset | true | 52 toolsets / 830 tools at runtime, 58 / 878 in source: none for audio, MetaSound, Harmonix or Synthesis |
+| StateTree toolset is read-only, so StateTree cannot be authored over MCP | partly | 9 `get_*` tools; generic `ObjectTools.set_properties` edits reflected fields; creating editor data, schema, bindings and compiling are not reachable |
+| Game Features subsystem not exposed to Python | true | `hasattr(unreal, "GameFeaturesSubsystem")` is False |
+| ...so jam packs need C++ to author | **false** | `PluginToolset.CreatePlugin` + `DataAssetFactory` + `GameFeatureData.actions` from Python (S6); `UShiftJamPackBuilder` removed |
+| StateTree editor data is not usable from Python | **false as stated** | `StateTreeEditorData`, `StateTreeState` exposed; `StateTreeEditingSubsystem` (compile), schema class, bindings are not (S7) |
+| MetaSound has no mixer, AD/ADSR, Interpolate-To, panner, Biquad | **false** | all exist under other keys (`Docs/metasound-nodes-5.8.md`, S4) |
+| Gain, Mono-to-Stereo, Chorus, Phaser, Make Array do not exist | true | probe: not found under any key tried |
+| `build_and_overwrite_meta_sound` only for transient sounds; assets need `build_to_asset` | true | plus: the old serialised asset must be removed first |
+| No Python way to list MetaSound node classes | true | no enumerator among the Metasound UFUNCTIONs; the register is built by probing a key list |
+| `Docs/mcp-toolsets.md` is the toolset list | **false** | it had 18 of 58; regenerated by `Tools/py/probe_toolsets.py` |
+| Harmonix not used | superseded | used for the music clock (S8) |
+| Mass Entity / GAS should drive StateTree | no | S9 |
+
+Python exposure (runtime probe): `ToolsetRegistry`, `MetaSoundBuilderSubsystem`, `MetaSoundEditorSubsystem`, `MetaSoundOutputSubsystem`, `MidiStepSequence`, `MusicClockComponent`,
+`StateTreeEditorData`, `StateTreeState`, `GameFeatureData` are exposed; `GameFeaturesSubsystem`, `StateTreeEditingSubsystem`, `GameplayTagsManager`, `MassEntitySubsystem` are not.
+
+## Doc drift (5.8 vs the unversioned pages)
+The unversioned Epic pages describe 5.9. Seen so far: the MCP page lists four meta-tools (5.8: three) and a different settings location. Always add `?application_version=5.8`
+(for example `https://dev.epicgames.com/documentation/unreal-engine/unreal-mcp-in-unreal-editor?application_version=5.8`) and prefer the engine source when a page and the
+runtime disagree.

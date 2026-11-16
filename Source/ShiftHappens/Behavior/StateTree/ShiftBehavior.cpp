@@ -26,7 +26,7 @@ TSharedPtr<FShiftBehavior> FShiftBehavior::Create(FShiftRun& Run)
 	UStateTree* Ambient = LoadTree(TEXT("ST_Ambient"));
 	if (!Rival || !Others || !Director || !Ambient)
 	{
-		UE_LOG(LogShift, Warning, TEXT("Behaviour StateTrees missing (rival %d, others %d, director %d, ambient %d): using the native policies."),
+		UE_LOG(LogShift, Error, TEXT("Behaviour StateTrees MISSING (rival %d, others %d, director %d, ambient %d): this run uses the native stand-in policies. Run Tools/run_py.ps1 -Script Tools/py/build_statetrees.py."),
 			Rival ? 1 : 0, Others ? 1 : 0, Director ? 1 : 0, Ambient ? 1 : 0);
 		return nullptr;
 	}
@@ -34,7 +34,7 @@ TSharedPtr<FShiftBehavior> FShiftBehavior::Create(FShiftRun& Run)
 	{
 		if (!Tree->IsReadyToRun())
 		{
-			UE_LOG(LogShift, Warning, TEXT("StateTree %s is not ready to run (not compiled?): using the native policies."), *Tree->GetName());
+			UE_LOG(LogShift, Error, TEXT("StateTree %s is not ready to run (not compiled?): this run uses the native stand-in policies."), *Tree->GetName());
 			return nullptr;
 		}
 	}
@@ -108,9 +108,34 @@ void FShiftBehavior::Tick(float DeltaTime)
 		if (!I.bStarted)
 		{
 			I.bStarted = true;
-			Exec.Start(nullptr, I.Seed);
+			FStateTreeExecutionContext::FStartParameters Params;
+			Params.RandomSeed = I.Seed;     // seeded from the run seed: the default is the platform cycle counter, which would break reproducibility
+			Exec.Start(MoveTemp(Params));
 		}
 		Exec.Tick(DeltaTime);
+	}
+}
+
+int32 FShiftBehavior::ActionCount(EShiftBehaviorCounter Counter) const
+{
+	int32 Total = 0;
+	for (const TUniquePtr<FInstance>& Ptr : Instances)
+	{
+		Total += Ptr->Context ? Ptr->Context->Counters[static_cast<int32>(Counter)] : 0;
+	}
+	return Total;
+}
+
+FShiftBehavior::~FShiftBehavior()
+{
+	// One summary line for the first few runs of a process (the balance commandlet plays hundreds): what the trees actually did.
+	static int32 Logged = 0;
+	if (Logged++ < 3 && Instances.Num() > 0)
+	{
+		UE_LOG(LogShift, Log, TEXT("Behaviour activity: rival mega %d defend %d attack %d | other entries plugged %d | mods telegraphed %d swept %d | ambient boosts %d streamers %d drama %d"),
+			ActionCount(EShiftBehaviorCounter::RivalMega), ActionCount(EShiftBehaviorCounter::RivalDefend), ActionCount(EShiftBehaviorCounter::RivalAttack),
+			ActionCount(EShiftBehaviorCounter::OtherPlug), ActionCount(EShiftBehaviorCounter::ModTelegraph), ActionCount(EShiftBehaviorCounter::ModSweep),
+			ActionCount(EShiftBehaviorCounter::AmbientBoost), ActionCount(EShiftBehaviorCounter::AmbientStreamer), ActionCount(EShiftBehaviorCounter::AmbientDrama));
 	}
 }
 

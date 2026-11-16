@@ -2,6 +2,7 @@
 
 #include "Behavior/StateTree/ShiftStateTreeNodes.h"
 #include "Behavior/ShiftPolicies.h"
+#include "Behavior/ShiftTags.h"
 #include "Game/ShiftRun.h"
 
 namespace
@@ -16,6 +17,57 @@ namespace
 	{
 		return ShiftSim::StandInRival::IntervalFor(S, PP) / static_cast<double>(FMath::Max(1, ShiftSim::StandInRival::ActionsPerRound(S, PP)));
 	}
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Game tags
+// ---------------------------------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** The run's state as tags. Pure: it only reads the sim, so evaluating it every step cannot change what the trees decide. */
+	FGameplayTagContainer MakeGameTags(const UShiftBehaviorContext& C)
+	{
+		const ShiftSim::Sim& S = C.Run->GetSim();
+		const ShiftSim::PolicyParams& PP = C.Run->GetPolicy();
+		FGameplayTagContainer Tags;
+		if (C.Run->RivalPolicy().MegaPending(S, PP))
+		{
+			Tags.AddTag(ShiftTags::RivalMegaPending.GetTag());
+		}
+		if (ShiftSim::StandInRival::HasWeakHub(S, PP))
+		{
+			Tags.AddTag(ShiftTags::RivalHasWeakHub.GetTag());
+		}
+		if (S.ShadowbanRemaining() > 0.0)
+		{
+			Tags.AddTag(ShiftTags::PlayerShadowbanned.GetTag());
+		}
+		switch (S.Strikes())
+		{
+		case 0: break;
+		case 1: Tags.AddTag(ShiftTags::PlayerStrike1.GetTag()); break;
+		case 2: Tags.AddTag(ShiftTags::PlayerStrike2.GetTag()); break;
+		default: Tags.AddTag(ShiftTags::PlayerStrike3.GetTag()); break;
+		}
+		const double Progress = S.Time() / FMath::Max(1.0, S.TotalSeconds());
+		Tags.AddTag(Progress < 0.33 ? ShiftTags::PhaseEarly.GetTag() : (Progress < 0.8 ? ShiftTags::PhaseMid.GetTag() : ShiftTags::PhaseFinal.GetTag()));
+		if (C.Run->ModsEnabled() && S.Time() + 1.0e-9 >= C.Run->NextModSweep() - 3.0)
+		{
+			Tags.AddTag(ShiftTags::ModsTelegraphing.GetTag());
+		}
+		return Tags;
+	}
+}
+
+void FShiftEvaluator_GameTags::TreeStart(FStateTreeExecutionContext& Context) const
+{
+	Context.GetInstanceData(*this).Tags = MakeGameTags(Ctx(Context, ContextHandle));
+}
+
+void FShiftEvaluator_GameTags::Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const
+{
+	Context.GetInstanceData(*this).Tags = MakeGameTags(Ctx(Context, ContextHandle));
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -39,6 +91,7 @@ EStateTreeRunStatus FShiftTask_RivalMega::EnterState(FStateTreeExecutionContext&
 {
 	UShiftBehaviorContext& C = Ctx(Context, ContextHandle);
 	C.Run->RivalPolicy().MegaPulse(C.Run->GetSim(), C.Run->GetPolicy());
+	C.Bump(EShiftBehaviorCounter::RivalMega);
 	return EStateTreeRunStatus::Succeeded;
 }
 
@@ -48,6 +101,7 @@ EStateTreeRunStatus FShiftTask_RivalDefend::EnterState(FStateTreeExecutionContex
 	ShiftSim::Sim& S = C.Run->GetSim();
 	const ShiftSim::PolicyParams& PP = C.Run->GetPolicy();
 	C.Run->RivalPolicy().Defend(S, PP);
+	C.Bump(EShiftBehaviorCounter::RivalDefend);
 	C.NextTime += RivalStep(S, PP);
 	return EStateTreeRunStatus::Succeeded;
 }
@@ -58,6 +112,7 @@ EStateTreeRunStatus FShiftTask_RivalAttack::EnterState(FStateTreeExecutionContex
 	ShiftSim::Sim& S = C.Run->GetSim();
 	const ShiftSim::PolicyParams& PP = C.Run->GetPolicy();
 	C.Run->RivalPolicy().Attack(S, PP);
+	C.Bump(EShiftBehaviorCounter::RivalAttack);
 	C.NextTime += RivalStep(S, PP);
 	return EStateTreeRunStatus::Succeeded;
 }
@@ -89,6 +144,7 @@ EStateTreeRunStatus FShiftTask_OtherAct::EnterState(FStateTreeExecutionContext& 
 	UShiftBehaviorContext& C = Ctx(Context, ContextHandle);
 	const ShiftSim::PolicyParams& PP = C.Run->GetPolicy();
 	ShiftSim::StandInOthers::Act(C.Run->GetSim(), PP, C.EntryId);
+	C.Bump(EShiftBehaviorCounter::OtherPlug);
 	C.NextTime += PP.OthersInterval;
 	return EStateTreeRunStatus::Succeeded;
 }
@@ -117,7 +173,9 @@ EStateTreeRunStatus FShiftTask_ModTelegraph::EnterState(FStateTreeExecutionConte
 {
 	FShiftEvent Event;
 	Event.Type = EShiftEventType::ModTelegraph;
-	Ctx(Context, ContextHandle).Run->EmitEvent(Event);
+	UShiftBehaviorContext& C = Ctx(Context, ContextHandle);
+	C.Run->EmitEvent(Event);
+	C.Bump(EShiftBehaviorCounter::ModTelegraph);
 	return EStateTreeRunStatus::Running;
 }
 
@@ -129,7 +187,9 @@ EStateTreeRunStatus FShiftTask_ModTelegraph::Tick(FStateTreeExecutionContext& Co
 
 EStateTreeRunStatus FShiftTask_ModSweep::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	Ctx(Context, ContextHandle).Run->ResolveModSweep();
+	UShiftBehaviorContext& C = Ctx(Context, ContextHandle);
+	C.Run->ResolveModSweep();
+	C.Bump(EShiftBehaviorCounter::ModSweep);
 	return EStateTreeRunStatus::Succeeded;
 }
 
@@ -193,6 +253,7 @@ EStateTreeRunStatus FShiftTask_AmbientEvent::EnterState(FStateTreeExecutionConte
 		Event.NewOwner = Entry;
 		Event.Value = Size;
 		C.Run->EmitEvent(Event);
+		C.Bump(Kind == 0 ? EShiftBehaviorCounter::AmbientBoost : (Kind == 1 ? EShiftBehaviorCounter::AmbientStreamer : EShiftBehaviorCounter::AmbientDrama));
 	}
 
 	// Next event: spacing follows the phase of the jam (early, mid, final rush), with some jitter.

@@ -31,6 +31,14 @@
 			]
 		},
 		{
+			"Name": "Harmonix",
+			"Enabled": true
+		},
+		{
+			"Name": "MusicEnvironment",
+			"Enabled": true
+		},
+		{
 			"Name": "AndroidFileServer",
 			"Enabled": false
 		},

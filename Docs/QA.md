@@ -11,9 +11,11 @@ Everything here runs **headless** (no window, no console, no sound) unless state
 | `Tools\run_py.ps1 -Script Tools\py\<x>.py` | Python builders and probes in the headless editor; log in `Saved\py_<x>.log` |
 | `Tools\balance.ps1 -Runs N [-Jam 0\|1\|2\|all] [-Bot idle\|random\|greedy\|sock\|all] [-Build Q,T,N] [-NoStateTree] [-NoMods]` | `-run=ShiftBalance` commandlet: full runs against the real StateTrees; table in the log and `Saved\Balance\*.csv` |
 | `Tools\build_harness.ps1 [-Run test]` | The standalone C++ sim harness (determinism and invariants of the numeric core, no Unreal) |
-| `Tools\build_audio.ps1` | Renders the music and sound effects and prints an analysis table (peak, RMS, clipping, DC, centroid, loop seam) |
+| `Tools\verify.ps1 [-SkipMeters]` | **One command**: audio assets (MetaSound only, no .wav), StateTree activity and determinism, game boot (clock, packs), then the audio meters |
+| `Tools\build_audio.ps1` | Rebuilds every MetaSound patch, effect and the music with the Python Builder API (removes the old `MS*.uasset` first) |
+| `Tools\calibrate_audio.ps1 [-Reset]` | Build -> measure with the in-graph meters -> adjust `Tools\py\ms_trims.json`, until every sound is within 0.5 dB of its target |
 | `Tools\mcp_editor.ps1 start\|stop` | Headless editor hosting the Unreal MCP server (loopback) |
-| `python Tools\py\analyze_wav.py <wav> [--scale k]`, `compare_spectra.py <recorded> <offline>` | Analyse a recorded playback |
+| `Tools\run_py.ps1 -Script Tools\py\probe_toolsets.py` / `probe_metasound_nodes.py` / `verify_audio.py` | Regenerate `Docs/mcp-toolsets.md`, `Docs/metasound-nodes-5.8.md`; check the audio assets |
 
 ## Game command-line flags (all optional)
 
@@ -31,7 +33,7 @@ Everything here runs **headless** (no window, no console, no sound) unless state
 | `-ShiftTutorial` / `-ShiftNoTutorial` | Force or skip the coach cards (QA runs skip them by default) |
 | `-ShiftNoStateTree` | Native stand-in policies instead of the StateTrees |
 | `-ShiftNoAudio`, `-ShiftMasterVolume=0..1` | Skip audio; scale all sound |
-| `-ShiftRecordAudio=<wav> [-ShiftRecordStart=S -ShiftRecordSeconds=S]`, `-ShiftSfxCycle`, `-ShiftRawAt=S` | Record the master submix; play every effect in turn; play a plain SoundWave as a control (needs `-Sound`; QA audio runs force the unfocused-volume multiplier to 1) |
+| `-ShiftAudioMeter=all\|sfx\|music\|<asset names>` | Audio QA: plays MetaSound sources inaudibly and logs their in-graph meters (needs `-Sound`; nothing is recorded, no .wav); exit code 3 on failure |
 | `-ShiftNoUI`, `-ShiftNoAutoPause` | No HUD; do not pause on focus loss (QA runs never auto-pause) |
 
 QA runs never write progress to the player's settings (best ranks, tutorial flags are skipped).
@@ -40,8 +42,8 @@ QA runs never write progress to the player's settings (best ranks, tutorial flag
 
 * **Sim core**: determinism and invariants in the standalone harness; the same results from the in-engine balance commandlet (identical table on two runs with the same seeds).
 * **Screens**: screenshots of every screen at 1280 x 720 and 1920 x 1080 (title, jam select, build, day, night with heat and a shadowban, blame offer, results); a scripted run through the real widget from title to jam card to slider drags to upload (`-ShiftMouse`).
-* **StateTrees**: all four trees compile and run in-engine for the full run, the native fallback works, results are deterministic.
-* **Game Features**: the three jam packs activate in the game process and supply the entries; the jam cards come from them.
-* **Audio**: the recorded master submix matches the offline stems band by band, night shifts the spectrum down, and all 26 effects are audible above the music. **I could not listen**, so the mix needs an ear.
+* **StateTrees**: all four trees compile and run in-engine for the full run; the log prints what the trees did (`Behaviour activity: ...`), a missing tree is an Error and falls back to the native stand-ins; results are deterministic (`Tools\verify.ps1` runs the balance table twice and compares). The rival's Mega / Defend gates use Gameplay Tags; the full balance matrix was identical before and after.
+* **Game Features**: the three jam packs (authored from Python with the PluginToolset) activate in the game process and supply the entries; the jam cards come from them.
+* **Audio** (all MetaSound / Harmonix, nothing recorded): `-ShiftAudioMeter=all` plays 26 effects and the music inaudibly and reads in-graph meters: every effect finishes and peaks at its target level (within 0.2 dB), the music stems are below -1 dBFS, night shifts the spectrum down, tension adds highs, day and night are about equally loud, the Harmonix clock steps every 16th note (133.3 ms) across the loop wrap and delivers beat events, all 28 pattern lanes fire exactly their patterns and all 40 voices are audible. **I could not listen**, so the mix needs an ear.
 * **Build targets**: Development Editor and Shipping game targets compile; a pre-flight cook is described in `Docs/Decisions.md`.
 * **Balance** (`Tools\balance.ps1 -Runs 200`, build 4/4/4): idle 0% wins, random about 0%, greedy 88% / 56% / 28% on jams 1 / 2 / 3, greedy plus night shift 100% / 75% / 56% with a growing disqualification rate; with nobody cheating, starting fame explains about 80-88% of the final votes and quality about 13%.

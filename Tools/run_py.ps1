@@ -18,7 +18,9 @@ if (-not $LogFile) { $LogFile = Join-Path $Root ("Saved\py_" + [IO.Path]::GetFil
 New-Item -ItemType Directory -Force -Path (Split-Path $LogFile) | Out-Null
 $Err = "$LogFile.err"
 
-$args = @("`"$Project`"", "-ExecutePythonScript=`"$ScriptPath`"", '-unattended', '-nosplash', '-nop4', '-stdout', '-FullStdOutLogOutput', '-NoSound') + $Extra
+# -SCCProvider=None: the project is a git repository and the editor would pick the Git provider, which cannot "check out" assets that are
+# tracked but were just rewritten (build_to_asset then fails with 'CheckOut not supported').
+$args = @("`"$Project`"", "-ExecutePythonScript=`"$ScriptPath`"", '-unattended', '-nosplash', '-nop4', '-SCCProvider=None', '-stdout', '-FullStdOutLogOutput', '-NoSound') + $Extra
 Write-Host "$Exe $($args -join ' ')"
 $p = Start-Process -FilePath $Exe -ArgumentList $args -PassThru -NoNewWindow -RedirectStandardOutput $LogFile -RedirectStandardError $Err
 if (-not $p.WaitForExit($TimeoutSec * 1000)) {

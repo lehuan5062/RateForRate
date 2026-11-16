@@ -71,19 +71,3 @@ private:
 	TArray<TStrongObjectPtr<UShiftJamPackData>> Packs;
 	uint32 VersionCounter = 0;
 };
-
-/** Editor-side authoring of the jam pack assets (callable from Python: Tools/py/build_jam_packs.py). */
-UCLASS()
-class UShiftJamPackBuilder : public UObject
-{
-	GENERATED_BODY()
-
-public:
-	/** Mounts the Game Feature plugin's content so its assets can be created in this editor session. */
-	UFUNCTION(BlueprintCallable, Category = "Shift")
-	static bool EnsureMounted(const FString& PluginName);
-
-	/** Creates DA_Jam and the GameFeatureData (with the Shift Jam Pack action) inside the plugin and saves them. */
-	UFUNCTION(BlueprintCallable, Category = "Shift")
-	static bool BuildPack(const FString& PluginName, int32 JamIndex, const FString& Key, const FString& Title, const FString& Subtitle, const FString& RivalFollowers);
-};

@@ -26,7 +26,7 @@ Everything below is for **you** to do or paste; nothing here has been done on yo
 
 **AI-use disclosure (the jam asks at submission):**
 
-> Yes. This game was developed with AI assistance: the code, the in-game text, the audio synthesis recipes and the build scripts were written by an AI model (Claude, via Claude Code) under my direction and review. No generative image, audio or video models were used for assets: graphics are procedural shaders and all audio is synthesised from code. See the README for details.
+> Yes. This game was developed with AI assistance: the code, the in-game text, the MetaSound graphs that synthesise the audio and the build scripts were written by an AI model (Claude, via Claude Code) under my direction and review. No generative image, audio or video models were used for assets: graphics are procedural shaders and all audio is synthesised in MetaSound graphs (no samples, no .wav). See the README for details.
 
 (Adjust the wording to what you want to say. The README has the same disclosure.)
 
@@ -36,7 +36,7 @@ Everything below is for **you** to do or paste; nothing here has been done on yo
 
 ## What is left for you
 
-1. **GitHub**: the jam needs a public repository created during the jam. `gh` is logged in as the account used in this session, but I did **not** create or push anything. Typical steps: `git init`, `git lfs install`, commit, create the public repo, push (the `.gitattributes` already routes `.uasset`, `.umap`, `.wav` and `.png` through Git LFS; `Saved/`, `Intermediate/`, `Binaries/` are ignored).
+1. **GitHub**: the jam needs a public repository created during the jam. `gh` is logged in as the account used in this session, but I did **not** create or push anything. Typical steps: `git lfs install`, `git lfs track "*.uasset" "*.umap" "*.png"` (there is no `.gitattributes` yet; there are no `.wav` files, and `*.wav` is git-ignored), commit, create the public repo, push (`Saved/`, `Intermediate/`, `Binaries/` are ignored).
 2. **License**: none chosen yet (the README says TBD). Pick one before you publish.
 3. **Package** a Windows build yourself. The standard command (I only compiled the Shipping target and ran a headless cook as a pre-flight; I did not package):
 
@@ -45,7 +45,7 @@ Everything below is for **you** to do or paste; nothing here has been done on yo
    ```
    (`Dist/` is git-ignored.) Zip the staged `Windows` folder and upload it as the Windows download. The packaged game needs the DX12 runtime that ships with Windows 10/11.
 4. **itch.io**: create the project, upload the zip, add the page copy and screenshots above, then **submit it to the jam** (pushing code is not submitting) before **Dec 1 2026, 13:37 PST (21:37 UTC)**.
-5. **Listen to it**: the audio was verified by analysis only (levels, spectra, no clipping), not by ear.
+5. **Listen to it**: the audio was verified with in-graph meters only (levels, spectra, clock, every lane firing), not by ear. All of it is MetaSound and Harmonix, so it is tweakable in the MetaSound editor, and the levels can be re-trimmed with `Tools\calibrate_audio.ps1`.
 
 ## Known limits
 

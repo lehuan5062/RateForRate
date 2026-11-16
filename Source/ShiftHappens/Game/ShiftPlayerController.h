@@ -12,6 +12,7 @@
 
 class AShiftBoard;
 class SShiftHud;
+class UShiftAudioMeter;
 
 /**
  * Owns the screen flow (title, jam select, build, play), the jam run, the board and the HUD; turns clicks into Plug / Sockpuppet
@@ -24,9 +25,8 @@ class SShiftHud;
  *   -ShiftClicks="T,X,Y[,n];..."         scripted board clicks      -ShiftUi="T,Id[,V];..."  scripted UI actions
  *   -ShiftMouse="T,X,Y,m|d|u;..."        scripted mouse move / left down / left up through the real widget (design pixels)
  *   -ShiftTutorial / -ShiftNoTutorial    force or skip the coach cards
- *   -ShiftSfxCycle                       plays every sound effect in turn (1.5 s apart) for the audio recording check
  *   -ShiftMasterVolume=0..1              scales all sound (QA runs use a small value); -ShiftNoAudio skips audio entirely
- *   -ShiftRecordAudio=<abs wav> [-ShiftRecordStart=S -ShiftRecordSeconds=S]  records the master submix to a WAV for analysis
+ *   -ShiftAudioMeter=all|sfx|music|spike|<names>  audio QA: plays MetaSound sources inaudibly (needs -Sound) and logs their in-graph meters; no recording
  *   -ShiftShot=<absolute png>            screenshot (with UI) after -ShiftShotDelay seconds (default 4); -ShiftQuit exits afterwards
  */
 UCLASS()
@@ -97,6 +97,9 @@ private:
 	UPROPERTY()
 	TObjectPtr<UShiftAudio> Audio;
 
+	UPROPERTY()
+	TObjectPtr<UShiftAudioMeter> AudioMeter;
+
 	TArray<FString> NodeHandles;
 	TArray<FString> NodeBios;
 	TArray<FShiftEvent> EventScratch;
@@ -147,13 +150,7 @@ private:
 
 	// audio state
 	float QaMasterVolume = 1.0f;
-	FString QaRecordPath;
-	float QaRecordStart = 1.0f;
-	float QaRecordSeconds = 6.0f;
-	bool bQaRecording = false;
-	bool bQaSfxCycle = false;
-	float QaSfxTimer = 2.0f;
-	int32 QaSfxIndex = 0;
+	FString QaAudioMeterSpec;
 	bool bPrevNight = false;
 	float HeartbeatTimer = 0.0f;
 	double LastWarnedSweep = -1.0;

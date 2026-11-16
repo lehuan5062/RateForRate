@@ -3,7 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameplayTagContainer.h"
 #include "StateTreeConditionBase.h"
+#include "StateTreeEvaluatorBase.h"
 #include "StateTreeExecutionContext.h"
 #include "StateTreeLinker.h"
 #include "StateTreeTaskBase.h"
@@ -17,6 +19,32 @@ USTRUCT()
 struct FShiftNoInstanceData
 {
 	GENERATED_BODY()
+};
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Game tags: the state of the run as Gameplay Tags, tested by the stock "Has Tags" condition
+// ---------------------------------------------------------------------------------------------------------------------------------
+
+USTRUCT()
+struct FShiftEvaluator_GameTagsData
+{
+	GENERATED_BODY()
+
+	/** The tags that hold right now (see Behavior/ShiftTags.h). Bound to the "Has Tags" conditions' Tag Container. */
+	UPROPERTY(EditAnywhere, Category = "Output")
+	FGameplayTagContainer Tags;
+};
+
+USTRUCT(meta = (DisplayName = "Shift: Game Tags", Category = "Shift"))
+struct FShiftEvaluator_GameTags : public FStateTreeEvaluatorCommonBase
+{
+	GENERATED_BODY()
+	using FInstanceDataType = FShiftEvaluator_GameTagsData;
+	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
+	virtual bool Link(FStateTreeLinker& Linker) override { Linker.LinkExternalData(ContextHandle); return true; }
+	virtual void TreeStart(FStateTreeExecutionContext& Context) const override;
+	virtual void Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const override;
+	TStateTreeExternalDataHandle<UShiftBehaviorContext> ContextHandle;
 };
 
 // ---------------------------------------------------------------------------------------------------------------------------------

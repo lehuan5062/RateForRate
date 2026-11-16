@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Game/ShiftRun.h"
+#include "Behavior/StateTree/ShiftBehaviorContext.h"
 #include "StateTreeInstanceData.h"
 #include "UObject/GCObject.h"
 
@@ -21,8 +22,14 @@ class UStateTree;
 class FShiftBehavior : public IShiftBehaviorDriver, public FGCObject
 {
 public:
-	/** Loads the trees and builds the instances. Returns null (and logs why) when an asset is missing, so the run can fall back to the native policies. */
+	/**
+	 * Loads the trees and builds the instances. Returns null when an asset is missing or not compiled, and logs an ERROR saying so: the
+	 * shipped game must always run on the StateTrees. The caller then falls back to the native stand-in policies so the run stays playable
+	 * (QA also asks for them on purpose with -ShiftNoStateTree).
+	 */
 	static TSharedPtr<FShiftBehavior> Create(FShiftRun& Run);
+
+	virtual ~FShiftBehavior() override;
 
 	virtual void Tick(float DeltaTime) override;
 
@@ -31,12 +38,15 @@ public:
 
 	int32 InstanceCount() const { return Instances.Num(); }
 
+	/** Total of one action counter over all instances (see EShiftBehaviorCounter). */
+	int32 ActionCount(EShiftBehaviorCounter Counter) const;
+
 private:
 	struct FInstance
 	{
 		FString Name;
-		UShiftBehaviorContext* Context = nullptr;
-		UStateTree* Tree = nullptr;
+		TObjectPtr<UShiftBehaviorContext> Context;
+		TObjectPtr<UStateTree> Tree;
 		FStateTreeInstanceData Data;
 		int32 Seed = 0;
 		bool bStarted = false;

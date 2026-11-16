@@ -7,6 +7,7 @@
 #include "ShiftAudio.generated.h"
 
 class UAudioComponent;
+class UMusicClockComponent;
 class USoundBase;
 class UWorld;
 
@@ -43,9 +44,13 @@ enum class EShiftSfx : uint8
 	Count UMETA(Hidden)
 };
 
+/** Asset-name suffix of a sound effect ("Click" for /Game/Shift/Audio/MS_Sfx_Click). */
+const TCHAR* ShiftSfxName(EShiftSfx Sfx);
+
 /**
- * Plays the game's sound: the looping music mixer (MS_Music, three stems blended by Night and Intensity) and the sound effects.
- * Everything is a MetaSound Source, driven through float parameters on the music audio component.
+ * Plays the game's sound. Every sound is a MetaSound Source (no wave assets): the looping music source MS_Music (day / night / tension layers
+ * mixed inside the graph by the float parameters DayGain, NightGain, TensionGain and Volume, clocked by a Harmonix Metronome) and one MS_Sfx_*
+ * one-shot per effect. The beat pulse that drives the board comes from a Harmonix music clock bound to the music source's "MIDI Clock" output.
  */
 UCLASS()
 class UShiftAudio : public UObject
@@ -57,23 +62,27 @@ public:
 	void Init(UWorld* InWorld);
 	void Shutdown();
 
-	/** Smooths the music parameters toward the targets. Night 0..1 crossfades day and night stems; Intensity 0..1 adds the tension layer. */
+	/** Smooths the music parameters toward the targets. Night 0..1 crossfades day and night layers; Intensity 0..1 adds the tension layer. */
 	void Tick(float DeltaTime, float Night, float Intensity, float Volume);
 
 	void Play(EShiftSfx Sfx, float Volume = 1.0f);
 
-	/** 0..1 position inside the current beat (112.5 BPM), from the time the music started. */
+	/** 0..1 position inside the current beat (112.5 BPM), from the Harmonix clock (wall clock only if the clock is unavailable). */
 	float BeatPhase() const;
 	/** 1 on the beat, decaying quickly: drives the board's beat pulse. */
 	float BeatPulse() const;
 
 	bool HasMusic() const { return Music != nullptr; }
 	bool IsMusicPlaying() const;
-	/** QA: plays a plain SoundWave (no MetaSound) to tell device or recorder problems from graph problems. */
-	void PlayRawWave(const FString& WaveAssetName);
+	bool HasMusicClock() const { return MusicClock != nullptr; }
 	int32 LoadedSfxCount() const { return LoadedSfx; }
+	/** Beat events received from the Harmonix clock since the music started (QA: proves the clock is bound and running). */
+	int32 BeatEventCount() const { return BeatEvents; }
 
 private:
+	UFUNCTION()
+	void OnMusicBeat(int32 BeatNumber, int32 BeatInBar);
+
 	UPROPERTY()
 	TArray<TObjectPtr<USoundBase>> Sfx;
 
@@ -83,9 +92,13 @@ private:
 	UPROPERTY()
 	TObjectPtr<UAudioComponent> Music;
 
+	UPROPERTY()
+	TObjectPtr<UMusicClockComponent> MusicClock;
+
 	TWeakObjectPtr<UWorld> World;
 	TArray<double> LastPlayed;
 	int32 LoadedSfx = 0;
+	int32 BeatEvents = 0;
 	double MusicStart = 0.0;
 	float DayGain = 1.0f;
 	float NightGain = 0.0f;

@@ -19,7 +19,10 @@ public class ShiftHappens : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"Slate",
-			"AudioMixer", "SlateCore", "ApplicationCore", "Projects"
+			"AudioMixer", "SlateCore", "ApplicationCore", "Projects",
+			// All sound is MetaSound; the music clock is Harmonix (experimental plugins, enabled in ShiftHappens.uproject).
+			"MetasoundEngine", "MetasoundFrontend", "MetasoundGraphCore", "MetasoundGenerator", "AudioExtensions",
+			"HarmonixMetasound", "HarmonixMidi", "Harmonix", "MusicEnvironment"
 		});
 
 		// Editor-only: authoring of the StateTree assets (Behavior/StateTree/ShiftStateTreeBuilder.cpp).

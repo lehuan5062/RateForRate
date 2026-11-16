@@ -4,6 +4,7 @@
 #include "ShiftHappens.h"
 
 #if WITH_EDITOR
+#include "Behavior/ShiftTags.h"
 #include "Behavior/StateTree/ShiftStateTreeNodes.h"
 #include "Behavior/StateTree/ShiftStateTreeSchema.h"
 
@@ -12,6 +13,7 @@
 #include "StateTree.h"
 #include "StateTreeCompilerLog.h"
 #include "StateTreeEditingSubsystem.h"
+#include "Conditions/StateTreeGameplayTagConditions.h"
 #include "StateTreeEditorData.h"
 #include "StateTreeState.h"
 #include "UObject/Package.h"
@@ -21,9 +23,20 @@ namespace
 {
 	// ---- the trees ---------------------------------------------------------------------------------------------------------
 
-	/** Rival: wait for the turn, then (in order) Mega Campaign pulse, defend a weak hub, or attack the best target; then wait again. */
+	/** A stock "Has Tags" enter condition on `State`: succeeds while the evaluator's tag container holds `Tag`. */
+	void AddTagGate(UStateTreeEditorData& ED, UStateTreeState& State, const FStateTreeEditorNode& TagsEvaluator, const FGameplayTag& Tag)
+	{
+		TStateTreeEditorNode<FGameplayTagContainerMatchCondition>& Gate = State.AddEnterCondition<FGameplayTagContainerMatchCondition>();
+		Gate.GetInstanceData().OtherContainer.AddTag(Tag);                                                   // parameter: the tag that must be present
+		const bool bBound = ED.AddPropertyBinding(TagsEvaluator, TEXT("Tags"), Gate, TEXT("TagContainer"));   // input: the evaluator's current tags
+		UE_LOG(LogShift, Log, TEXT("StateTree gate %s on %s bound to the game tags: %d"), *Tag.ToString(), *State.Name.ToString(), bBound ? 1 : 0);
+	}
+
+	/** Rival: wait for the turn, then (in order) Mega Campaign pulse, defend a weak hub, or attack the best target; then wait again.
+	 *  The two gates are the stock "Has Tags" condition reading Shift.Rival.MegaPending / Shift.Rival.HasWeakHub from the game-tags evaluator. */
 	void BuildRival(UStateTreeEditorData& ED)
 	{
+		TStateTreeEditorNode<FShiftEvaluator_GameTags>& GameTags = ED.AddEvaluator<FShiftEvaluator_GameTags>();
 		UStateTreeState& Root = ED.AddSubTree(FName(TEXT("Rival")));
 		Root.SelectionBehavior = EStateTreeStateSelectionBehavior::TrySelectChildrenInOrder;
 
@@ -35,12 +48,12 @@ namespace
 		Act.SelectionBehavior = EStateTreeStateSelectionBehavior::TrySelectChildrenInOrder;
 
 		UStateTreeState& Mega = Act.AddChildState(FName(TEXT("MegaCampaign")));
-		Mega.AddEnterCondition<FShiftCondition_RivalMegaPending>();
+		AddTagGate(ED, Mega, GameTags, ShiftTags::RivalMegaPending.GetTag());
 		Mega.AddTask<FShiftTask_RivalMega>();
 		Mega.AddTransition(EStateTreeTransitionTrigger::OnStateCompleted, EStateTreeTransitionType::GotoState, &Root);
 
 		UStateTreeState& Defend = Act.AddChildState(FName(TEXT("Defend")));
-		Defend.AddEnterCondition<FShiftCondition_RivalHasWeakHub>();
+		AddTagGate(ED, Defend, GameTags, ShiftTags::RivalHasWeakHub.GetTag());
 		Defend.AddTask<FShiftTask_RivalDefend>();
 		Defend.AddTransition(EStateTreeTransitionTrigger::OnStateCompleted, EStateTreeTransitionType::GotoState, &Root);
 

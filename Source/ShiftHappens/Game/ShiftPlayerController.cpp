@@ -9,8 +9,8 @@
 #include "ShiftHappens.h"
 #include "UI/SShiftHud.h"
 
+#include "Audio/ShiftAudioMeter.h"
 #include "AudioDevice.h"
-#include "AudioMixerBlueprintLibrary.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
@@ -248,19 +248,7 @@ void AShiftPlayerController::BeginPlay()
 	CoachSeenMask = bCoachPersist ? ShiftSave::TutorialSeenMask() : 0;
 
 	FParse::Value(Cmd, TEXT("ShiftMasterVolume="), QaMasterVolume);
-	bQaSfxCycle = FParse::Param(Cmd, TEXT("ShiftSfxCycle"));
-	if (FParse::Value(Cmd, TEXT("ShiftRecordAudio="), QaRecordPath, false))
-	{
-		QaRecordPath = FPaths::ConvertRelativePathToFull(QaRecordPath);
-		FParse::Value(Cmd, TEXT("ShiftRecordStart="), QaRecordStart);
-		FParse::Value(Cmd, TEXT("ShiftRecordSeconds="), QaRecordSeconds);
-	}
-	if (!QaRecordPath.IsEmpty() || bQaSfxCycle)
-	{
-		// Unreal silences an unfocused window (FApp unfocused volume multiplier is 0); unattended QA runs are never focused.
-		FApp::SetUnfocusedVolumeMultiplier(1.0f);
-		FApp::SetVolumeMultiplier(1.0f);
-	}
+	FParse::Value(Cmd, TEXT("ShiftAudioMeter="), QaAudioMeterSpec, false);
 	bAutoPauseOnFocusLoss = !bQaRun && !FParse::Param(Cmd, TEXT("ShiftNoAutoPause"));
 	bQaRunFlag = bQaRun;
 	bMuted = ShiftSave::IsMuted();
@@ -289,7 +277,13 @@ void AShiftPlayerController::BeginPlay()
 		EnterScreen(Start);
 	}
 
-	if (!FParse::Param(Cmd, TEXT("ShiftNoAudio")))
+	if (!QaAudioMeterSpec.IsEmpty())
+	{
+		// Audio QA: plays the MetaSound sources one by one with the component volume near zero and logs their in-graph meters (no recording).
+		AudioMeter = NewObject<UShiftAudioMeter>(this);
+		AudioMeter->Begin(GetWorld(), QaAudioMeterSpec);
+	}
+	else if (!FParse::Param(Cmd, TEXT("ShiftNoAudio")))
 	{
 		Audio = NewObject<UShiftAudio>(this);
 		Audio->Init(GetWorld());
@@ -321,6 +315,7 @@ void AShiftPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 	Hud.Reset();
 	Run.Reset();
+	AudioMeter = nullptr;
 	if (Audio)
 	{
 		Audio->Shutdown();
@@ -1322,6 +1317,14 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 void AShiftPlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
+	if (AudioMeter && !AudioMeter->Tick(DeltaTime))
+	{
+		const int32 Failures = AudioMeter->GetFailures();
+		AudioMeter = nullptr;
+		UE_LOG(LogShift, Log, TEXT("AudioMeter finished: %s"), Failures == 0 ? TEXT("all checks passed") : TEXT("FAILURES, see the [FAIL] lines above"));
+		FPlatformMisc::RequestExitWithStatus(false, Failures == 0 ? 0 : 3);
+		return;
+	}
 	if (!Run.IsValid() || !Board)
 	{
 		return;
@@ -1332,23 +1335,6 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 	++FrameCount;
 
 	ScriptClock += DeltaTime;
-	if (!QaRecordPath.IsEmpty())
-	{
-		if (!bQaRecording && ScriptClock >= QaRecordStart)
-		{
-			UAudioMixerBlueprintLibrary::StartRecordingOutput(this, QaRecordSeconds + 1.0f, nullptr);
-			bQaRecording = true;
-			UE_LOG(LogShift, Log, TEXT("Audio recording started (%.1f s) -> %s"), QaRecordSeconds, *QaRecordPath);
-		}
-		else if (bQaRecording && ScriptClock >= QaRecordStart + QaRecordSeconds)
-		{
-			UAudioMixerBlueprintLibrary::StopRecordingOutput(this, EAudioRecordingExportType::WavFile, FPaths::GetBaseFilename(QaRecordPath),
-				FPaths::GetPath(QaRecordPath), nullptr, nullptr);
-			bQaRecording = false;
-			UE_LOG(LogShift, Log, TEXT("Audio recording written: %s"), *QaRecordPath);
-			QaRecordPath.Reset();
-		}
-	}
 	while (ScriptedUi.Num() > 0 && ScriptedUi[0].Time <= ScriptClock)
 	{
 		const FScriptedUi Action = ScriptedUi[0];
@@ -1511,24 +1497,6 @@ void AShiftPlayerController::TickAudio(float DeltaTime)
 		}
 	}
 	Audio->Tick(DeltaTime, NightBlend, Intensity, Volume);
-	if (bQaSfxCycle)
-	{
-		float RawAt = 1.0f;
-		FParse::Value(FCommandLine::Get(), TEXT("ShiftRawAt="), RawAt);
-		static bool bRawDone = false;
-		if (!bRawDone && RawAt >= 0.0f && ScriptClock > RawAt)
-		{
-			bRawDone = true;
-			Audio->PlayRawWave(TEXT("W_Sfx_Win"));
-		}
-		QaSfxTimer -= DeltaTime;
-		if (QaSfxTimer <= 0.0f && QaSfxIndex < static_cast<int32>(EShiftSfx::Count))
-		{
-			UE_LOG(LogShift, Log, TEXT("QA sfx %d at %.1f s (music playing: %d)"), QaSfxIndex, ScriptClock, Audio->IsMusicPlaying() ? 1 : 0);
-			Audio->Play(static_cast<EShiftSfx>(QaSfxIndex++), 1.0f);
-			QaSfxTimer = 1.5f;
-		}
-	}
 
 	if (!bPlaying || bPaused || Run->IsOver())
 	{

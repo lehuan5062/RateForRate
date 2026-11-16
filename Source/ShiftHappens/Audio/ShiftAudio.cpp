@@ -6,51 +6,53 @@
 #include "Components/AudioComponent.h"
 #include "Engine/World.h"
 #include "HAL/PlatformTime.h"
+#include "HarmonixMetasound/Components/MusicClockComponent.h"
+#include "HarmonixMetasound/MusicClock/MusicClockState.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
 
 namespace
 {
-	constexpr double BeatSeconds = 60.0 / 112.5;   // the stems are 112.5 BPM
-
-	const TCHAR* SfxName(EShiftSfx Sfx)
-	{
-		switch (Sfx)
-		{
-		case EShiftSfx::Click: return TEXT("Click");
-		case EShiftSfx::Hover: return TEXT("Hover");
-		case EShiftSfx::Slider: return TEXT("Slider");
-		case EShiftSfx::Upload: return TEXT("Upload");
-		case EShiftSfx::Transition: return TEXT("Transition");
-		case EShiftSfx::Tip: return TEXT("Tip");
-		case EShiftSfx::Plug: return TEXT("Plug");
-		case EShiftSfx::Flip: return TEXT("Flip");
-		case EShiftSfx::Reinforce: return TEXT("Reinforce");
-		case EShiftSfx::Weaken: return TEXT("Weaken");
-		case EShiftSfx::Gated: return TEXT("Gated");
-		case EShiftSfx::Locked: return TEXT("Locked");
-		case EShiftSfx::NoPosts: return TEXT("NoPosts");
-		case EShiftSfx::NightOn: return TEXT("NightOn");
-		case EShiftSfx::NightOff: return TEXT("NightOff");
-		case EShiftSfx::Sock: return TEXT("Sock");
-		case EShiftSfx::Heartbeat: return TEXT("Heartbeat");
-		case EShiftSfx::ModWarn: return TEXT("ModWarn");
-		case EShiftSfx::ModSweep: return TEXT("ModSweep");
-		case EShiftSfx::Strike: return TEXT("Strike");
-		case EShiftSfx::Shadowban: return TEXT("Shadowban");
-		case EShiftSfx::Blame: return TEXT("Blame");
-		case EShiftSfx::Day: return TEXT("Day");
-		case EShiftSfx::Win: return TEXT("Win");
-		case EShiftSfx::Lose: return TEXT("Lose");
-		case EShiftSfx::DQ: return TEXT("DQ");
-		default: return TEXT("");
-		}
-	}
+	constexpr double BeatSeconds = 60.0 / 112.5;   // MS_Music runs at 112.5 BPM
 
 	USoundBase* LoadSound(UObject* Outer, const FString& AssetName)
 	{
 		const FString Path = FString::Printf(TEXT("/Game/Shift/Audio/%s.%s"), *AssetName, *AssetName);
 		return LoadObject<USoundBase>(Outer, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	}
+}
+
+const TCHAR* ShiftSfxName(EShiftSfx Sfx)
+{
+	switch (Sfx)
+	{
+	case EShiftSfx::Click: return TEXT("Click");
+	case EShiftSfx::Hover: return TEXT("Hover");
+	case EShiftSfx::Slider: return TEXT("Slider");
+	case EShiftSfx::Upload: return TEXT("Upload");
+	case EShiftSfx::Transition: return TEXT("Transition");
+	case EShiftSfx::Tip: return TEXT("Tip");
+	case EShiftSfx::Plug: return TEXT("Plug");
+	case EShiftSfx::Flip: return TEXT("Flip");
+	case EShiftSfx::Reinforce: return TEXT("Reinforce");
+	case EShiftSfx::Weaken: return TEXT("Weaken");
+	case EShiftSfx::Gated: return TEXT("Gated");
+	case EShiftSfx::Locked: return TEXT("Locked");
+	case EShiftSfx::NoPosts: return TEXT("NoPosts");
+	case EShiftSfx::NightOn: return TEXT("NightOn");
+	case EShiftSfx::NightOff: return TEXT("NightOff");
+	case EShiftSfx::Sock: return TEXT("Sock");
+	case EShiftSfx::Heartbeat: return TEXT("Heartbeat");
+	case EShiftSfx::ModWarn: return TEXT("ModWarn");
+	case EShiftSfx::ModSweep: return TEXT("ModSweep");
+	case EShiftSfx::Strike: return TEXT("Strike");
+	case EShiftSfx::Shadowban: return TEXT("Shadowban");
+	case EShiftSfx::Blame: return TEXT("Blame");
+	case EShiftSfx::Day: return TEXT("Day");
+	case EShiftSfx::Win: return TEXT("Win");
+	case EShiftSfx::Lose: return TEXT("Lose");
+	case EShiftSfx::DQ: return TEXT("DQ");
+	default: return TEXT("");
 	}
 }
 
@@ -62,7 +64,7 @@ void UShiftAudio::Init(UWorld* InWorld)
 	LoadedSfx = 0;
 	for (int32 i = 0; i < static_cast<int32>(EShiftSfx::Count); ++i)
 	{
-		Sfx[i] = LoadSound(this, FString(TEXT("MS_Sfx_")) + SfxName(static_cast<EShiftSfx>(i)));
+		Sfx[i] = LoadSound(this, FString(TEXT("MS_Sfx_")) + ShiftSfxName(static_cast<EShiftSfx>(i)));
 		LoadedSfx += Sfx[i] ? 1 : 0;
 	}
 
@@ -79,13 +81,33 @@ void UShiftAudio::Init(UWorld* InWorld)
 			Music->SetFloatParameter(TEXT("TensionGain"), TensionGain);
 			Music->SetFloatParameter(TEXT("Volume"), MasterVolume);
 			MusicStart = FPlatformTime::Seconds();
+			// The Harmonix Metronome inside MS_Music exposes its MIDI clock as a graph output; the clock component tracks it for the beat pulse.
+			MusicClock = UMusicClockComponent::CreateMetasoundDrivenMusicClock(InWorld, Music, TEXT("MIDI Clock"), true, true);
+			if (MusicClock)
+			{
+				MusicClock->BeatEvent.AddDynamic(this, &UShiftAudio::OnMusicBeat);
+			}
 		}
 	}
-	UE_LOG(LogShift, Log, TEXT("Audio: %d of %d sfx loaded, music %s"), LoadedSfx, static_cast<int32>(EShiftSfx::Count), Music ? TEXT("playing") : TEXT("unavailable"));
+	UE_LOG(LogShift, Log, TEXT("Audio: %d of %d sfx loaded, music %s, Harmonix clock %s"), LoadedSfx, static_cast<int32>(EShiftSfx::Count),
+		Music ? TEXT("playing") : TEXT("unavailable"), MusicClock ? TEXT("bound") : TEXT("not bound"));
+}
+
+void UShiftAudio::OnMusicBeat(int32 BeatNumber, int32 BeatInBar)
+{
+	++BeatEvents;
 }
 
 void UShiftAudio::Shutdown()
 {
+	UE_LOG(LogShift, Log, TEXT("Audio: Harmonix clock delivered %d beat events"), BeatEvents);
+	if (MusicClock)
+	{
+		MusicClock->BeatEvent.RemoveAll(this);
+		MusicClock->Stop();
+		MusicClock->DestroyComponent();
+		MusicClock = nullptr;
+	}
 	if (Music)
 	{
 		Music->Stop();
@@ -134,6 +156,11 @@ float UShiftAudio::BeatPhase() const
 	{
 		return 0.0f;
 	}
+	if (MusicClock && MusicClock->GetState() == EMusicClockState::Running)
+	{
+		return FMath::Clamp(MusicClock->GetDistanceFromCurrentBeat(), 0.0f, 1.0f);
+	}
+	// Clock not running (yet, or the Harmonix plugin is unavailable): estimate from the time the music started.
 	const double Elapsed = FPlatformTime::Seconds() - MusicStart;
 	return static_cast<float>(FMath::Fmod(Elapsed, BeatSeconds) / BeatSeconds);
 }
@@ -146,15 +173,4 @@ float UShiftAudio::BeatPulse() const
 bool UShiftAudio::IsMusicPlaying() const
 {
 	return Music && Music->IsPlaying();
-}
-
-void UShiftAudio::PlayRawWave(const FString& WaveAssetName)
-{
-	UWorld* W = World.Get();
-	const FString Path = FString::Printf(TEXT("/Game/Shift/Audio/Waves/%s.%s"), *WaveAssetName, *WaveAssetName);
-	if (USoundBase* Wave = LoadObject<USoundBase>(this, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet))
-	{
-		UE_LOG(LogShift, Log, TEXT("QA raw wave %s"), *Path);
-		UGameplayStatics::PlaySound2D(W, Wave, 1.0f, 1.0f, 0.0f, nullptr, nullptr, true);
-	}
 }
