@@ -1,0 +1,15 @@
+Id,Step,Trigger,Text
+TUT01,1,JamStart,"Your game is fine. Theirs is famous. Votes follow fame, so let us shift some."
+TUT02,2,FirstHover,"Hover a voter to see who they follow, how much they weigh and if you can flip them."
+TUT03,3,FirstPlug,Click a voter to Plug your game at them. Each Plug costs one Post.
+TUT04,4,FirstConvictionRing,The ring is conviction. Plug until it drains and the voter flips to you.
+TUT05,5,PostsLow,"Posts refill slowly. Spend them on voters with many followers, not on lurkers."
+TUT06,6,FirstReinforce,Plug your own voters to reinforce them. Even fans need a little love.
+TUT07,7,FirstGateSeen,A padlock marks a gate. The hub ignores you until enough of its followers back you.
+TUT08,8,FirstGateOpened,The gate opened because its followers came around. That is the honest way.
+TUT09,9,ShiftUnlocked,Hold SHIFT to work the night shift. Sticky Keys in the way? Press N instead.
+TUT10,10,FirstHeat,"Night shift flips are strong, loud and fragile. Heat rises while you hold SHIFT."
+TUT11,11,FirstModEye,The Mod Eye sweeps now and then. Keep Heat low when it passes or it notices.
+TUT12,12,FirstStrike,Strike! The mods undid your sockpuppets. Three strikes and you are out.
+TUT13,13,BlameAvailable,Once per jam you can Shift the Blame and hand a strike to your rival.
+TUT14,14,KeysHint,Space pauses. M mutes. Esc opens the menu. The rest is up to you.

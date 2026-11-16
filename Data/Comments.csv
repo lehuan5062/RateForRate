@@ -1,0 +1,221 @@
+Id,Sentiment,Context,Text
+CM001,Positive,FlipToYou,"Fine, you convinced me. Your game it is."
+CM002,Positive,FlipToYou,Played it for four seconds. Loved it.
+CM003,Positive,FlipToYou,Honestly? Great thumbnail. You have my vote.
+CM004,Positive,FlipToYou,"Everyone I follow likes this one. So, same."
+CM005,Neutral,FlipToYou,Switching to yours. The tab was already open.
+CM006,Positive,FlipToYou,Your devlog made me cry. Voting yours.
+CM007,Positive,FlipToYou,OK this one has a cat in the corner. Sold.
+CM008,Positive,FlipToYou,I was undecided. Now I am decided. Hello.
+CM009,Neutral,FlipToYou,"Sure, why not. Your game, my vote."
+CM010,Positive,FlipToYou,The music slaps. I have no ears but it slaps.
+CM011,Positive,FlipToYou,Moved my vote over. Do not let it go to your head.
+CM012,Suspicious,FlipToYou,"Wait, why am I voting for this? Nice thumbnail though."
+CM013,Positive,FlipToYou,Your game seems nice! Nice! Vote cast!
+CM014,Positive,FlipToYou,I came for the big one. I stayed for the vibes.
+CM015,Neutral,FlipToYou,Voted. Please do not ask me to play it.
+CM016,Neutral,FlipToRival,Everyone is talking about the big one. Switching.
+CM017,Negative,FlipToRival,Your game was fine. Theirs is famous. Changing my vote.
+CM018,Neutral,FlipToRival,Peer pressure acquired. Vote moved.
+CM019,Positive,FlipToRival,That entry has so many followers. It must be good.
+CM020,Neutral,FlipToRival,I read the top comment and changed my mind.
+CM021,Negative,FlipToRival,"Sorry, the famous one just posted. Switching."
+CM022,Neutral,FlipToRival,"Oops, I clicked the other one. Leaving it."
+CM023,Negative,FlipToRival,Quality is subjective. Followers are not. Switching.
+CM024,Positive,FlipToRival,The big name says play theirs. So I did.
+CM025,Neutral,FlipToRival,Seemed like the safe choice. Vote moved.
+CM026,Negative,FlipToRival,No offense but theirs has a nicer logo.
+CM027,Neutral,FlipToRival,I never really left them. I was just looking around.
+CM028,Positive,FlipToRival,They replied to my comment once. Theirs forever.
+CM029,Negative,FlipToRival,Nobody I follow has played yours. Moving on.
+CM030,Neutral,FlipToOther,Ended up with a dark horse. It has a goat in it.
+CM031,Neutral,FlipToOther,Neither of the big two. I am a free spirit.
+CM032,Positive,FlipToOther,Voted for the weird one. The weird one gets me.
+CM033,Neutral,FlipToOther,A friend made this one. Obviously I voted.
+CM034,Positive,FlipToOther,Found a gem at the bottom of the list. Mine now.
+CM035,Neutral,FlipToOther,Everyone is fighting. I voted for the quiet one.
+CM036,Negative,FlipToOther,"The leaders both crashed for me. So, a third option."
+CM037,Neutral,FlipToOther,I like an underdog. Not that underdog. Another one.
+CM038,Positive,FlipToOther,Best game on the list and nobody voted. Fixing that.
+CM039,Neutral,FlipToOther,Went with whichever loaded in under ten seconds.
+CM040,Neutral,FlipToOther,"Clicked the wrong card, but I like it now."
+CM041,Positive,FlipToOther,"This one has a goat, a cat and a chef. Unbeatable."
+CM042,Neutral,FlipToOther,Protest vote. Do not read into it.
+CM043,Negative,FlipToOther,The others scared me. This one is friendly.
+CM044,Neutral,Dent,Hmm. You have a point. Maybe.
+CM045,Neutral,Dent,I am wavering a little. Do that again.
+CM046,Negative,Dent,Please stop poking me. Slightly intrigued though.
+CM047,Neutral,Dent,That was almost convincing. Almost.
+CM048,Positive,Dent,"OK, interesting thumbnail. I will think about it."
+CM049,Negative,Dent,I was sure of my vote. Now I am only fairly sure.
+CM050,Neutral,Dent,You may have a case. I will sleep on it.
+CM051,Neutral,Dent,Not yet. But maybe. Ask me later.
+CM052,Negative,Dent,Stop it. I like my vote. A bit less now.
+CM053,Neutral,Dent,Tell me more about the part with the lantern.
+CM054,Neutral,Dent,Cracks are showing in my loyalty.
+CM055,Positive,Dent,I am 40 percent convinced. That is practically a yes.
+CM056,Suspicious,Dent,Why do I suddenly have doubts? Odd.
+CM057,Negative,Dent,I was happy five seconds ago. Thanks for that.
+CM058,Positive,Reinforce,Still with you. More than before.
+CM059,Positive,Reinforce,"My vote stays here. Hands off, everyone."
+CM060,Positive,Reinforce,Just played again. It is even better.
+CM061,Positive,Reinforce,Told three friends. Two are listening.
+CM062,Positive,Reinforce,"Dug in. Staying put. Sorry, rivals."
+CM063,Neutral,Reinforce,Note to self: I voted for this. Good call.
+CM064,Positive,Reinforce,Rating went up. I do not know why. I feel good.
+CM065,Positive,Reinforce,Loyal until the next shiny thing. Not today.
+CM066,Positive,Reinforce,Your game is my comfort game now.
+CM067,Positive,Reinforce,Seeing others vote for it makes me feel smart.
+CM068,Positive,Reinforce,"Doubled down. No regrets. A few regrets, but no regrets."
+CM069,Neutral,Reinforce,I hear you. I already voted. Still yes.
+CM070,Positive,Reinforce,Firm vote. Firm handshake. Firm thumbs.
+CM071,Positive,Reinforce,OK now I am proud of my vote.
+CM072,Positive,GateOpen,The gate is open. Come on in.
+CM073,Neutral,GateOpen,Enough of my followers like you. I can allow it.
+CM074,Positive,GateOpen,"Finally, a game my audience agrees on. Welcome."
+CM075,Neutral,GateOpen,My followers outvoted my ego. Door is open.
+CM076,Positive,GateOpen,I was waiting for the crowd. The crowd arrived.
+CM077,Neutral,GateOpen,Fine. You may speak to me now.
+CM078,Positive,GateOpen,"Look at that, grassroots support. I love it."
+CM079,Neutral,GateOpen,Open for business. Do not abuse it.
+CM080,Positive,GateOpen,My followers asked me to listen. So I am listening.
+CM081,Positive,GateOpen,OK now I will look at your game. Properly. Maybe.
+CM082,Neutral,GateOpen,Gate unlocked. Please wipe your feet.
+CM083,Positive,GateOpen,You earned this. Do not make me regret it.
+CM084,Neutral,GateOpen,Acceptable. Please pitch.
+CM085,Positive,GateOpen,Door open. Kettle on. Tell me about your game.
+CM086,Suspicious,Sockpuppet,Why is a brand new account voting for this game?
+CM087,Suspicious,Sockpuppet,Seven votes from accounts made today. Sure.
+CM088,Suspicious,Sockpuppet,That vote came out of nowhere. Nowhere nowhere.
+CM089,Suspicious,Sockpuppet,Interesting that every fan has the same avatar.
+CM090,Suspicious,Sockpuppet,These accounts all type exactly like each other.
+CM091,Suspicious,Sockpuppet,My follower list just grew weirdly. Hmm.
+CM092,Neutral,Sockpuppet,Seems legit. Probably. I am not looking.
+CM093,Negative,Sockpuppet,Cheaters never win. Cheaters sometimes win. Hmm.
+CM094,Suspicious,Sockpuppet,Where did you all come from at 3 am?
+CM095,Suspicious,Sockpuppet,Everyone loves this game at exactly the same second.
+CM096,Suspicious,Sockpuppet,Not saying it is bots. Saying it is a lot of bots.
+CM097,Negative,Sockpuppet,Do the new accounts even have profile pictures?
+CM098,Suspicious,Sockpuppet,That is a lot of fans for a game with no patch notes.
+CM099,Suspicious,Sockpuppet,Someone is shaking the leaderboard. I felt it.
+CM100,Positive,Sockpuppet,Great new fans! Let us not question them.
+CM101,Negative,Shadowban,Your posts are not showing up. Just so you know.
+CM102,Neutral,Shadowban,Is your game invisible? Asking for me.
+CM103,Negative,Shadowban,Nobody sees you for a few seconds. Enjoy the quiet.
+CM104,Negative,Shadowban,The algorithm is ignoring you. Rude. Deserved. Rude.
+CM105,Neutral,Shadowban,"Sorry, who? I cannot find your game anywhere."
+CM106,Negative,Shadowban,Looks like someone clicked the report button.
+CM107,Negative,Shadowban,Your vote flips just got undone. Karma.
+CM108,Neutral,Shadowban,The leaderboard forgot you for a moment.
+CM109,Suspicious,Shadowban,Shadowban? In this economy?
+CM110,Negative,Shadowban,Everything you did is unfolding backwards. Fun.
+CM111,Neutral,Shadowban,"Mods put you in time out. Quiet voice, please."
+CM112,Negative,Shadowban,Sockpuppets reverted. Awkward.
+CM113,Neutral,Shadowban,A hush falls over your feed.
+CM114,Negative,Shadowban,Your game page is on the naughty step.
+CM115,Negative,Strike,Strike! The mods are not amused.
+CM116,Negative,Strike,That is a strike. Do not make it two.
+CM117,Negative,Strike,A moderator is typing... and that is not good.
+CM118,Neutral,Strike,"One strike down. Two to go, as they say."
+CM119,Negative,Strike,"Mods clocked it. Cheating is cringe, apparently."
+CM120,Negative,Strike,Strike logged. Please keep your hands visible.
+CM121,Negative,Strike,You were so close to being innocent.
+CM122,Neutral,Strike,That is the sound of a ban hammer warming up.
+CM123,Negative,Strike,You got caught. That is the whole joke.
+CM124,Negative,Strike,The mods have written your name down.
+CM125,Negative,Strike,I told you the Eye was watching.
+CM126,Neutral,Strike,"Next time, maybe do it a bit less obviously."
+CM127,Negative,Strike,Strike. Go sit in the corner of the jam.
+CM128,Negative,Strike,The strike counter knows what you did.
+CM129,Suspicious,ModScan,The Eye is turning. Everyone act natural.
+CM130,Suspicious,ModScan,Moderator scan incoming. Look innocent.
+CM131,Neutral,ModScan,The mods are sweeping. Please hold still.
+CM132,Suspicious,ModScan,Anyone feeling warm? That is Heat. Cool it.
+CM133,Neutral,ModScan,Scanning for suspicious activity. And snacks.
+CM134,Suspicious,ModScan,Everyone close your tabs. The Eye is open.
+CM135,Suspicious,ModScan,Mods are staring at the leaderboard really hard.
+CM136,Neutral,ModScan,The sweep takes three seconds. Breathe in.
+CM137,Suspicious,ModScan,That quiet? That is a scan. Stay quiet.
+CM138,Neutral,ModScan,I heard the mods have a new spreadsheet.
+CM139,Suspicious,ModScan,Everything looks suspicious when the Eye is looking.
+CM140,Negative,ModScan,Oh no. The scan found the weird cluster.
+CM141,Neutral,ModScan,The Eye is blinking. Hold your votes.
+CM142,Suspicious,ModScan,"If your Heat is high, now is a bad time to be you."
+CM143,Positive,AlgorithmBoost,The algorithm loves this one today. No notes.
+CM144,Neutral,AlgorithmBoost,Why is this on every front page now? Fine.
+CM145,Positive,AlgorithmBoost,Suddenly everyone has seen it. Wild.
+CM146,Neutral,AlgorithmBoost,The algorithm woke up and chose violence.
+CM147,Positive,AlgorithmBoost,Trending! For reasons nobody can explain.
+CM148,Negative,AlgorithmBoost,Sorted by whatever the algorithm felt like.
+CM149,Positive,AlgorithmBoost,Front page energy right now.
+CM150,Neutral,AlgorithmBoost,Visibility just tripled. Quality did not.
+CM151,Positive,AlgorithmBoost,I saw it everywhere. Obviously I voted.
+CM152,Negative,AlgorithmBoost,"A boost, a miracle, a coincidence. Pick one."
+CM153,Neutral,AlgorithmBoost,The algorithm has chosen a favourite. Again.
+CM154,Positive,AlgorithmBoost,Look at that traffic. Beautiful.
+CM155,Neutral,AlgorithmBoost,Who feeds this thing? It is hungry.
+CM156,Negative,AlgorithmBoost,"It was on the front page, so it must be good. Right?"
+CM157,Positive,StreamerFeature,A streamer is playing it live. Chat is going wild.
+CM158,Positive,StreamerFeature,"Streamer said 'ooh, this is cute'. Votes incoming."
+CM159,Neutral,StreamerFeature,Eleven viewers and a legend. Let us see.
+CM160,Positive,StreamerFeature,Featured on stream! My vote is a pre-order.
+CM161,Neutral,StreamerFeature,Chat says play it. Chat has spoken.
+CM162,Positive,StreamerFeature,The streamer laughed. That is endorsement enough.
+CM163,Neutral,StreamerFeature,Stream raid in progress. Please stay calm.
+CM164,Positive,StreamerFeature,Streamer crashed it on purpose. We love that.
+CM165,Negative,StreamerFeature,Streamer rage-quit in four minutes. Still voted.
+CM166,Positive,StreamerFeature,Live reaction was priceless. Voting.
+CM167,Neutral,StreamerFeature,The VOD has 300 clips of the opening menu.
+CM168,Positive,StreamerFeature,Streamer said 'ten out of ten'. Seven votes later.
+CM169,Neutral,StreamerFeature,I only follow this game because of the stream.
+CM170,Positive,StreamerFeature,The streamer said the name. We are all doomed to follow.
+CM171,Negative,Drama,Drama thread! Someone said the jam is rigged.
+CM172,Negative,Drama,Heated debate over whether 'cozy' is a genre.
+CM173,Neutral,Drama,Somebody cancelled a game over fonts. Lively.
+CM174,Negative,Drama,The comment section has opinions. All of them bad.
+CM175,Neutral,Drama,Two devs arguing about spaces versus tabs. As foretold.
+CM176,Negative,Drama,Thread locked. I have never been so entertained.
+CM177,Neutral,Drama,Everyone is quoting the same screenshot.
+CM178,Negative,Drama,"I do not know what happened, but I hate it."
+CM179,Neutral,Drama,Grab popcorn. The jam page is on fire.
+CM180,Negative,Drama,Allegations of 'inspired by'. Receipts incoming.
+CM181,Neutral,Drama,Quote-post war about game feel. Send help.
+CM182,Suspicious,Drama,Funny how the drama helps exactly one entry.
+CM183,Negative,Drama,A dev just deleted their entire devlog. Wow.
+CM184,Neutral,Drama,No one is reading the thread. We are all reading the thread.
+CM185,Neutral,Idle,Just checking the leaderboard again.
+CM186,Neutral,Idle,Refreshing the page. Nothing changed. Again.
+CM187,Neutral,Idle,R4R? I will rate yours if you rate mine.
+CM188,Neutral,Idle,Crashes on startup. Still five stars.
+CM189,Neutral,Idle,First!
+CM190,Neutral,Idle,I played it for 12 seconds. Five stars for the music.
+CM191,Neutral,Idle,Five stars for the music but I have no ears.
+CM192,Neutral,Idle,Made in 20 minutes. Please be gentle.
+CM193,Neutral,Idle,Submitted two minutes before the deadline. Pray for me.
+CM194,Neutral,Idle,Can someone explain how to jump?
+CM195,Neutral,Idle,The best entry always has a cat. Always.
+CM196,Neutral,Idle,Why does every jam game start with a splash screen?
+CM197,Neutral,Idle,Day 31. I forgot to eat. The game is fine though.
+CM198,Neutral,Idle,Wishlist added. The wishlist is a graveyard.
+CM199,Neutral,Idle,Lurking. Just lurking.
+CM200,Neutral,Idle,Hot take: the thumbnail is the game.
+CM201,Positive,Idle,I rated mine five stars. Obviously. I made it.
+CM202,Neutral,Idle,Who is voting for the entry with the plain grey thumbnail?
+CM203,Neutral,Idle,The jam deadline is a social construct.
+CM204,Negative,Idle,Bug found: the jam is a popularity contest.
+CM205,Positive,BotComment,Nice game! Rate mine too! :)
+CM206,Suspicious,BotComment,"As a human, I found this game very human."
+CM207,Positive,BotComment,Great game 10 out of 10 would vote again.
+CM208,Suspicious,BotComment,Very nice. Follow for follow? Rate for rate? Vote for vote?
+CM209,Positive,BotComment,Amazing graphics. I see them with my human eyes.
+CM210,Suspicious,BotComment,I am definitely not a bot. Please do not check.
+CM211,Positive,BotComment,Fun fun fun!!! Rated five!!!
+CM212,Suspicious,BotComment,Check out my profile for more games (there are none).
+CM213,Suspicious,BotComment,This comment was written by a person named Gary.
+CM214,Positive,BotComment,Wonderful game. I loved every pixel. Rate mine.
+CM215,Suspicious,BotComment,ERROR 404: opinion not found. Great game.
+CM216,Positive,BotComment,I played this for 0 seconds and loved it.
+CM217,Suspicious,BotComment,"Nice. Vote cast. Beep. I mean, hello."
+CM218,Positive,BotComment,Five stars. Would exist again.
+CM219,Suspicious,BotComment,Like and subscribe to this game page.
+CM220,Suspicious,BotComment,"Wow, so game. Much fun. Very rate."

@@ -1,0 +1,124 @@
+// Shift Happens - Game Off 2026
+
+#include "Behavior/StateTree/ShiftBehavior.h"
+#include "Behavior/StateTree/ShiftBehaviorContext.h"
+#include "Behavior/ShiftPolicies.h"
+#include "ShiftHappens.h"
+
+#include "StateTree.h"
+#include "StateTreeExecutionContext.h"
+#include "UObject/Package.h"
+
+namespace
+{
+	UStateTree* LoadTree(const TCHAR* Name)
+	{
+		const FString Path = FString::Printf(TEXT("/Game/Shift/StateTrees/%s.%s"), Name, Name);
+		return LoadObject<UStateTree>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	}
+}
+
+TSharedPtr<FShiftBehavior> FShiftBehavior::Create(FShiftRun& Run)
+{
+	UStateTree* Rival = LoadTree(TEXT("ST_Rival"));
+	UStateTree* Others = LoadTree(TEXT("ST_Others"));
+	UStateTree* Director = LoadTree(TEXT("ST_Director"));
+	UStateTree* Ambient = LoadTree(TEXT("ST_Ambient"));
+	if (!Rival || !Others || !Director || !Ambient)
+	{
+		UE_LOG(LogShift, Warning, TEXT("Behaviour StateTrees missing (rival %d, others %d, director %d, ambient %d): using the native policies."),
+			Rival ? 1 : 0, Others ? 1 : 0, Director ? 1 : 0, Ambient ? 1 : 0);
+		return nullptr;
+	}
+	for (UStateTree* Tree : { Rival, Others, Director, Ambient })
+	{
+		if (!Tree->IsReadyToRun())
+		{
+			UE_LOG(LogShift, Warning, TEXT("StateTree %s is not ready to run (not compiled?): using the native policies."), *Tree->GetName());
+			return nullptr;
+		}
+	}
+
+	TSharedRef<FShiftBehavior> Behavior = MakeShared<FShiftBehavior>();
+	const ShiftSim::Sim& S = Run.GetSim();
+	const ShiftSim::PolicyParams& PP = Run.GetPolicy();
+	const uint32 RunSeed = Run.GetSeed();
+
+	auto Add = [&](const FString& Name, UStateTree* Tree, int32 EntryId, double FirstTime, uint32 Salt)
+	{
+		TUniquePtr<FInstance> Instance = MakeUnique<FInstance>();
+		Instance->Name = Name;
+		Instance->Tree = Tree;
+		Instance->Context = NewObject<UShiftBehaviorContext>(GetTransientPackage());
+		Instance->Context->Run = &Run;
+		Instance->Context->EntryId = EntryId;
+		Instance->Context->NextTime = FirstTime;
+		const uint32 Derived = ShiftSim::Rng::Derive(RunSeed, Salt);
+		Instance->Context->Rng.Seed(Derived);
+		Instance->Seed = static_cast<int32>(Derived & 0x7FFFFFFFu);
+		Behavior->Instances.Add(MoveTemp(Instance));
+	};
+
+	// Order = the order the native stand-ins ran in: rival, other entries, then the director.
+	Add(TEXT("Rival"), Rival, S.RivalId(), ShiftSim::StandInRival::IntervalFor(S, PP), 0x52495641u);
+	for (int32 E = 0; E < S.NumEntries(); ++E)
+	{
+		if (E != ShiftSim::kPlayerId && E != S.RivalId())
+		{
+			Add(FString::Printf(TEXT("Other%d"), E), Others, E, ShiftSim::StandInOthers::FirstActionTime(S, PP, E), 0x4F544800u + static_cast<uint32>(E));
+		}
+	}
+	Add(TEXT("Director"), Director, -1, 0.0, 0x44495243u);
+	Add(TEXT("Ambient"), Ambient, -1, S.TotalSeconds() / 8.0 * 1.3, 0x414D4249u);
+
+	UE_LOG(LogShift, Log, TEXT("Behaviour: %d StateTree instances (rival, %d other entries, director, ambient)"), Behavior->Instances.Num(), Behavior->Instances.Num() - 3);
+	return Behavior;
+}
+
+void FShiftBehavior::Tick(float DeltaTime)
+{
+	for (TUniquePtr<FInstance>& Ptr : Instances)
+	{
+		FInstance& I = *Ptr;
+		if (I.bFailed)
+		{
+			continue;
+		}
+		UShiftBehaviorContext* ContextObject = I.Context;
+		const FOnCollectStateTreeExternalData Collect = FOnCollectStateTreeExternalData::CreateLambda(
+			[ContextObject](const FStateTreeExecutionContext& /*Context*/, const UStateTree* /*StateTree*/, TArrayView<const FStateTreeExternalDataDesc> Descs, TArrayView<FStateTreeDataView> OutViews)
+			{
+				for (int32 Index = 0; Index < Descs.Num(); ++Index)
+				{
+					if (Descs[Index].Struct == UShiftBehaviorContext::StaticClass())
+					{
+						OutViews[Index] = FStateTreeDataView(ContextObject);
+					}
+				}
+				return true;
+			});
+
+		FStateTreeExecutionContext Exec(*ContextObject, *I.Tree, I.Data, Collect);
+		if (!Exec.IsValid())
+		{
+			UE_LOG(LogShift, Error, TEXT("StateTree instance %s could not be linked: disabling it."), *I.Name);
+			I.bFailed = true;
+			continue;
+		}
+		if (!I.bStarted)
+		{
+			I.bStarted = true;
+			Exec.Start(nullptr, I.Seed);
+		}
+		Exec.Tick(DeltaTime);
+	}
+}
+
+void FShiftBehavior::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	for (TUniquePtr<FInstance>& Ptr : Instances)
+	{
+		Collector.AddReferencedObject(Ptr->Context);
+		Collector.AddReferencedObject(Ptr->Tree);
+	}
+}

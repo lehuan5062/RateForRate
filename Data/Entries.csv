@@ -1,0 +1,42 @@
+Id,Jam,Role,Name,Author,Blurb
+TJ_Other01,TinyJam7,Other,Night Shift at the Quick-E-Mart,quickemart_qa,Restock chips. Mop floors. Hear a noise in aisle four.
+TJ_Other02,TinyJam7,Other,Dimension Shifter,portal_pete,Hop between two dimensions. Both have the same bug.
+TJ_Other03,TinyJam7,Other,Gear Shift Racer 3000,clutch_kid,A racing game about remembering to use the clutch.
+TJ_Other04,TinyJam7,Other,Shift Blame Detective,whodunit_wanda,Find the culprit. It was never you. Probably.
+TJ_Other05,TinyJam7,Other,Shiftwise,binary_beth,A puzzle about moving bits left. Some go right.
+TJ_Other06,TinyJam7,Other,Shift Is All I Have,keycap_kai,Only the two Shift keys work. Good luck with that.
+TJ_Other07,TinyJam7,Other,Cat Game,mittens_dev,You are a cat. That is the whole game.
+TJ_Other08,TinyJam7,Other,Untitled Platformer (Final).exe,jumpman_jr,Jump. Land. Jump again. Title pending since day one.
+RB_Other01,Rumble48,Other,Graveyard Shift Simulator,dusk_dan,Guard a cemetery. The ghosts have a union.
+RB_Other02,Rumble48,Other,Clutch Panic 4000,gearhead_greta,Drive stick while a goat chases you. The goat has right of way.
+RB_Other03,Rumble48,Other,Blame Shift: Who Ate the Cake?,frosting_fran,"Everyone is guilty. Pass the blame, not the cake."
+RB_Other04,Rumble48,Other,Bitwise Brawl,xor_xavier,Fighting game with eight-bit combos. Literally eight.
+RB_Other05,Rumble48,Other,Shapeshift Hotel,morph_molly,Run a hotel where guests keep turning into other guests.
+RB_Other06,Rumble48,Other,Shift+Shift,double_tap_dre,Two buttons. Both are Shift. Nobody is happy.
+RB_Other07,Rumble48,Other,Cat Game (48h Cut),whisker_will,"Same cat, shorter nap. Now with a second cat."
+RB_Other08,Rumble48,Other,Untitled Platformer (Final) (v2).exe,jumpwoman_jess,The jump is better. The title is not.
+GO_Other01,GameOff2026,Other,The Late Shift Diner,pancake_pat,Serve breakfast to ghosts at midnight. Tips are in souls.
+GO_Other02,GameOff2026,Other,Parallel Shift,tesseract_tom,Switch dimensions to dodge your own mistakes.
+GO_Other03,GameOff2026,Other,The Blame Game,scapegoat_sid,"Blame the intern, the engine, the weather. Repeat."
+GO_Other04,GameOff2026,Other,Barrel Shifter,register_rae,A logic puzzle with real registers and fake deadlines.
+GO_Other05,GameOff2026,Other,Shapeshift Sam,doppel_deb,"Become a chair, a door, or a very confusing lamp."
+GO_Other06,GameOff2026,Other,Left Shift Right Shift,capslock_cora,Both Shift keys. Nothing else. Caps Lock is jealous.
+GO_Other07,GameOff2026,Other,Cat Game: Definitive Edition,tabby_tess,"Same cat. Bigger cat. Fewer bugs. Okay, same bugs."
+GO_Other08,GameOff2026,Other,untitled_platformer_FINAL_v3.exe,hopper_hal,Now with double jump. The title is still pending.
+You01,All,You,Lantern Keeper,you,"Light the lanterns before the fog does. Cozy, with mild dread."
+You02,All,You,Sprocket and Spark,you,A tiny robot fixes a tiny town. Fixes some of it.
+You03,All,You,Moonlight Mechanic,you,Repair machines at night. They only break when you look away.
+You04,All,You,Paper Planes at Dawn,you,"Fold, throw, repeat. A game about wind and bad decisions."
+You05,All,You,Cloud Janitor,you,Sweep the sky. Nobody noticed. That was the point.
+You06,All,You,The Quiet Reactor,you,A calm puzzle about a very loud power plant.
+You07,All,You,Mothlight,you,Be a moth. Find a lamp. Avoid the other lamp.
+You08,All,You,Pocket Dungeon Clerk,you,File paperwork for monsters. Stamp responsibly.
+You09,All,You,Tidal Postman,you,Deliver letters before the tide does. The tide wins a bit.
+You10,All,You,Crystal Courier,you,Carry fragile crystals across a cracked world. Tiptoe.
+You11,All,You,Hexagon Harvest,you,"Plant, flip and merge hexes. Surprisingly chewy."
+You12,All,You,Orbit Cafe,you,Serve coffee to astronauts in zero gravity. Mind the spills.
+You13,All,You,Ghost Lighthouse,you,A lighthouse keeper who is also a ghost. Both jobs matter.
+You14,All,You,Button Gardener,you,Grow tiny buttons into big buttons. Press responsibly.
+Rival_TJ,TinyJam7,Rival,Prince of Pixels,@pixel_prince,3K followers and a pinned post that says 'play mine first'.
+Rival_RB,Rumble48,Rival,LEGEND OF DEV,DevLegend,"48K followers. Streams the devlog, not the game."
+Rival_GO,GameOff2026,Rival,ULTRA GAME 9 (AAA),MEGA STUDIOS,1.2M followers. The trailer is huge. The game is a folder somewhere.

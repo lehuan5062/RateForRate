@@ -1,0 +1,54 @@
+Id,Outcome,Condition,Text
+BL001,Win,CleanWin,Rank {rank} with {sock} sockpuppets. Your parents would be proud.
+BL002,Win,CleanWin,{honest} real votes and nothing else. This is called integrity and it is rare.
+BL003,Win,CleanWin,"Honest win: {votes} votes, {sock} sockpuppets, one very clean conscience."
+BL004,Win,CleanWin,You won the fair way. The jam organisers are quietly stunned.
+BL005,Win,SockpuppetWin,Won with {sock} sockpuppets out of {votes} votes. Winners write the devlog.
+BL006,Win,SockpuppetWin,{sock} of your {votes} votes were not strictly people. The trophy does not ask.
+BL007,Win,SockpuppetWin,"First place: {honest} honest votes and {sock} shifted ones. Both count, apparently."
+BL008,Win,SockpuppetWin,Victory at the price of {sock} fake friends. The leaderboard says it was worth it.
+BL009,Win,NarrowWin,"A win by a whisker. {votes} votes, and some of them were nervous."
+BL010,Win,NarrowWin,You won by the smallest margin the jam could measure. Breathe.
+BL011,Win,NarrowWin,Rank {rank} by a hair. The rival is refreshing the page right now.
+BL012,Win,Landslide,Landslide! {votes} votes. The followers did most of the work.
+BL013,Win,Landslide,A comfortable win with {votes} votes. Nobody was even close.
+BL014,Win,Landslide,You crushed the leaderboard. The organisers are ordering a bigger trophy.
+BL015,Win,QualityIgnored,"You won, and quality ranked your game {qualityRank}. Votes follow vibes."
+BL016,Win,QualityIgnored,"Rank {rank} by votes, rank {qualityRank} by quality. The system works as designed."
+BL017,Win,QualityIgnored,Quality rank {qualityRank}. Vote rank {rank}. Nobody checked.
+BL018,Win,NobodyPlayed,{votes} votes from only {plays} actual plays. A very efficient fan base.
+BL019,Win,NobodyPlayed,You won with {plays} plays. Most voters took the thumbnail's word for it.
+BL020,Win,NobodyPlayed,Winner with {votes} votes and {plays} plays. Do not ask the maths.
+BL021,Win,RivalCollapsed,"The rival collapsed and the crown rolled to you. Take it, it is shiny."
+BL022,Win,RivalCollapsed,You won after the rival fell apart. Some call it luck. You call it strategy.
+BL023,Win,RivalCollapsed,The big name self-destructed. Rank {rank} for you and a very awkward podium.
+BL024,Lose,NearMiss,Rank {rank} with {votes} votes. So close the rival is nervous.
+BL025,Lose,NearMiss,You missed first place by a handful of votes. Refresh your regrets.
+BL026,Lose,NearMiss,Rank {rank}. One more good plug and it would have been first.
+BL027,Lose,NearMiss,"A near miss: {honest} honest votes, {sock} shifted ones and zero luck."
+BL028,Lose,QualityIgnored,"Rank {rank} by votes, but quality ranked you {qualityRank}. It is a popularity contest."
+BL029,Lose,QualityIgnored,"Quality rank {qualityRank}, vote rank {rank}. The game was fine. The audience was elsewhere."
+BL030,Lose,QualityIgnored,Your game was better than its rank. Nobody played it long enough to find out.
+BL031,Lose,QualityIgnored,"Rank {rank} on the board, {qualityRank} on merit. Fame won again."
+BL032,Lose,NobodyPlayed,"Rank {rank}. {votes} votes, {plays} plays. Most people voted with their eyes."
+BL033,Lose,NobodyPlayed,Only {plays} people actually played it. Many more voted anyway.
+BL034,Lose,NobodyPlayed,"{plays} plays, {votes} votes and rank {rank}. The data suggests nobody reads."
+BL035,Lose,Landslide,Rank {rank}. The winner collected votes like a vacuum collects dust.
+BL036,Lose,Landslide,A crushing defeat. The rival won by a landslide and you wrote a devlog.
+BL037,Lose,Landslide,Rank {rank} with {votes} votes. The leaderboard did not hold back.
+BL038,Lose,RivalCollapsed,The rival collapsed but someone else took the win. Rank {rank} for you.
+BL039,Lose,RivalCollapsed,Even with the rival gone you finished at rank {rank}. Fame found another home.
+BL040,DQ,DQEarly,Disqualified early. {sock} sockpuppets and {votes} votes did not save you.
+BL041,DQ,DQEarly,Out before the jam really started. {sock} sockpuppets could not hide.
+BL042,DQ,DQEarly,Banned early. The mods barely had time to sharpen their pencils.
+BL043,DQ,DQEarly,Kicked out in the first half. {honest} votes were honest. The rest were not.
+BL044,DQ,DQLate,"Disqualified in the final stretch. {sock} sockpuppets, {votes} votes, one broken heart."
+BL045,DQ,DQLate,So close to the finish line. The mods noticed with days to spare.
+BL046,DQ,DQLate,A late disqualification. You held rank {rank} until the ban hammer fell.
+BL047,DQ,DQLate,Banned at the last minute. The leaderboard remembers rank {rank} fondly.
+BL048,Wink,Closing,"If you enjoyed this, please leave an honest rating on the itch page. Real ones only."
+BL049,Wink,Closing,Rating this game honestly would be the most subversive thing you could do.
+BL050,Wink,Closing,Please rate this game on the itch page. One vote. Real person. Promise.
+BL051,Wink,Closing,"No sockpuppets on the itch page, please. We are watching. We are very small."
+BL052,Wink,Closing,An honest rating on the itch page costs nothing and shifts everything. Thank you for playing.
+BL053,Wink,Closing,"If this was fun, rate it on the itch page. If it was not, rate it anyway. Honestly."

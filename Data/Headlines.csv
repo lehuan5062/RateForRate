@@ -1,0 +1,72 @@
+Id,Event,Text
+HL001,AlgorithmBoost,BREAKING: The algorithm boosts {entry} and will not explain why.
+HL002,AlgorithmBoost,{entry} rockets up the front page after a mysterious algorithm tweak.
+HL003,AlgorithmBoost,Front page reshuffled: {entry} gets a surprise push.
+HL004,AlgorithmBoost,"Algorithm update: {entry} is now 'recommended for you', and for everyone."
+HL005,AlgorithmBoost,Engagement experts baffled as {entry} trends for no clear reason.
+HL006,AlgorithmBoost,{entry} boosted by the recommendation engine. Quality unaffected.
+HL007,AlgorithmBoost,Sources say the algorithm 'just likes' {entry}.
+HL008,AlgorithmBoost,{handle} blames the algorithm after {entry} floods the front page.
+HL009,StreamerDiscovers,{handle} discovers {entry} live on stream. Chat asks 'what is this'.
+HL010,StreamerDiscovers,Streamer {handle} plays {entry} for eleven minutes. Votes follow.
+HL011,StreamerDiscovers,{handle} calls {entry} 'surprisingly fine' and the vote surges.
+HL012,StreamerDiscovers,"Stream raid sends hundreds to {entry}, courtesy of {handle}."
+HL013,StreamerDiscovers,{entry} goes viral after {handle} laughs at the first screen.
+HL014,StreamerDiscovers,"{handle} rates {entry} live. Rated, not played."
+HL015,StreamerDiscovers,Chat clips {entry} twice in a minute. {handle} blames the music.
+HL016,DramaThread,Drama thread erupts over the thumbnail of {entry}. {handle} brings snacks.
+HL017,DramaThread,"{handle} claims the jam is rigged. Thread has 400 replies, none read."
+HL018,DramaThread,Argument over whether {entry} counts as a game continues.
+HL019,DramaThread,Heated thread: is {rival} 'inspired by' something? Receipts pending.
+HL020,DramaThread,{handle} posts an eleven-part thread about {you}. Parts one and two are fine.
+HL021,DramaThread,Comments on {entry} locked after a spaces-versus-tabs flare-up.
+HL022,DramaThread,Jam community debates ratings ethics. {handle} defends R4R.
+HL023,DramaThread,"Devlog drama: {handle} deletes everything about {entry}, then reposts it."
+HL024,ModSweep,Mods sweep the voter list. {handle} says it is just routine.
+HL025,ModSweep,Mod Eye opens: suspicious accounts under review by {handle}.
+HL026,ModSweep,Sweep in progress. {handle} promises it is not about {you}.
+HL027,ModSweep,{handle} deletes 14 accounts created in the last hour. Coincidence.
+HL028,ModSweep,"Moderators run a quiet audit. {you} is, officially, not nervous."
+HL029,ModSweep,Another sweep. {handle} sighs into a spreadsheet.
+HL030,MegaCampaign,{rival} launches a massive promo campaign. Everyone is tagged.
+HL031,MegaCampaign,{rival} announces a surprise reveal. It is a trailer for the trailer.
+HL032,MegaCampaign,Marketing blitz: {rival} sponsors the entire front page.
+HL033,MegaCampaign,{rival} posts a countdown timer. Nobody knows to what.
+HL034,MegaCampaign,{rival} goes all-in on hype while {you} refreshes the page.
+HL035,MegaCampaign,Mega campaign: {rival} buys ads in the jam's own sidebar.
+HL036,LeadChange,NEW LEADER: {entry} takes first place on the front page.
+HL037,LeadChange,{entry} overtakes the pack. The pack takes notes.
+HL038,LeadChange,Lead change! {entry} is now ranked first.
+HL039,LeadChange,"{entry} tops the leaderboard, for now."
+HL040,LeadChange,"The throne sits empty for four seconds, then {entry} takes it."
+HL041,LeadChange,"{you} climbs, {rival} slips, and {entry} sneaks past both."
+HL042,FinalHours,Final hours: {you} and {rival} are split by whatever the algorithm says.
+HL043,FinalHours,Last day of voting. {rival} is still ahead. {you} is still hopeful.
+HL044,FinalHours,Voting closes soon. {entry} submits a patch nobody asked for.
+HL045,FinalHours,"Final hours: leaderboard stress, snack stress, and {you} refreshing."
+HL046,FinalHours,Deadline fever: three people submit a game with two minutes left.
+HL047,FinalHours,"With hours left, {entry} posts 'please vote' for the 40th time."
+HL048,Disqualified,{you} DISQUALIFIED after a third strike. {handle} reads the verdict.
+HL049,Disqualified,Mods ban {you} for 'creative voting'. {handle} shrugs.
+HL050,Disqualified,{you} is out of the jam. Three strikes means three strikes.
+HL051,Disqualified,Disqualification: {you} leaves the leaderboard and its dignity.
+HL052,Disqualified,{handle} confirms that {you} has been removed from the jam.
+HL053,Disqualified,Entry {you} has struck out. The ban hammer has landed.
+HL054,RivalCollapses,{rival} collapses in the rankings after a blame-shifted strike.
+HL055,RivalCollapses,BREAKING: {rival} loses its audience in a single afternoon.
+HL056,RivalCollapses,{rival} vanishes from the front page. {handle} calls it a glitch.
+HL057,RivalCollapses,{rival} implodes. Followers 'mysteriously' unfollow in bulk.
+HL058,RivalCollapses,{rival} disqualified. {you} gets a very confused notification.
+HL059,RivalCollapses,Hype deflates: {rival} stumbles and {you} did not even push.
+HL060,RivalWins,{rival} wins the jam. Experts: 'we did tell you'.
+HL061,RivalWins,"Final results: {rival} first, {you} behind, quality undefeated."
+HL062,RivalWins,{rival} takes the crown. Nobody played it. Everyone voted.
+HL063,RivalWins,"And the winner is {rival}, by a mile."
+HL064,RivalWins,{rival} wins again. The thesis holds.
+HL065,RivalWins,Congratulations to {rival}. {you} sends a polite reaction.
+HL066,YouWin,UPSET: {you} wins the jam. {rival} demands a recount.
+HL067,YouWin,"{you} takes first place. The vote shifted, as votes do."
+HL068,YouWin,{you} wins! Analysts blame a very motivated minority.
+HL069,YouWin,New champion: {you}. {rival} is 'taking a break from games'.
+HL070,YouWin,"{you} wins. The thesis is shaken, but not stirred."
+HL071,YouWin,Shift complete: {you} tops the leaderboard.
