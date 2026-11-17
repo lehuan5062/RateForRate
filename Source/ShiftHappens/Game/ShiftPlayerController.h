@@ -133,6 +133,8 @@ private:
 	uint32 Seed = 7;
 	bool bFixedSeed = false;
 	bool bMuted = false;
+	int32 EdgeMode = 0;             // relation lines: 0 faint, 1 off, 2 full (key E, remembered)
+	int32 LeaderboardMode = 0;      // 0 compact, 1 full, 2 hidden (key L, remembered)
 
 	float NightBlend = 0.0f;
 	float NightOverride = -1.0f;
@@ -152,6 +154,7 @@ private:
 	{
 		int32 Node = -1;
 		int32 NewOwner = -1;
+		int32 Cause = 0;        // 0 opinion pressure, 1 the rival, 2 another entry
 	};
 	TArray<FLostVoter> LostRecently;
 	float LostCooldown = 0.0f;

@@ -36,11 +36,13 @@ namespace
 	constexpr float NodeZ = 2.0f;
 
 	constexpr float PlaneSize = 100.0f;     // /Engine/BasicShapes/Plane is 100 x 100 units
-	constexpr float NodeQuadHalf = 2.1f;    // node quad half size, in body radii (node.hlsl draws up to ~1.9)
+	constexpr float NodeQuadHalf = 2.9f;    // node quad half size, in body radii (node.hlsl lays its rings out in pixels, up to about 22 px beyond a small body)
 	constexpr float GlowQuadHalf = 3.4f;    // glow quad half size, in body radii (glow.hlsl fades out by 3.4)
 	constexpr float EdgeHalfWidth = 1.4f;   // world units
 	constexpr float EdgeMargin = 6.0f;
 	constexpr float EdgeBulgeFraction = 0.14f;
+	constexpr float PressureEdgeMin = 0.25f;         // a voter shows its pushers once its pressure is above this (0..1)
+	constexpr float QuietEdgeAlpha = 0.085f;          // alpha of a relation line that is not hovered and carries no push
 	constexpr double PressureHorizonSeconds = 8.0;   // a voter of the player that would flip back within this many seconds starts to shake
 
 	float Hash01(int32 A, int32 B)
@@ -273,13 +275,39 @@ void AShiftBoard::Update(const ShiftSim::Sim& Sim, const FShiftBoardView& View, 
 		const FLinearColor Col = ColorOfOwner(OwnerId);
 		const float ConvJ = FMath::Clamp(static_cast<float>(Sim.Conviction(E.Influencer)), 0.0f, 1.0f);
 		const bool bHot = View.HoverNode == E.Influencer || View.HoverNode == E.Follower;
-		const float Base = bHot ? 0.85f : (OwnerId >= 0 ? 0.14f + 0.14f * ConvJ : 0.07f);
-		const float Pulse = (OwnerId >= 0 ? 0.30f + 0.70f * ConvJ : 0.0f) + (bHot ? 0.35f : 0.0f);
+		// An edge that carries the push on a voter of the player that is about to flip back: the neighbour on the other end backs the entry that out-pushes it.
+		const int32 PushOnFollower = Sim.Challenger(E.Follower);
+		const int32 PushOnInfluencer = Sim.Challenger(E.Influencer);
+		const bool bPush = (PushOnFollower >= 0 && Pressure_[E.Follower] > PressureEdgeMin && Sim.Opinion(E.Influencer) == PushOnFollower)
+			|| (PushOnInfluencer >= 0 && Pressure_[E.Influencer] > PressureEdgeMin && Sim.Opinion(E.Follower) == PushOnInfluencer);
+		FLinearColor EdgeCol = Col;
+		float Base = bHot ? 0.85f : (OwnerId >= 0 ? 0.14f + 0.14f * ConvJ : 0.07f);
+		float Pulse = (OwnerId >= 0 ? 0.30f + 0.70f * ConvJ : 0.0f) + (bHot ? 0.35f : 0.0f);
+		float Wid = bHot ? EdgeHalfWidth + 0.9f : EdgeHalfWidth;
+		if (View.EdgeMode != 2)
+		{
+			// Faint (default) and Off: every relation is a thin neutral line (or nothing), so the voters, their rings and the few lines that matter stand out. Colour,
+			// strength and travelling pulses are kept for the hovered voter's relations and for the pushes on a voter about to flip back.
+			if (!bHot)
+			{
+				EdgeCol = FLinearColor(0.32f, 0.32f, 0.42f);
+				Base = View.EdgeMode == 1 ? 0.0f : QuietEdgeAlpha;
+				Pulse = 0.0f;
+				Wid = EdgeHalfWidth * 0.6f;
+			}
+			if (bPush)
+			{
+				EdgeCol = FLinearColor(1.0f, 0.42f, 0.08f);
+				Base = 0.95f;
+				Pulse = 0.9f;
+				Wid = EdgeHalfWidth + 1.0f;
+			}
+		}
 		const FVector2D P0 = NodeWorld_[E.Influencer];
 		const FVector2D P1 = NodeWorld_[E.Follower];
 		const float EdgeData[EdgeFloats] = {
-			Col.R, Col.G, Col.B, Base, FMath::Min(Pulse, 1.0f), Hash01(E.Follower, E.Influencer), 0.35f,
-			bHot ? EdgeHalfWidth + 0.9f : EdgeHalfWidth,
+			EdgeCol.R, EdgeCol.G, EdgeCol.B, Base, FMath::Min(Pulse, 1.0f), Hash01(E.Follower, E.Influencer), 0.35f,
+			Wid,
 			static_cast<float>(P0.X), static_cast<float>(P0.Y), static_cast<float>(P1.X), static_cast<float>(P1.Y),
 			EdgeBulgeFraction * EdgeLen_[e] };
 		EdgeISM->SetCustomData(e, MakeArrayView(EdgeData, EdgeFloats), false);

@@ -53,6 +53,9 @@ namespace ShiftSim
 		case ActionResult::NotNight: return "NotNight";
 		case ActionResult::InvalidTarget: return "InvalidTarget";
 		case ActionResult::Overheated: return "Overheated";
+		case ActionResult::Rallied: return "Rallied";
+		case ActionResult::OnCooldown: return "OnCooldown";
+		case ActionResult::NotYours: return "NotYours";
 		}
 		return "?";
 	}
@@ -85,6 +88,8 @@ namespace ShiftSim
 		NewConv_.assign(Count, 0.0);
 		Contrib_.assign(Count, 0.0);
 		Drain_.assign(Count, 0.0);
+		Challenger_.assign(Count, kNoOwner);
+		Flipper_.assign(Count, kNoOwner);
 		for (int e = 0; e < kMaxEntries; ++e)
 		{
 			Tally_[e] = 0.0;
@@ -103,6 +108,7 @@ namespace ShiftSim
 		Posts_ = MinOf(P_.PostsStart, P_.PostsMax);
 		Heat_ = 0.0;
 		Shadowban_ = 0.0;
+		RallyCooldown_ = 0.0;
 		Strikes_ = 0;
 		NightHeld_ = false;
 		Changes_.clear();
@@ -417,6 +423,7 @@ namespace ShiftSim
 		{
 			Shadowban_ = MaxOf(0.0, Shadowban_ - Dt);
 		}
+		RallyCooldown_ = MaxOf(0.0, RallyCooldown_ - Dt);
 		if (NightHeld_)
 		{
 			Heat_ += P_.HeatNightRate * Dt;
@@ -457,6 +464,7 @@ namespace ShiftSim
 			NewOpinion_[SimIx(i)] = Opinion_[SimIx(i)];
 			NewConv_[SimIx(i)] = Conv_[SimIx(i)];
 			Drain_[SimIx(i)] = 0.0;
+			Challenger_[SimIx(i)] = kNoOwner;
 			if (Lock_[SimIx(i)] > 0.0)
 			{
 				continue; // immune this step
@@ -509,6 +517,7 @@ namespace ShiftSim
 				if (Top >= 0 && Top != Cur && Pv[Top] > Sup * P_.FlipMargin)
 				{
 					Drain_[SimIx(i)] = P_.DrainRate * (Pv[Top] - Sup) / (SumP + 1.0e-6);
+					Challenger_[SimIx(i)] = Top;
 					C -= P_.DrainRate * Dt * (Pv[Top] - Sup) / (SumP + 1.0e-6);
 					if (C <= 0.0)
 					{
@@ -558,6 +567,7 @@ namespace ShiftSim
 				Ch.newOwner = New;
 				Changes_.push_back(Ch);
 				SetOwner(i, New);
+				Flipper_[SimIx(i)] = kFlipNatural;
 				Sock_[SimIx(i)] = 0;
 			}
 			Conv_[SimIx(i)] = NewConv_[SimIx(i)];
@@ -670,8 +680,9 @@ namespace ShiftSim
 			if (C <= P_.PlugFlipThreshold + kSimEps)
 			{
 				SetOwner(Node, Who);
-				Conv_[Ix] = P_.PlugFlipConv;
-				Lock_[Ix] = P_.PlugLock;
+				Flipper_[Ix] = Who;
+				Conv_[Ix] = IsPlayer ? P_.PlayerFlipConv : P_.PlugFlipConv;
+				Lock_[Ix] = IsPlayer ? P_.PlayerPlugLock : P_.PlugLock;
 				Sock_[Ix] = 0;
 				O.result = ActionResult::Flipped;
 				O.flipped = true;
@@ -738,6 +749,7 @@ namespace ShiftSim
 			SockPrevOpinion_[Ix] = Opinion_[Ix];
 			SockPrevConv_[Ix] = Conv_[Ix];
 			SetOwner(Node, kPlayerId);
+			Flipper_[Ix] = kPlayerId;
 			Conv_[Ix] = P_.SockConv;
 			Lock_[Ix] = P_.SockLock;
 			Sock_[Ix] = 1;
@@ -753,6 +765,53 @@ namespace ShiftSim
 		O.newOwner = Opinion_[Ix];
 		O.convAfter = Conv_[Ix];
 		O.lockAfter = Lock_[Ix];
+		return O;
+	}
+
+	ActionOutcome Sim::Rally(int Node)
+	{
+		ActionOutcome O;
+		O.who = kPlayerId;
+		O.node = Node;
+		if (Node < 0 || Node >= Graph_.NodeCount())
+		{
+			O.result = ActionResult::InvalidTarget;
+			return O;
+		}
+		const size_t Ix = SimIx(Node);
+		O.prevOwner = Opinion_[Ix];
+		O.newOwner = Opinion_[Ix];
+		O.convBefore = Conv_[Ix];
+		O.convAfter = Conv_[Ix];
+		if (Disqualified()) { O.result = ActionResult::Disqualified; return O; }
+		if (Shadowban_ > 0.0) { O.result = ActionResult::Shadowbanned; return O; }
+		if (Opinion_[Ix] != kPlayerId) { O.result = ActionResult::NotYours; return O; }
+		if (RallyCooldown_ > 0.0) { O.result = ActionResult::OnCooldown; return O; }
+		if (Posts_ + kSimEps < P_.RallyCost) { O.result = ActionResult::NoPosts; return O; }
+
+		Posts_ = MaxOf(0.0, Posts_ - P_.RallyCost);
+		RallyCooldown_ = P_.RallyCooldown;
+		O.postsSpent = P_.RallyCost;
+		std::vector<int> Group;
+		Group.push_back(Node);
+		const GraphNode& G = Graph_.nodes[Ix];
+		for (size_t k = 0; k < G.follows.size(); ++k) { Group.push_back(G.follows[k]); }
+		for (size_t k = 0; k < G.followers.size(); ++k) { Group.push_back(G.followers[k]); }
+		std::vector<uint8_t> Done(static_cast<size_t>(Graph_.NodeCount()), 0);
+		for (size_t k = 0; k < Group.size(); ++k)
+		{
+			const size_t J = SimIx(Group[k]);
+			if (Done[J] != 0 || Opinion_[J] != kPlayerId)
+			{
+				continue;
+			}
+			Done[J] = 1;
+			Conv_[J] = MinOf(1.0, Conv_[J] + P_.RallyBoost);
+			Lock_[J] = MaxOf(Lock_[J], P_.RallyLock);
+			++O.touched;
+		}
+		O.result = ActionResult::Rallied;
+		O.convAfter = Conv_[Ix];
 		return O;
 	}
 

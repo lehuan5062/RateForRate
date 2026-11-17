@@ -25,6 +25,8 @@ enum class EShiftEventType : uint8
 	PlayerNoPosts,
 	PlayerRefused,       // shadowban, disqualified, night required, already owned
 	PlayerOverheated,    // a sockpuppet that would take Heat to the cap was refused (free)
+	PlayerRallied,       // a Rally went off: Node, Count = voters boosted
+	PlayerRallyBlocked,  // a Rally was refused (free): Value = 0 on cooldown, 1 not the player's voter
 	Strike,              // Value = strikes so far
 	Disqualified,
 	ModSweepClear,
@@ -33,7 +35,7 @@ enum class EShiftEventType : uint8
 	ModTelegraph,        // the Mod Eye is about to sweep
 	DirectorEvent,       // Node = kind (0 algorithm boost, 1 streamer discovers, 2 drama thread), NewOwner = entry, Value = size
 	DayChanged,          // Value = new day index (0-based)
-	PlayerLostVoter,     // a voter the player held went to someone else (opinion pressure or a rival attack; not a strike revert): Node, NewOwner
+	PlayerLostVoter,     // a voter the player held went to someone else (not a strike revert): Node, NewOwner, Value = cause (0 opinion pressure, 1 the rival, 2 another entry)
 	FinalAudit,          // the end-of-jam audit purged sockpuppet votes: Count = how many, Value = their share of all vote weight
 	Finished,
 };
@@ -54,7 +56,10 @@ struct FShiftFlipStats
 {
 	int32 Gains = 0;            // nodes that became the player's, any way (plug, sockpuppet, or followers coming around)
 	int32 SockGains = 0;        // ... of which sockpuppet flips
-	int32 Losses = 0;           // nodes the player lost to the dynamics or to a rival attack
+	int32 Losses = 0;           // nodes the player lost to the dynamics or to an attack (the three counts below add up to it)
+	int32 LossHerd = 0;         // ... voters that changed their mind under opinion pressure
+	int32 LossRival = 0;        // ... voters the rival plugged away
+	int32 LossOthers = 0;       // ... voters another entry (or an ambient event) plugged away
 	int32 StrikeReverts = 0;    // sockpuppet flips undone by a strike
 	int32 AuditPurges = 0;      // sockpuppet votes purged by the final audit
 	double AuditPurgedShare = 0.0;   // ... and their share of all vote weight
@@ -90,6 +95,8 @@ public:
 
 	/** A player click on a node. Applied at the start of the next step; bSock = night-shift click. */
 	void QueueAction(int32 Node, bool bSock);
+	/** A Rally on a voter the player holds (right-click). Applied at the start of the next step. */
+	void QueueRally(int32 Node);
 
 	/** QA autoplay: a scripted bot plays the player's side (idle, random, greedy, greedy+sock). */
 	void SetBot(ShiftSim::BotKind Kind);
@@ -175,6 +182,7 @@ private:
 	{
 		int32 Node = -1;
 		bool bSock = false;
+		bool bRally = false;
 	};
 	TArray<FPendingAction> Pending;
 	TArray<FShiftEvent> Events;

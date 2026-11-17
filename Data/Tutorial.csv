@@ -16,3 +16,4 @@ TUT14,14,KeysHint,Space pauses. M mutes. Esc opens the menu. The rest is up to y
 TUT15,15,FirstLostVoter,Voters drift back to where their neighbours are. A voter that shakes is about to flip back: click it to reinforce.
 TUT16,16,FirstSockpuppet,A sockpuppet vote is fake until backed. Strikes and the final audit undo it: plug your sockpuppet until it is {launder} sure.
 TUT17,17,FinalAudit,Final audit: the mods purge every sockpuppet vote that is still fake. Plug yours now to make them real.
+TUT18,18,RallyHint,Right-click a voter you hold to Rally: {rallycost} Posts give it and its neighbours +{rallyboost} conviction. Ready again after {rallycd}s.

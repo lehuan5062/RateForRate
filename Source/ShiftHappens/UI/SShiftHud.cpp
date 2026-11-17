@@ -29,6 +29,8 @@ namespace
 	constexpr float DesignW = 1280.0f;
 	constexpr float DesignH = 720.0f;
 	constexpr float RowHeight = 31.0f;
+	constexpr float CompactRowH = 22.0f;
+	constexpr float CompactLeaderboardW = 206.0f;
 
 	/** sRGB hex to the linear colour Slate expects. */
 	FLinearColor Hex(uint32 Rgb, float Alpha = 1.0f)
@@ -533,10 +535,22 @@ void SShiftHud::PaintTooltip(FShiftPainter& P, const FPal& C) const
 	const FShiftHudTooltip& T = Model.Tooltip;
 	const float CardW = 292.0f;
 	const float CardH = 118.0f;
-	const float LeaderboardX = 996.0f;
+	// The leaderboard panel as drawn right now: its left edge and bottom, so a card never covers it.
+	float LeaderboardX = DesignW;
+	float LeaderboardBottom = 0.0f;
+	if (Model.LeaderboardMode == 1)
+	{
+		LeaderboardX = 996.0f;
+		LeaderboardBottom = 52.0f + 38.0f + RowHeight * static_cast<float>(FMath::Max(1, Model.Rows.Num()));
+	}
+	else if (Model.LeaderboardMode == 0)
+	{
+		LeaderboardX = DesignW - 10.0f - CompactLeaderboardW;
+		LeaderboardBottom = 48.0f + 24.0f + CompactRowH * 4.0f + 4.0f;
+	}
 	float X = T.Anchor.X + T.AnchorRadius + 14.0f;
 	float Y = T.Anchor.Y + 12.0f;
-	if (X + CardW > LeaderboardX - 8.0f && Y < 52.0f + 38.0f + RowHeight * static_cast<float>(FMath::Max(1, Model.Rows.Num())))
+	if (X + CardW > LeaderboardX - 8.0f && Y < LeaderboardBottom)
 	{
 		X = T.Anchor.X - T.AnchorRadius - 14.0f - CardW;    // flip to the left so the card never covers the leaderboard
 	}
@@ -592,30 +606,75 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	}
 
 	// ------------------------------------------------------------------ leaderboard
-	const float PanelX = 996.0f;
-	const float PanelY = 52.0f;
-	P.Rect(PanelX, PanelY, 274, 38.0f + RowHeight * static_cast<float>(FMath::Max(1, Model.Rows.Num())), C.Panel, 10);
-	P.Text(TEXT("LEADERBOARD"), PanelX + 14, PanelY + 10, 11, C.InkDim, EShiftAlign::Left, true);
-	float MaxShare = 0.001f;
-	for (const FShiftHudRow& Row : Model.Rows)
+	// Compact by default (the top three and the player, on a see-through panel) so the right side of the board stays in view; L cycles compact / full / hidden.
+	if (Model.LeaderboardMode == 1)
 	{
-		MaxShare = FMath::Max(MaxShare, Row.Share);
-	}
-	for (const FShiftHudRow& Row : Model.Rows)
-	{
-		const FRowAnim* Anim = RowAnims.Find(Row.EntryId);
-		const float Y = PanelY + 34.0f + (Anim ? Anim->Y : static_cast<float>(Row.Rank) * RowHeight);
-		const float Share = Anim ? Anim->Share : Row.Share;
-		if (Row.bPlayer)
+		const float PanelX = 996.0f;
+		const float PanelY = 52.0f;
+		P.Rect(PanelX, PanelY, 274, 38.0f + RowHeight * static_cast<float>(FMath::Max(1, Model.Rows.Num())), WithAlpha(C.Panel, 0.86f), 10);
+		P.Text(TEXT("LEADERBOARD  (L: smaller)"), PanelX + 14, PanelY + 10, 11, C.InkDim, EShiftAlign::Left, true);
+		float MaxShare = 0.001f;
+		for (const FShiftHudRow& Row : Model.Rows)
 		{
-			P.Rect(PanelX + 6, Y - 2, 262, RowHeight - 1, WithAlpha(C.Teal, 0.18f), 8);
+			MaxShare = FMath::Max(MaxShare, Row.Share);
 		}
-		P.Text(FString::FromInt(Row.Rank + 1), PanelX + 26, Y + 4, 14, Row.bPlayer ? C.Teal : C.Ink, EShiftAlign::Center, true);
-		P.Disc(PanelX + 46, Y + 13, 6.0f, Row.Color);
-		P.Text(P.Fit(Row.Name, 134.0f, 13, Row.bPlayer), PanelX + 60, Y + 2, 13, C.Ink, EShiftAlign::Left, Row.bPlayer);
-		P.Text(FString::Printf(TEXT("%s  %.0f%%"), *Compact(Row.Votes), Share * 100.0f), PanelX + 264, Y + 3, 12, C.InkDim, EShiftAlign::Right);
-		P.Rect(PanelX + 60, Y + 21, 170, 4, C.Track, 2);
-		P.Rect(PanelX + 60, Y + 21, 170.0f * FMath::Clamp(Share / MaxShare, 0.0f, 1.0f), 4, Row.Color, 2);
+		for (const FShiftHudRow& Row : Model.Rows)
+		{
+			const FRowAnim* Anim = RowAnims.Find(Row.EntryId);
+			const float Y = PanelY + 34.0f + (Anim ? Anim->Y : static_cast<float>(Row.Rank) * RowHeight);
+			const float Share = Anim ? Anim->Share : Row.Share;
+			if (Row.bPlayer)
+			{
+				P.Rect(PanelX + 6, Y - 2, 262, RowHeight - 1, WithAlpha(C.Teal, 0.18f), 8);
+			}
+			P.Text(FString::FromInt(Row.Rank + 1), PanelX + 26, Y + 4, 14, Row.bPlayer ? C.Teal : C.Ink, EShiftAlign::Center, true);
+			P.Disc(PanelX + 46, Y + 13, 6.0f, Row.Color);
+			P.Text(P.Fit(Row.Name, 134.0f, 13, Row.bPlayer), PanelX + 60, Y + 2, 13, C.Ink, EShiftAlign::Left, Row.bPlayer);
+			P.Text(FString::Printf(TEXT("%s  %.0f%%"), *Compact(Row.Votes), Share * 100.0f), PanelX + 264, Y + 3, 12, C.InkDim, EShiftAlign::Right);
+			P.Rect(PanelX + 60, Y + 21, 170, 4, C.Track, 2);
+			P.Rect(PanelX + 60, Y + 21, 170.0f * FMath::Clamp(Share / MaxShare, 0.0f, 1.0f), 4, Row.Color, 2);
+		}
+	}
+	else if (Model.LeaderboardMode == 0)
+	{
+		TArray<const FShiftHudRow*> Shown;
+		for (const FShiftHudRow& Row : Model.Rows)
+		{
+			if (Row.Rank < 3) { Shown.Add(&Row); }
+		}
+		for (const FShiftHudRow& Row : Model.Rows)
+		{
+			if (Row.bPlayer && Row.Rank >= 3) { Shown.Add(&Row); }
+		}
+		const float PanelW = CompactLeaderboardW;
+		const float PanelX = DesignW - 10.0f - PanelW;
+		const float PanelY = 48.0f;
+		P.Rect(PanelX, PanelY, PanelW, 24.0f + CompactRowH * static_cast<float>(Shown.Num()) + 4.0f, WithAlpha(C.Panel, 0.62f), 8);
+		P.Text(TEXT("LEADERBOARD  (L)"), PanelX + 10, PanelY + 6, 10, C.InkDim, EShiftAlign::Left, true);
+		for (int32 i = 0; i < Shown.Num(); ++i)
+		{
+			const FShiftHudRow& Row = *Shown[i];
+			const float Y = PanelY + 22.0f + CompactRowH * static_cast<float>(i);
+			if (Row.bPlayer)
+			{
+				P.Rect(PanelX + 4, Y - 1, PanelW - 8, CompactRowH - 1, WithAlpha(C.Teal, 0.22f), 6);
+			}
+			P.Text(FString::FromInt(Row.Rank + 1), PanelX + 16, Y + 3, 12, Row.bPlayer ? C.Teal : C.Ink, EShiftAlign::Center, true);
+			P.Disc(PanelX + 32, Y + 10, 5.0f, Row.Color);
+			P.Text(P.Fit(Row.Name, 116.0f, 12, Row.bPlayer), PanelX + 44, Y + 3, 12, C.Ink, EShiftAlign::Left, Row.bPlayer);
+			P.Text(FString::Printf(TEXT("%.0f%%"), Row.Share * 100.0f), PanelX + PanelW - 8, Y + 3, 12, C.InkDim, EShiftAlign::Right);
+		}
+	}
+	else
+	{
+		for (const FShiftHudRow& Row : Model.Rows)
+		{
+			if (Row.bPlayer)
+			{
+				P.Rect(DesignW - 124.0f, 48.0f, 114.0f, 22.0f, WithAlpha(C.Panel, 0.62f), 11);
+				P.Text(FString::Printf(TEXT("YOU #%d  %.0f%%  (L)"), Row.Rank + 1, Row.Share * 100.0f), DesignW - 67.0f, 53.0f, 11, C.Teal, EShiftAlign::Center, true);
+			}
+		}
 	}
 
 	// ------------------------------------------------------------------ bottom bar
@@ -633,6 +692,14 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		}
 	}
 	P.Text(FString::Printf(TEXT("%.1f"), Model.Posts), 86.0f + 26.0f * static_cast<float>(PipCount) + 2.0f, 690, 13, C.Ink, EShiftAlign::Left, true);
+
+	// Rally (right-click on a voter you hold): ready, or counting down.
+	{
+		const bool bReady = Model.RallyCooldown <= 0.0f;
+		P.Rect(268, 683, 214, 28, WithAlpha(bReady ? C.Teal : C.Track, bReady ? 0.22f : 0.60f), 14);
+		P.Text(bReady ? FString::Printf(TEXT("RALLY  right-click  (%.0f Posts)"), Model.RallyCost) : FString::Printf(TEXT("RALLY  %.0fs"), FMath::CeilToFloat(Model.RallyCooldown)),
+			375, 689, 12, bReady ? C.Teal : C.InkDim, EShiftAlign::Center, true);
+	}
 
 	const bool bNight = Model.bNightActive;
 	P.Rect(500, 683, 150, 28, bNight ? Hex(0x2A2250) : WithAlpha(C.Amber, 0.28f), 14);

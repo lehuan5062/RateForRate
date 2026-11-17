@@ -154,3 +154,41 @@ void ShiftSave::SetTutorialSeenMask(int32 Mask)
 		GConfig->Flush(false, GGameUserSettingsIni);
 	}
 }
+
+int32 ShiftSave::EdgeMode()
+{
+	int32 Value = 0;
+	if (GConfig)
+	{
+		GConfig->GetInt(SaveSection, TEXT("EdgeMode"), Value, GGameUserSettingsIni);
+	}
+	return FMath::Clamp(Value, 0, 2);
+}
+
+void ShiftSave::SetEdgeMode(int32 Mode)
+{
+	if (GConfig)
+	{
+		GConfig->SetInt(SaveSection, TEXT("EdgeMode"), Mode, GGameUserSettingsIni);
+		GConfig->Flush(false, GGameUserSettingsIni);
+	}
+}
+
+int32 ShiftSave::LeaderboardMode()
+{
+	int32 Value = 0;
+	if (GConfig)
+	{
+		GConfig->GetInt(SaveSection, TEXT("LeaderboardMode"), Value, GGameUserSettingsIni);
+	}
+	return FMath::Clamp(Value, 0, 2);
+}
+
+void ShiftSave::SetLeaderboardMode(int32 Mode)
+{
+	if (GConfig)
+	{
+		GConfig->SetInt(SaveSection, TEXT("LeaderboardMode"), Mode, GGameUserSettingsIni);
+		GConfig->Flush(false, GGameUserSettingsIni);
+	}
+}

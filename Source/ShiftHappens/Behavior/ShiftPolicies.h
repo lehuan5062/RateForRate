@@ -29,12 +29,14 @@ namespace ShiftSim
 		// stand-in others
 		double OthersInterval = 10.0;        // each other entry acts this often
 		double OthersMaxV = 100.0;           // weak: only low-weight nodes
+		double OthersTargetsPlayer = 1.0;    // how readily another entry plugs a voter the player holds (1 = like any other voter, 0 = never)
 		// stand-in Mod Eye (director)
 		double ModFirstSweepMin = 0.0;       // the Eye's cycle is already running at t=0: first sweep ~ U[this, jam ModIntervalMax]
 		// player bots
 		double BotInterval = 0.2;            // minimum seconds between bot clicks
 		double SockMaxHeat = 45.0;           // greedy+sock socks only when Heat <= this
 		double SockWindup = 0.5;             // seconds the bot holds night before the sock click
+		double RallyMinRisk = 400.0;         // rally bot: a Rally is worth it when this much vote weight in the cluster is about to flip back
 		double LateSeconds = 12.0;           // finisher / late bots: length of the final sockpuppet burst, in seconds before the end
 	};
 
@@ -46,6 +48,7 @@ namespace ShiftSim
 		GreedySock,
 		Finisher,       // honest greedy play all run, then a sockpuppet burst in the last LateSeconds
 		Late,           // does nothing until the last LateSeconds, then only the burst (the playtester's "do nothing, flip at the last moment")
+		Rally,          // honest greedy play, plus a Rally on the cluster with the most vote weight about to flip back
 	};
 
 	inline const char* BotName(BotKind K)
@@ -58,6 +61,7 @@ namespace ShiftSim
 		case BotKind::GreedySock: return "greedy+sock";
 		case BotKind::Finisher: return "finisher";
 		case BotKind::Late: return "late";
+		case BotKind::Rally: return "rally";
 		}
 		return "?";
 	}
@@ -76,6 +80,7 @@ namespace ShiftSim
 		if (L == "sock") { *Out = BotKind::GreedySock; return true; }
 		if (L == "finisher") { *Out = BotKind::Finisher; return true; }
 		if (L == "late") { *Out = BotKind::Late; return true; }
+		if (L == "rally") { *Out = BotKind::Rally; return true; }
 		return false;
 	}
 
@@ -228,6 +233,7 @@ namespace ShiftSim
 		{
 			TargetFilter F;
 			F.maxV = PP.OthersMaxV;
+			F.ownerMult[kPlayerId] = PP.OthersTargetsPlayer;
 			F.roleMask = (1u << static_cast<uint32_t>(NodeRole::Member)) | (1u << static_cast<uint32_t>(NodeRole::Bridge));
 			Target T;
 			if (S.BestTarget(Entry, F, &T))
@@ -421,6 +427,20 @@ namespace ShiftSim
 				return;
 			}
 
+			if (Mode == BotKind::Rally && S.RallyCooldownRemaining() <= 0.0)
+			{
+				int Node = -1;
+				if (FindRallyTarget(S, PP, &Node))
+				{
+					if (S.Posts() >= S.GetParams().RallyCost)
+					{
+						LastOutcome = S.Rally(Node);
+						++Actions;
+					}
+					return;   // worth a Rally: save the Posts up for it instead of plugging
+				}
+			}
+
 			if (Mode == BotKind::GreedySock && S.Heat() <= PP.SockMaxHeat)
 			{
 				int Node = -1;
@@ -517,6 +537,44 @@ namespace ShiftSim
 			return true;
 		}
 
+		// The voter of the player whose cluster (itself plus the player's voters one hop away) has the most vote weight that would flip back within 10 s, if that weight
+		// reaches PP.RallyMinRisk.
+		static bool FindRallyTarget(const Sim& S, const PolicyParams& PP, int* OutNode)
+		{
+			int Best = -1;
+			double BestRisk = PP.RallyMinRisk;
+			for (int I = 0; I < S.NodeCount(); ++I)
+			{
+				if (S.Opinion(I) != kPlayerId)
+				{
+					continue;
+				}
+				const GraphNode& G = S.GetGraph().nodes[static_cast<size_t>(I)];
+				double Risk = 0.0;
+				auto Add = [&S, &Risk](int J)
+				{
+					if (S.Opinion(J) == kPlayerId && S.LockRemaining(J) <= 0.0 && S.SecondsToFlip(J) < 10.0)
+					{
+						Risk += S.GetGraph().nodes[static_cast<size_t>(J)].weight;
+					}
+				};
+				Add(I);
+				for (size_t K = 0; K < G.follows.size(); ++K) { if (G.follows[K] != I) { Add(G.follows[K]); } }
+				for (size_t K = 0; K < G.followers.size(); ++K) { if (G.followers[K] != I) { Add(G.followers[K]); } }
+				if (Risk > BestRisk)
+				{
+					Best = I;
+					BestRisk = Risk;
+				}
+			}
+			if (Best < 0)
+			{
+				return false;
+			}
+			*OutNode = Best;
+			return true;
+		}
+
 		// Highest value voter the player does not own and that is not immune; a sockpuppet ignores gates, so gated or not does not matter.
 		static bool FindBurstTarget(const Sim& S, int* OutNode)
 		{
@@ -568,8 +626,8 @@ namespace ShiftSim
 			static const Field kFields[] = {
 				SHIFT_PP(RivalDefendBelow), SHIFT_PP(RivalPlayerMult), SHIFT_PP(RivalCapShare), SHIFT_PP(RivalBandBase),
 				SHIFT_PP(RivalBandSlope), SHIFT_PP(RivalBandThreshold), SHIFT_PP(MegaDays), SHIFT_PP(MegaConvBoost),
-				SHIFT_PP(MegaAttackMult), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV),
-				SHIFT_PP(ModFirstSweepMin), SHIFT_PP(BotInterval), SHIFT_PP(SockMaxHeat), SHIFT_PP(SockWindup), SHIFT_PP(LateSeconds),
+				SHIFT_PP(MegaAttackMult), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV), SHIFT_PP(OthersTargetsPlayer),
+				SHIFT_PP(ModFirstSweepMin), SHIFT_PP(BotInterval), SHIFT_PP(SockMaxHeat), SHIFT_PP(SockWindup), SHIFT_PP(LateSeconds), SHIFT_PP(RallyMinRisk),
 			};
 			*Count = static_cast<int>(sizeof(kFields) / sizeof(kFields[0]));
 			return kFields;

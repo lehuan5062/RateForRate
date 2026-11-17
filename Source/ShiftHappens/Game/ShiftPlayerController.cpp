@@ -124,6 +124,7 @@ namespace
 		TutFirstLostVoter,
 		TutFirstSockpuppet,
 		TutFinalAudit,
+		TutRally,
 		TutCount
 	};
 
@@ -131,7 +132,7 @@ namespace
 	{
 		TEXT("JamStart"), TEXT("FirstHover"), TEXT("FirstPlug"), TEXT("FirstConvictionRing"), TEXT("PostsLow"), TEXT("FirstReinforce"),
 		TEXT("FirstGateSeen"), TEXT("FirstGateOpened"), TEXT("ShiftUnlocked"), TEXT("FirstHeat"), TEXT("FirstModEye"), TEXT("FirstStrike"),
-		TEXT("BlameAvailable"), TEXT("KeysHint"), TEXT("FirstLostVoter"), TEXT("FirstSockpuppet"), TEXT("FinalAudit"),
+		TEXT("BlameAvailable"), TEXT("KeysHint"), TEXT("FirstLostVoter"), TEXT("FirstSockpuppet"), TEXT("FinalAudit"), TEXT("RallyHint"),
 	};
 
 	enum ETutEvent : uint32
@@ -280,6 +281,8 @@ void AShiftPlayerController::BeginPlay()
 	bAutoPauseOnFocusLoss = !bQaRun && !FParse::Param(Cmd, TEXT("ShiftNoAutoPause"));
 	bQaRunFlag = bQaRun;
 	bMuted = ShiftSave::IsMuted();
+	EdgeMode = ShiftSave::EdgeMode();
+	LeaderboardMode = ShiftSave::LeaderboardMode();
 	ApplyMute();
 
 	FShiftContent::EnsureLoaded();
@@ -756,6 +759,11 @@ void AShiftPlayerController::HandleHudClick(const FVector2D& LocalPos, bool bShi
 		return;
 	}
 	bPlayerActed = true;
+	if (bRightButton)
+	{
+		Run->QueueRally(Node);   // right-click: Rally a voter you hold
+		return;
+	}
 	PlaySfx(EShiftSfx::Plug);
 	Run->QueueAction(Node, bShift || IsNightHeldNow());
 }
@@ -808,6 +816,17 @@ void AShiftPlayerController::HandleHudKey(const FKey& Key)
 		else if (Key == EKeys::B)
 		{
 			HandleUi(EShiftUi::Blame, 0.0f);
+		}
+		else if (Key == EKeys::E)
+		{
+			EdgeMode = (EdgeMode + 1) % 3;
+			ShiftSave::SetEdgeMode(EdgeMode);
+			ShowToast(EdgeMode == 0 ? TEXT("Relation lines: faint (E)") : (EdgeMode == 1 ? TEXT("Relation lines: off (E)") : TEXT("Relation lines: full (E)")), TealColor(), 1.4f);
+		}
+		else if (Key == EKeys::L)
+		{
+			LeaderboardMode = (LeaderboardMode + 1) % 3;
+			ShiftSave::SetLeaderboardMode(LeaderboardMode);
 		}
 		else if (Key == EKeys::R && bPaused)
 		{
@@ -883,7 +902,18 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			break;
 		case EShiftEventType::PlayerLostVoter:
 			TutEventMask |= EvLost;
-			LostRecently.Add({ E.Node, E.NewOwner });
+			LostRecently.Add({ E.Node, E.NewOwner, static_cast<int32>(E.Value) });
+			break;
+		case EShiftEventType::PlayerRallied:
+		{
+			const ShiftSim::Params& RP = Run->GetSim().GetParams();
+			PlaySfx(EShiftSfx::Reinforce);
+			ShowToast(FString::Printf(TEXT("RALLY: %d voter%s +%.0f%% conviction"), E.Count, E.Count == 1 ? TEXT("") : TEXT("s"), RP.RallyBoost * 100.0), TealColor(), 2.0f);
+			break;
+		}
+		case EShiftEventType::PlayerRallyBlocked:
+			PlaySfx(EShiftSfx::Locked);
+			ShowToast(E.Value < 0.5f ? FString::Printf(TEXT("Rally is cooling down: %.0fs."), Run->GetSim().RallyCooldownRemaining()) : FString(TEXT("Rally works on a voter you hold (right-click).")), AmberColor(), 1.6f);
 			break;
 		case EShiftEventType::PlayerOverheated:
 			PlaySfx(EShiftSfx::NoPosts);
@@ -957,8 +987,22 @@ void AShiftPlayerController::TickLostVoters(float DeltaTime)
 	{
 		const FString Line = FShiftContent::PickComment(Heaviest->NewOwner == S.RivalId() ? TEXT("FlipToRival") : TEXT("FlipToOther"), CosmeticRng);
 		const FString Quote = Line.IsEmpty() ? FString(TEXT("changed my mind")) : Line;
-		ShowToast(Count == 1 ? FString::Printf(TEXT("@%s left you: %s"), *NodeHandle(Heaviest->Node), *Quote)
-			: FString::Printf(TEXT("Lost %d voters. @%s: %s"), Count, *NodeHandle(Heaviest->Node), *Quote), AmberColor(), 2.6f);
+		int32 Snatched = 0;
+		for (const FLostVoter& Lost : LostRecently)
+		{
+			Snatched += Lost.Cause != 0 ? 1 : 0;
+		}
+		FString Text;
+		if (Count == 1)
+		{
+			Text = Heaviest->Cause == 0 ? FString::Printf(TEXT("@%s drifted away: %s"), *NodeHandle(Heaviest->Node), *Quote)
+				: FString::Printf(TEXT("@%s was snatched by %s"), *NodeHandle(Heaviest->Node), *EntryName(Heaviest->NewOwner));
+		}
+		else
+		{
+			Text = FString::Printf(TEXT("Lost %d voters (%d snatched, %d drifted). @%s: %s"), Count, Snatched, Count - Snatched, *NodeHandle(Heaviest->Node), *Quote);
+		}
+		ShowToast(Text, AmberColor(), 2.6f);
 		PlaySfx(EShiftSfx::Weaken, 0.6f);
 		LostCooldown = 3.0f;
 	}
@@ -979,6 +1023,9 @@ FString AShiftPlayerController::ExpandTutorialText(const FString& Text) const
 	Out.ReplaceInline(TEXT("{redzone}"), *FString::Printf(TEXT("%.0f"), P.HeatRedZone));
 	Out.ReplaceInline(TEXT("{strikes}"), *FString::Printf(TEXT("%.0f"), P.MaxStrikes));
 	Out.ReplaceInline(TEXT("{ban}"), *FString::Printf(TEXT("%.0f"), P.ShadowbanSeconds));
+	Out.ReplaceInline(TEXT("{rallycost}"), *FString::Printf(TEXT("%.0f"), P.RallyCost));
+	Out.ReplaceInline(TEXT("{rallyboost}"), *FString::Printf(TEXT("%.0f%%"), P.RallyBoost * 100.0));
+	Out.ReplaceInline(TEXT("{rallycd}"), *FString::Printf(TEXT("%.0f"), P.RallyCooldown));
 	Out.ReplaceInline(TEXT("{launder}"), *FString::Printf(TEXT("%.0f%%"), P.SockLaunderConv * 100.0));
 	return Out;
 }
@@ -1074,6 +1121,10 @@ void AShiftPlayerController::TickTutorial(float DeltaTime)
 	if ((TutEventMask & EvLost) != 0)
 	{
 		QueueCoach(TutFirstLostVoter);
+	}
+	if (Seen(TutFirstLostVoter) && S.Posts() >= S.GetParams().RallyCost)
+	{
+		QueueCoach(TutRally);
 	}
 	if ((TutEventMask & EvSock) != 0)
 	{
@@ -1178,12 +1229,21 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 		}
 		else if (S.LockRemaining(HoverNode) <= 0.0 && S.SecondsToFlip(HoverNode) < 8.0)
 		{
-			T.Status = FString::Printf(TEXT("Under pressure: flips back in about %.0fs. Click to reinforce"), FMath::Max(1.0, S.SecondsToFlip(HoverNode)));
+			// Who pushes: the neighbours (followed or following) that back the entry out-pushing this voter. Winning them is how to hold it.
+			const int32 Challenger = S.Challenger(HoverNode);
+			int32 Pushers = 0;
+			if (Challenger >= 0)
+			{
+				for (const int32 Other : Node.follows) { Pushers += S.Opinion(Other) == Challenger ? 1 : 0; }
+				for (const int32 Other : Node.followers) { Pushers += S.Opinion(Other) == Challenger ? 1 : 0; }
+			}
+			T.Status = Challenger >= 0 ? FString::Printf(TEXT("Flips back in ~%.0fs: %d neighbours back %s. Reinforce, or win them"), FMath::Max(1.0, S.SecondsToFlip(HoverNode)), Pushers, *EntryName(Challenger))
+				: FString::Printf(TEXT("Under pressure: flips back in about %.0fs. Click to reinforce"), FMath::Max(1.0, S.SecondsToFlip(HoverNode)));
 			T.StatusColor = AmberColor();
 		}
 		else
 		{
-			T.Status = TEXT("Yours: click to reinforce");
+			T.Status = TEXT("Yours: click to reinforce, right-click to Rally");
 			T.StatusColor = TealColor();
 		}
 	}
@@ -1227,9 +1287,9 @@ FString AShiftPlayerController::BuildShareText() const
 	const double Votes = S.Tally(ShiftSim::kPlayerId);
 	const double SockVotes = S.SockpuppetWeight();
 	const FShiftFlipStats& Flips = Run->GetFlipStats();
-	return FString::Printf(TEXT("SHIFT HAPPENS - %s\n%s\n%s place of %d. Honest votes %.1f%%, sockpuppet votes %.1f%%, strikes %d. Won %d voters, %d drifted back.\n#GameOff2026"),
+	return FString::Printf(TEXT("SHIFT HAPPENS - %s\n%s\n%s place of %d. Honest votes %.1f%%, sockpuppet votes %.1f%%, strikes %d. Won %d voters, %d drifted away, %d snatched.\n#GameOff2026"),
 		UTF8_TO_TCHAR(S.Jam().name.c_str()), *ResultsModel.OutcomeTitle, *Ordinal(Rank), S.NumEntries(), (Votes - SockVotes) / Total * 100.0,
-		SockVotes / Total * 100.0, S.Strikes(), Flips.Gains, Flips.Losses);
+		SockVotes / Total * 100.0, S.Strikes(), Flips.Gains, Flips.LossHerd, Flips.LossRival + Flips.LossOthers);
 }
 
 void AShiftPlayerController::BuildResults(FShiftHudModel& Out) const
@@ -1298,8 +1358,8 @@ void AShiftPlayerController::BuildResults(FShiftHudModel& Out) const
 		QualityRank, S.NumEntries(), Rank, (Votes - SockVotes) / Total * 100.0, SockVotes / Total * 100.0);
 	Out.OutcomeLine3 = FShiftContent::PickBlurb(TEXT("Wink"), TEXT("Closing"), Rng);
 	const FShiftFlipStats& Flips = Run->GetFlipStats();
-	Out.PlaysLine = FString::Printf(TEXT("%d votes cast for your game. About %d people played it. You won %d voters, %d drifted back."), FMath::RoundToInt(static_cast<float>(Votes)),
-		Plays, Flips.Gains, Flips.Losses);
+	Out.PlaysLine = FString::Printf(TEXT("%d votes cast for your game. About %d people played it. You won %d voters: %d drifted away, %d were snatched."), FMath::RoundToInt(static_cast<float>(Votes)),
+		Plays, Flips.Gains, Flips.LossHerd, Flips.LossRival + Flips.LossOthers);
 	Out.HonestShare = static_cast<float>((Votes - SockVotes) / Total);
 	Out.SockShare = static_cast<float>(SockVotes / Total);
 	Out.bCanNextJam = JamIndex < 2;
@@ -1404,6 +1464,9 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 		M.Rows.Add(Row);
 	}
 
+	M.LeaderboardMode = LeaderboardMode;
+	M.RallyCooldown = static_cast<float>(S.RallyCooldownRemaining());
+	M.RallyCost = static_cast<float>(P.RallyCost);
 	M.Posts = static_cast<float>(S.Posts());
 	M.PostsMax = static_cast<float>(P.PostsMax);
 	M.Heat = static_cast<float>(S.Heat() / P.HeatMax);
@@ -1606,6 +1669,7 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 	View.Night = NightBlend;
 	View.Heat = static_cast<float>(S.Heat() / S.GetParams().HeatMax);
 	View.Beat = Audio ? Audio->BeatPulse() : 0.0f;
+	View.EdgeMode = EdgeMode;
 	Board->Update(S, View, DeltaTime);
 
 	if (Hud.IsValid())

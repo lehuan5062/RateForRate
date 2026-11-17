@@ -34,31 +34,46 @@ float d = 0.0;
 float ang = atan2(q.x, -q.y);
 float a01 = frac(ang * 0.15915494 + 1.0);   // 0 at the top, clockwise
 
-// 1. conviction track and arc
-d = abs(rr - 1.30) - 0.065;
+// Rings are laid out in screen pixels from the body edge, not in body radii: a member is only about 11 px across, so radius-relative rings were 1.4 px thin.
+// Every ring is a dark outline band with the coloured fill inside it, so it reads on pale paper and on the night sky alike.
+float px = 1.0 / max(Rad, 1.0);   // one screen pixel in q units
+float edgeOut = 1.12;             // just outside the body outline
+
+// 1. conviction ring: ink outline, dim track, owner-coloured arc (centre 5 px out, 3.6 px wide)
+float rConv = edgeOut + 5.0 * px;
+d = abs(rr - rConv) - 2.3 * px;
+a = (1.0 - smoothstep(-aa, aa, d)) * 0.92;
+pm = ink * a + pm * (1.0 - a);
+al = a + al * (1.0 - a);
+d = abs(rr - rConv) - 1.6 * px;
 float ringConv = 1.0 - smoothstep(-aa, aa, d);
-a = ringConv * 0.30;
-pm = ink * 0.5 * a + pm * (1.0 - a);
+a = ringConv * 0.85;
+pm = lerp(float3(0.78, 0.78, 0.84), float3(0.16, 0.16, 0.24), Night) * a + pm * (1.0 - a);
 al = a + al * (1.0 - a);
 a = ringConv * step(a01, saturate(Conv)) * step(0.001, Conv);
 pm = (Fill * 1.15 + 0.10) * a + pm * (1.0 - a);
 al = a + al * (1.0 - a);
 
-// 2. immunity dashes
-d = abs(rr - 1.52) - 0.03;
+// 2. immunity dashes (10.5 px out)
+d = abs(rr - (edgeOut + 10.5 * px)) - 1.5 * px;
 a = (1.0 - smoothstep(-aa, aa, d)) * step(0.5, frac(a01 * 30.0 - Tm * 0.7)) * saturate(Lock * 5.0);
 pm = ink * a + pm * (1.0 - a);
 al = a + al * (1.0 - a);
 
-// 3. gate ring (closed gates only): dark track plus amber progress arc
+// 3. gate ring (closed gates only), 16 px out: ink outline, dark track, amber progress arc
 float gateOn = step(0.0, Gate) * step(Gate, 1.5);
-d = abs(rr - 1.80) - 0.09;
+float rGate = edgeOut + 16.0 * px;
+d = abs(rr - rGate) - 3.3 * px;
+a = (1.0 - smoothstep(-aa, aa, d)) * 0.92 * gateOn;
+pm = ink * a + pm * (1.0 - a);
+al = a + al * (1.0 - a);
+d = abs(rr - rGate) - 2.4 * px;
 float ringGate = (1.0 - smoothstep(-aa, aa, d)) * gateOn;
-a = ringGate * 0.40;
-pm = ink * 0.6 * a + pm * (1.0 - a);
+a = ringGate * 0.85;
+pm = float3(0.30, 0.27, 0.33) * a + pm * (1.0 - a);
 al = a + al * (1.0 - a);
 a = ringGate * step(a01, saturate(Gate)) * step(0.001, Gate);
-pm = float3(1.0, 0.82, 0.25) * a + pm * (1.0 - a);
+pm = float3(1.0, 0.80, 0.15) * a + pm * (1.0 - a);
 al = a + al * (1.0 - a);
 
 // 4. body, outline, hub ring
@@ -128,11 +143,18 @@ a = (1.0 - smoothstep(-aa, aa, d)) * Flash * 0.9;
 pm = (Fill * 1.3 + 0.2) * a + pm * (1.0 - a);
 al = a + al * (1.0 - a);
 
-// 8. pressure: a pulsing orange alarm ring on a voter that is about to flip back (the whole node also shakes, see the top)
+// 8. pressure: a heavy orange alarm ring with an ink outline on a voter that is about to flip back (the whole node also shakes, see the top).
+// It sits where the immunity dashes would be (a voter under pressure is never immune), drawn last so nothing covers it.
 float pulse = 0.5 + 0.5 * sin(Tm * 9.0);
-d = abs(rr - (1.66 + 0.06 * pulse)) - 0.05;
-a = (1.0 - smoothstep(-aa, aa, d)) * saturate(Pressure) * (0.45 + 0.55 * pulse);
-pm = float3(1.0, 0.45, 0.10) * a + pm * (1.0 - a);
+float pOn = saturate(Pressure * 2.0);
+float rPress = edgeOut + 10.5 * px + 1.0 * px * pulse;
+d = abs(rr - rPress) - 4.1 * px;
+a = (1.0 - smoothstep(-aa, aa, d)) * 0.95 * pOn;
+pm = ink * a + pm * (1.0 - a);
+al = a + al * (1.0 - a);
+d = abs(rr - rPress) - 2.9 * px;
+a = (1.0 - smoothstep(-aa, aa, d)) * pOn * (0.80 + 0.20 * pulse);
+pm = float3(1.0, 0.38, 0.05) * a + pm * (1.0 - a);
 al = a + al * (1.0 - a);
 
 float3 outc = pm / max(al, 1e-4);

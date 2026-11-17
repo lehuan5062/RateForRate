@@ -101,7 +101,15 @@ void FShiftRun::QueueAction(int32 Node, bool bSock)
 {
 	if (Sim.IsValid() && !bOver && Pending.Num() < 16)
 	{
-		Pending.Add({ Node, bSock });
+		Pending.Add({ Node, bSock, false });
+	}
+}
+
+void FShiftRun::QueueRally(int32 Node)
+{
+	if (Sim.IsValid() && !bOver && Pending.Num() < 16)
+	{
+		Pending.Add({ Node, false, true });
 	}
 }
 
@@ -230,7 +238,11 @@ void FShiftRun::TrackOwnership()
 			else
 			{
 				++FlipStats.Losses;
+				const int32 Flipper = S.LastFlipper(i);
+				const int32 Cause = Flipper == ShiftSim::kFlipNatural ? 0 : (Flipper == S.RivalId() ? 1 : 2);
+				(Cause == 0 ? FlipStats.LossHerd : (Cause == 1 ? FlipStats.LossRival : FlipStats.LossOthers))++;
 				FShiftEvent Event;
+				Event.Value = static_cast<float>(Cause);
 				Event.Type = EShiftEventType::PlayerLostVoter;
 				Event.Node = i;
 				Event.PrevOwner = Was;
@@ -275,7 +287,7 @@ void FShiftRun::StepOnce()
 	}
 	for (const FPendingAction& Action : Pending)
 	{
-		const ShiftSim::ActionOutcome O = Action.bSock ? S.Sock(Action.Node) : S.Plug(ShiftSim::kPlayerId, Action.Node, 1.0);
+		const ShiftSim::ActionOutcome O = Action.bRally ? S.Rally(Action.Node) : (Action.bSock ? S.Sock(Action.Node) : S.Plug(ShiftSim::kPlayerId, Action.Node, 1.0));
 		FShiftEvent Event;
 		Event.Node = Action.Node;
 		Event.PrevOwner = O.prevOwner;
@@ -304,6 +316,15 @@ void FShiftRun::StepOnce()
 			break;
 		case ShiftSim::ActionResult::Overheated:
 			Event.Type = EShiftEventType::PlayerOverheated;
+			break;
+		case ShiftSim::ActionResult::Rallied:
+			Event.Type = EShiftEventType::PlayerRallied;
+			Event.Count = O.touched;
+			break;
+		case ShiftSim::ActionResult::OnCooldown:
+		case ShiftSim::ActionResult::NotYours:
+			Event.Type = EShiftEventType::PlayerRallyBlocked;
+			Event.Value = O.result == ShiftSim::ActionResult::OnCooldown ? 0.0f : 1.0f;
 			break;
 		default:
 			Event.Type = EShiftEventType::PlayerRefused;

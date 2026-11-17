@@ -109,7 +109,7 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 	if (JamArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { Jams = { 0, 1, 2 }; }
 	else { Jams.Add(FCString::Atoi(*JamArg)); }
 	TArray<FString> BotNames;
-	if (BotArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { BotNames = { TEXT("idle"), TEXT("random"), TEXT("greedy"), TEXT("sock"), TEXT("finisher"), TEXT("late") }; }
+	if (BotArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { BotNames = { TEXT("idle"), TEXT("random"), TEXT("greedy"), TEXT("sock"), TEXT("finisher"), TEXT("late"), TEXT("rally") }; }
 	else { BotArg.ParseIntoArray(BotNames, TEXT(",")); }
 
 	FString OverrideText;
@@ -191,6 +191,9 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				St.Flips.Gains += Flips.Gains;
 				St.Flips.SockGains += Flips.SockGains;
 				St.Flips.Losses += Flips.Losses;
+				St.Flips.LossHerd += Flips.LossHerd;
+				St.Flips.LossRival += Flips.LossRival;
+				St.Flips.LossOthers += Flips.LossOthers;
 				St.Flips.StrikeReverts += Flips.StrikeReverts;
 				St.Flips.AuditPurges += Flips.AuditPurges;
 				St.Flips.PlugDwellCount += Flips.PlugDwellCount;
@@ -208,8 +211,8 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				St.StrikeSum / N, 100.0 * St.RivalShare / N, St.R2Quality / N, St.R2Fame / N);
 			// A separate line (it does not start with "jam=", so the determinism compare in Tools/verify.ps1 ignores it): how the player's voters came and went, per run.
 			// Dwell = seconds a flipped voter stayed the player's before being lost again; the voters still held at the end are not counted.
-			UE_LOG(LogShift, Display, TEXT("Balance: flips jam=%d bot=%-8s per run: gains %.1f (sock %.1f)  lost %.1f  strike-reverts %.1f  audit-purged %.1f  dwell plug %.1fs (%d)  sock %.1fs (%d)"),
-				Jam, *BotName, St.Flips.Gains / N, St.Flips.SockGains / N, St.Flips.Losses / N, St.Flips.StrikeReverts / N, St.Flips.AuditPurges / N,
+			UE_LOG(LogShift, Display, TEXT("Balance: flips jam=%d bot=%-8s per run: gains %.1f (sock %.1f)  lost %.1f (herd %.1f rival %.1f others %.1f)  strike-reverts %.1f  audit-purged %.1f  dwell plug %.1fs (%d)  sock %.1fs (%d)"),
+				Jam, *BotName, St.Flips.Gains / N, St.Flips.SockGains / N, St.Flips.Losses / N, St.Flips.LossHerd / N, St.Flips.LossRival / N, St.Flips.LossOthers / N, St.Flips.StrikeReverts / N, St.Flips.AuditPurges / N,
 				St.Flips.PlugDwellCount > 0 ? St.Flips.PlugDwellSum / St.Flips.PlugDwellCount : 0.0, St.Flips.PlugDwellCount,
 				St.Flips.SockDwellCount > 0 ? St.Flips.SockDwellSum / St.Flips.SockDwellCount : 0.0, St.Flips.SockDwellCount);
 			Csv += FString::Printf(TEXT("%d,%s,%d,%.2f,%.2f,%.3f,%.2f,%.2f,%.3f,%.2f,%.3f,%.3f\n"), Jam, *BotName, St.Runs, 100.0 * St.Wins / N, 100.0 * St.Dq / N,

@@ -19,6 +19,7 @@ namespace ShiftSim
 {
 
 	constexpr int kNoOwner = -1;            // opinion value of an undecided node
+	constexpr int kFlipNatural = -2;        // Sim::LastFlipper value: the voter changed its mind under opinion pressure (no action flipped it)
 	constexpr int kUnreachable = 9999;      // PlugsNeeded() when a node cannot be flipped right now
 
 	enum class ActionResult : uint8_t
@@ -35,6 +36,9 @@ namespace ShiftSim
 		NotNight,          // Sock while the night-held flag is not set (Params::SockRequiresNight)
 		InvalidTarget,     // bad entry / node index
 		Overheated,        // Sock that would take Heat to the cap (Params::SockOverheatRefuse): refused, costs nothing
+		Rallied,           // Rally done: conviction added to the voter and its neighbours (ActionOutcome::touched)
+		OnCooldown,        // Rally before the cooldown is over: refused, costs nothing
+		NotYours,          // Rally on a voter the player does not hold: refused, costs nothing
 	};
 
 	const char* ActionResultName(ActionResult R);
@@ -55,6 +59,7 @@ namespace ShiftSim
 		double heatDelta = 0.0;
 		double gateProgress = 0.0;      // filled when result == Gated
 		double gateNeeded = 0.0;
+		int touched = 0;                // Rally: how many voters got the conviction boost
 
 		// True when the action was accepted (cost charged, node touched).
 		bool Accepted() const
@@ -144,6 +149,10 @@ namespace ShiftSim
 		ActionOutcome Sock(int Node);
 		// Behaviour layer calls this when the Mod Eye catches the player or Heat hits the cap.
 		StrikeOutcome ApplyStrike();
+		// Rally: spends Params::RallyCost Posts to add Params::RallyBoost conviction to a voter the player holds and to every voter of the player's one hop away (followed or
+		// following). Immune voters are boosted too. Refused (free) when not the player's, on cooldown, shadowbanned or disqualified.
+		ActionOutcome Rally(int Node);
+		double RallyCooldownRemaining() const { return RallyCooldown_; }
 		// Undoes every sockpuppet flip that is still flagged (back to the previous owner and conviction, immunity cleared) and returns the nodes. A strike does this,
 		// and so does the final audit at the end of the jam (Params::FinalAudit); neither is a strike for the audit.
 		std::vector<int> RevertSockpuppets();
@@ -182,6 +191,10 @@ namespace ShiftSim
 			const double D = Drain_[static_cast<size_t>(Node)];
 			return D > 1.0e-9 ? Conv_[static_cast<size_t>(Node)] / D : 1.0e9;
 		}
+		// Entry that out-pushes this voter as of the last Step() (kNoOwner when nobody does, or while the voter is immune). Derived for presentation, like Drain().
+		int Challenger(int Node) const { return Challenger_[static_cast<size_t>(Node)]; }
+		// Who last flipped this voter: an entry id (a Plug or Sock), kFlipNatural for opinion pressure, kNoOwner if it has not changed hands. Derived, not in StateHash.
+		int LastFlipper(int Node) const { return Flipper_[static_cast<size_t>(Node)]; }
 		const std::vector<NodeChange>& LastStepChanges() const { return Changes_; }
 
 		double Time() const { return Time_; }
@@ -261,6 +274,8 @@ namespace ShiftSim
 		std::vector<double> NewConv_;
 		std::vector<double> Contrib_;
 		std::vector<double> Drain_;         // derived, see Drain()
+		std::vector<int> Challenger_;       // derived, see Challenger()
+		std::vector<int> Flipper_;          // derived, see LastFlipper()
 
 		double Tally_[kMaxEntries];
 		int Rank_[kMaxEntries];
@@ -272,6 +287,7 @@ namespace ShiftSim
 		double PostsRegen_ = 0.5;
 		double Heat_ = 0.0;
 		double Shadowban_ = 0.0;
+		double RallyCooldown_ = 0.0;
 		int Strikes_ = 0;
 		bool NightHeld_ = false;
 

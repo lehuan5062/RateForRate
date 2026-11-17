@@ -22,6 +22,7 @@ struct FShiftBoardView
 	float Night = 0.0f;                              // 0 day .. 1 night
 	float Heat = 0.0f;                               // 0..1
 	float Beat = 0.0f;                               // 0..1 pulse on the music beat
+	int32 EdgeMode = 0;                              // relation lines: 0 faint, 1 off, 2 full (the old look)
 };
 
 /**

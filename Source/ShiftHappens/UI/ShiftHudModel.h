@@ -179,6 +179,7 @@ struct FShiftHudModel
 
 	// leaderboard, best first
 	TArray<FShiftHudRow> Rows;
+	int32 LeaderboardMode = 0;         // 0 compact (top three and you), 1 full, 2 hidden (a one-line chip)
 
 	// player resources
 	float Posts = 0.0f;
@@ -193,6 +194,8 @@ struct FShiftHudModel
 	float HeatProjected = 0.0f;        // 0..1: Heat after the next sockpuppet, shown while SHIFT is held (0 otherwise)
 	bool bModsEnabled = false;
 	float NextSweepIn = -1.0f;         // seconds, < 0 when unknown
+	float RallyCooldown = 0.0f;        // seconds until the next Rally is possible (0 = ready)
+	float RallyCost = 2.0f;            // Posts a Rally costs
 	float FinalAuditIn = -1.0f;        // seconds until the final audit while it is close (the last 10 s), < 0 otherwise
 
 	// state

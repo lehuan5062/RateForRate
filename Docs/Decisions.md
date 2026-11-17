@@ -294,3 +294,26 @@ idle, random and greedy rows are byte-identical to before. Cheating still pays (
 with follow-through, and its risk is real (DQ 34-50%); the finale burst no longer beats honest play. Legibility, no sim change: lost-voter toasts from the previously unused `FlipToRival` / `FlipToOther`
 comments, a shaking voter with an orange ring when `Sim::SecondsToFlip` is under 8 s, the Mod Eye countdown and a dimmed Heat bar from the start, projected Heat while SHIFT is held, coach cards with live
 numbers. `harness.exe export-data` refreshed `Data/Tuning.csv`; the harness core is now synced from `Source/.../Sim` by `Tools\sync_sim_core.ps1` (checked by `verify.ps1`).
+
+## M8 - playtest round 2 (issue #1, `8aac596`)
+The tester confirmed the audio failure is gone and reported: "flip voter only for them to switch back soon after", celebrities get pressured back too, "not enough Posts to flip every voter", the rings are
+barely readable among too many relation lines, and the leaderboard hides part of the board.
+
+**Why flips revert (measured).** Every loss is now attributed: `Sim::LastFlipper` records who last flipped a voter (an entry's action, or opinion pressure) and `Balance: flips` splits the losses.
+On the round-1 rules greedy lost 64 / 61 / 69% of the voters it won, and **the opposition caused 60-90% of it**: the rival plugs the player's best voters first (19-25 a run) and the seven other entries
+(0.7 clicks a second together) took another 8-18, while herd pressure was only 4-22. Banning others from the player's voters (`OthersTargetsPlayer` 0) only moved the losses to herd and rival (63% lost on GAME OFF
+either way). The symmetric levers (`PlugLock`, `PlugFlipConv`, `Stickiness`) entrench the incumbent rival and cut greedy's wins (PlugFlipConv 0.8: 88.5 -> 41). The lever that works is asymmetric: a small
+fanbase is loyal, so the player's flips start at conviction `PlayerFlipConv` 0.8 (others keep 0.55). That alone raised greedy's wins by 10-40 points, so Post regen was re-solved to put greedy back on the old targets
+(0.55 / 0.53 / 0.595 -> 0.50 / 0.48 / 0.505 a second). Result: greedy loses 59 / 54 / 63% of what it wins instead of 64 / 61 / 69%: better, but churn is structural (the rival owns about 80% of the network and
+attacks the best voter first), so it is not fixed, only dampened. Sockpuppet Heat went 28 -> 22 so cheating still pays after that (a sock adds Heat, strikes still bite).
+
+**Rally (right-click, new).** 2 Posts: +0.3 conviction and 3 s immunity for a voter you hold and your voters one hop away, 8 s cooldown. A `rally` bot (plugs like greedy, saves Posts when a cluster with 400+ vote
+weight is about to flip back) scores 5-8 points **below** greedy at the same settings: the bot cannot judge when a Rally is worth the pause, and stronger values (boost 0.5-0.6, immunity 3-5 s) did not change that. It is
+shipped as a skill tool for the human, **not validated by feel**.
+
+**Readability.** Relation lines are faint neutral by default (`E`: faint / off / full); owner colour, strength and pulses only for the hovered voter and for the pushes on a voter about to flip back, drawn orange.
+Rings are laid out in screen pixels (a member is about 11 px across, the old rings were 1.4 px thick) with an ink outline; the pressure ring is heavier. The leaderboard is compact and see-through by default
+(top three and you; `L`: compact / full / hidden). The tooltip names the pushers ("3 neighbours back ULTRA GAME 9").
+
+Final rows (`-Runs 200`, build 4/4/4, win % (DQ %)): idle 0 / 0 / 0, random 0 / 0 / 0, greedy 90.5 / 58.5 / 25.0, sock 87 (2.5) / 61 (22.5) / 57 (35), finisher 88 / 63 / 30, late 0 / 0 / 0, rally 85 / 55 / 17.5.
+The finale burst still does not beat honest play (finisher at most +5), cheating pays on the hard jams with real disqualification risk, and the do-nothing-then-flip run still loses.

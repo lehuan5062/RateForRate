@@ -415,7 +415,7 @@ inline void TestPlugAndSock(const Config& Cfg)
     T_CHECK(O.result == ActionResult::Flipped);
     T_CHECK(O.flipped && O.newOwner == kPlayerId);
     T_CHECK(S.Opinion(M) == kPlayerId);
-    T_CHECK(Near(S.Conviction(M), P.PlugFlipConv));
+    T_CHECK(Near(S.Conviction(M), P.PlayerFlipConv));
     T_CHECK(Near(S.LockRemaining(M), P.PlugLock));
     T_CHECK(!S.IsSockpuppet(M));
     // Locked nodes refuse attacks (rival), no cost for the rival obviously; player cost not charged on refusal.
@@ -729,19 +729,25 @@ inline void TestOverheatAndAudit(const Config& Cfg)
         S.SetNightHeld(true);
         S.SetPosts(5.0);
         S.SetHeat(0.0);
-        const std::vector<int> T = PickTargets(S, 4);
-        T_CHECK(T.size() == 4);
-        T_CHECK(S.Sock(T[0]).result == ActionResult::Flipped);
-        T_CHECK(S.Sock(T[1]).result == ActionResult::Flipped);
-        T_CHECK(S.Sock(T[2]).result == ActionResult::Flipped);
-        T_CHECK(Near(S.Heat(), 3.0 * On.SockHeat));
+        // As many socks as fit under the cap, then the next one would reach it.
+        int Fit = 0;
+        while ((Fit + 1) * On.SockHeat < On.HeatMax) { ++Fit; }
+        const std::vector<int> T = PickTargets(S, static_cast<size_t>(Fit) + 1);
+        T_CHECK(static_cast<int>(T.size()) == Fit + 1);
+        for (int K = 0; K < Fit; ++K)
+        {
+            S.SetPosts(5.0);
+            T_CHECK(S.Sock(T[static_cast<size_t>(K)]).result == ActionResult::Flipped);
+        }
+        T_CHECK(Near(S.Heat(), Fit * On.SockHeat));
+        S.SetPosts(5.0);
         const double PostsBefore = S.Posts();
         const double HeatBefore = S.Heat();
-        const ActionOutcome O = S.Sock(T[3]);            // 3 x 28 + 28 = 112 >= 100
+        const ActionOutcome O = S.Sock(T[static_cast<size_t>(Fit)]);   // Fit x SockHeat + SockHeat >= HeatMax
         T_CHECK(O.result == ActionResult::Overheated);
         T_CHECK(Near(S.Posts(), PostsBefore));
         T_CHECK(Near(S.Heat(), HeatBefore));
-        T_CHECK(S.Opinion(T[3]) != kPlayerId);
+        T_CHECK(S.Opinion(T[static_cast<size_t>(Fit)]) != kPlayerId);
         T_CHECK(!S.HeatMaxed());
 
         // With the refusal off the fourth sock goes through and Heat hits the cap (the heat guard strikes).
@@ -752,8 +758,8 @@ inline void TestOverheatAndAudit(const Config& Cfg)
         S2.SetNightHeld(true);
         S2.SetPosts(5.0);
         S2.SetHeat(0.0);
-        const std::vector<int> T2 = PickTargets(S2, 4);
-        for (size_t K = 0; K < 4; ++K) { T_CHECK(S2.Sock(T2[K]).result == ActionResult::Flipped); }
+        const std::vector<int> T2 = PickTargets(S2, static_cast<size_t>(Fit) + 1);
+        for (size_t K = 0; K < T2.size(); ++K) { S2.SetPosts(5.0); T_CHECK(S2.Sock(T2[K]).result == ActionResult::Flipped); }
         T_CHECK(S2.HeatMaxed());
     }
 
@@ -850,6 +856,81 @@ inline void TestOverheatAndAudit(const Config& Cfg)
         T_CHECK(Ok);
         (void)Pressured;
     }
+}
+
+// ------------------------------------------------------------------------------------------
+inline void TestRallyAndAttribution(const Config& Cfg)
+{
+    std::printf("[rally / pusher / last flipper]\n");
+    const Params& P = Cfg.params;
+    Sim S;
+    S.Init(Cfg.jams[1], P, 501);
+    // A hub of the player with two player-owned followers and one foreign follower.
+    int Hub = FindNode(S, NodeRole::LocalHub, 1);
+    T_CHECK(Hub >= 0);
+    const GraphNode& G = S.GetGraph().nodes[static_cast<size_t>(Hub)];
+    T_CHECK(G.followers.size() >= 3);
+    S.SetNodeState(Hub, kPlayerId, 0.5, 0.0);
+    S.SetNodeState(G.followers[0], kPlayerId, 0.4, 0.0);
+    S.SetNodeState(G.followers[1], kPlayerId, 0.95, 3.0);   // immune and near the cap: still boosted, clamped at 1
+    S.SetNodeState(G.followers[2], 3, 0.4, 0.0);            // not the player's: untouched
+    S.SetPosts(5.0);
+
+    // Refusals are free.
+    int Foreign = G.followers[2];
+    ActionOutcome O = S.Rally(Foreign);
+    T_CHECK(O.result == ActionResult::NotYours);
+    T_CHECK(Near(S.Posts(), 5.0));
+    T_CHECK(S.Rally(-1).result == ActionResult::InvalidTarget);
+
+    // A Rally costs RallyCost Posts and adds RallyBoost to the voter and the player's voters one hop away.
+    O = S.Rally(Hub);
+    T_CHECK(O.result == ActionResult::Rallied);
+    T_CHECK(Near(S.Posts(), 5.0 - P.RallyCost));
+    T_CHECK(Near(S.Conviction(Hub), 0.5 + P.RallyBoost));
+    T_CHECK(Near(S.Conviction(G.followers[0]), 0.4 + P.RallyBoost));
+    T_CHECK(Near(S.Conviction(G.followers[1]), 1.0));
+    T_CHECK(Near(S.Conviction(Foreign), 0.4));
+    T_CHECK(O.touched >= 3);
+    T_CHECK(Near(S.RallyCooldownRemaining(), P.RallyCooldown));
+    // Cooldown refuses (free), and it runs out with the steps.
+    const double PostsAfter = S.Posts();
+    T_CHECK(S.Rally(Hub).result == ActionResult::OnCooldown);
+    T_CHECK(Near(S.Posts(), PostsAfter));
+    int Steps = 0;
+    while (S.RallyCooldownRemaining() > 0.0 && Steps < 1000) { S.Step(); ++Steps; }
+    T_CHECK(Steps >= static_cast<int>(P.RallyCooldown / P.Dt) - 2 && Steps <= static_cast<int>(P.RallyCooldown / P.Dt) + 2);
+    // Too few Posts: refused, free.
+    S.SetNodeState(Hub, kPlayerId, 0.5, 0.0);
+    S.SetPosts(P.RallyCost - 0.5);
+    T_CHECK(S.Rally(Hub).result == ActionResult::NoPosts);
+    // Disqualified and shadowbanned players cannot rally.
+    S.SetPosts(5.0);
+    S.ApplyStrike();
+    T_CHECK(S.Rally(Hub).result == ActionResult::Shadowbanned);
+
+    // Last flipper: an action records its entry, opinion pressure records kFlipNatural.
+    Sim S2;
+    S2.Init(Cfg.jams[1], P, 502);
+    int M = FindNode(S2, NodeRole::Member);
+    S2.SetNodeState(M, 3, 0.2, 0.0);
+    S2.SetPosts(5.0);
+    T_CHECK(S2.LastFlipper(M) == kNoOwner);
+    T_CHECK(S2.Plug(kPlayerId, M).result == ActionResult::Flipped);
+    T_CHECK(S2.LastFlipper(M) == kPlayerId);
+    S2.SetNodeState(M, kPlayerId, 0.55, 0.0);
+    T_CHECK(S2.Plug(S2.RivalId(), M, 2.0).result == ActionResult::Flipped);
+    T_CHECK(S2.LastFlipper(M) == S2.RivalId());
+    // Pusher: a voter that is being out-pushed reports the entry doing it, and a voter that is not reports none.
+    bool Ok = true;
+    for (int Step = 0; Step < 600; ++Step) { S2.Step(); }
+    for (int I = 0; I < S2.NodeCount(); ++I)
+    {
+        const int C = S2.Challenger(I);
+        Ok = Ok && ((C == kNoOwner) == (S2.Drain(I) == 0.0));
+        Ok = Ok && (C == kNoOwner || (C >= 0 && C < S2.NumEntries() && C != S2.Opinion(I)));
+    }
+    T_CHECK(Ok);
 }
 
 // ------------------------------------------------------------------------------------------
@@ -1060,6 +1141,7 @@ inline void RunAll(const Config& Cfg)
     TestGates(Cfg);
     TestStrike(Cfg);
     TestOverheatAndAudit(Cfg);
+    TestRallyAndAttribution(Cfg);
     TestEconomy(Cfg);
     TestQueries(Cfg);
     TestDeterminism(Cfg);

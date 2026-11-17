@@ -94,14 +94,20 @@ namespace ShiftSim
 		double PlugFlipThreshold = 0.15;
 		double PlugFlipConv = 0.55;
 		double PlugLock = 6.0;                  // immunity seconds after a Plug flip
+		double PlayerFlipConv = 0.8;            // the same two numbers for a flip by the player: a small fanbase is loyal (set to PlugFlipConv / PlugLock for the symmetric game)
+		double PlayerPlugLock = 6.0;
 		double SockStrength = 3.0;
 		double SockConv = 0.25;
 		double SockLock = 3.0;
-		double SockHeat = 28.0;
+		double SockHeat = 22.0;
 		double SockRequiresNight = 1.0;         // 1: Sock refused unless the night-held flag is set
 		double SockLaunderConv = 0.9;           // a sockpuppet flip becomes a real vote once its conviction reaches this: three Posts of reinforcing (0.25 + 3 x 0.3) in its 3 s immunity (>1 = off, strikes and the audit always revert)
 		double SockOverheatRefuse = 1.0;        // 1: a sockpuppet that would take Heat to the cap is refused (Overheated, costs nothing) instead of striking at once
 		double FinalAudit = 1.0;                // 1: at the end of the jam the Mod Eye purges every sockpuppet vote that is still flagged (Sim::RevertSockpuppets)
+		double RallyCost = 2.0;                 // Posts a Rally costs (right-click on a voter the player holds)
+		double RallyBoost = 0.3;                // conviction a Rally adds to that voter and to every voter of the player's one hop away
+		double RallyLock = 3.0;                 // immunity seconds a Rally also gives every voter it boosts (immune voters cannot be plugged or drained)
+		double RallyCooldown = 8.0;             // seconds before the next Rally
 		double PostsMax = 5.0;
 		double PostsStart = 5.0;
 		double PostsRegen = 0.5;                // per second; Jams.csv Regen overrides per jam
