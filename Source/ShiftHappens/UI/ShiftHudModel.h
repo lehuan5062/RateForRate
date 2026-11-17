@@ -188,9 +188,12 @@ struct FShiftHudModel
 	int32 Strikes = 0;
 	int32 MaxStrikes = 3;
 	float ShadowbanSeconds = 0.0f;
-	bool bShowHeat = false;
+	bool bShowHeat = false;            // the Heat bar and strike pips are always there during play, dimmed until night shift has been used (bHeatActive)
+	bool bHeatActive = false;          // night held, or Heat above zero, or a strike: draw the Heat bar at full strength
+	float HeatProjected = 0.0f;        // 0..1: Heat after the next sockpuppet, shown while SHIFT is held (0 otherwise)
 	bool bModsEnabled = false;
 	float NextSweepIn = -1.0f;         // seconds, < 0 when unknown
+	float FinalAuditIn = -1.0f;        // seconds until the final audit while it is close (the last 10 s), < 0 otherwise
 
 	// state
 	float Night = 0.0f;                // 0 day .. 1 night (smoothed)

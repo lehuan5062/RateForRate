@@ -9,9 +9,10 @@ Everything here runs **headless** (no window, no console, no sound) unless state
 | `Tools\build.ps1 [-Target ShiftHappens -Config Shipping]` | Build with UBT (default: `ShiftHappensEditor` Development). The Shipping game target also compiles clean |
 | `Tools\run.ps1 -Shot <png> [-ShotDelay s] -Quit [-ResX -ResY] [-Extra @('-Flag',...)]` | Game run through `UnrealEditor-Cmd.exe -game -RenderOffScreen -ForceRes -NoSound`; log in `Saved\run_last.log`. `-Visible` and `-Sound` opt in to a window and sound |
 | `Tools\run_py.ps1 -Script Tools\py\<x>.py` | Python builders and probes in the headless editor; log in `Saved\py_<x>.log` |
-| `Tools\balance.ps1 -Runs N [-Jam 0\|1\|2\|all] [-Bot idle\|random\|greedy\|sock\|all] [-Build Q,T,N] [-NoStateTree] [-NoMods]` | `-run=ShiftBalance` commandlet: full runs against the real StateTrees; table in the log and `Saved\Balance\*.csv` |
+| `Tools\balance.ps1 -Runs N [-Jam 0\|1\|2\|all] [-Bot idle,random,greedy,sock,finisher,late\|all] [-Build Q,T,N] [-Set Name=Value,...] [-Tag name] [-NoStateTree] [-NoMods]` | `-run=ShiftBalance` commandlet: full runs against the real StateTrees; table in the log and `Saved\Balance\*.csv`, plus one `Balance: flips ...` line per cell (voters won, lost, reverted, purged, and how long a flip lasted). `-Bot`, `-Build` and `-Set` are comma lists (string arrays in the script, so PowerShell does not flatten them); `-Set` overrides any sim `Params`, jam or policy field by name without a rebuild (for example `-Set SockLaunderConv=0.8,LateSeconds=24`); `-Tag` gives the run its own log so experiments can run side by side |
 | `Tools\build_harness.ps1 [-Run test]` | The standalone C++ sim harness (determinism and invariants of the numeric core, no Unreal) |
-| `Tools\verify.ps1 [-SkipMeters]` | **One command**: audio assets (MetaSound only, no .wav), StateTree activity and determinism, game boot (clock, packs), then the audio meters |
+| `Tools\verify.ps1 [-SkipMeters]` | **One command**: the harness core is a verbatim copy of `Source\ShiftHappens\Sim`, audio assets (MetaSound only, no .wav), StateTree activity and determinism, game boot (clock, packs), the audio meters, and the slow-first-start meter check |
+| `Tools\sync_sim_core.ps1 [-Check]` | Copies `Source\ShiftHappens\Sim` to `Tools\SimHarness\core` (the harness builds the very same files); `-Check` only compares |
 | `Tools\build_audio.ps1` | Rebuilds every MetaSound patch, effect and the music with the Python Builder API (removes the old `MS*.uasset` first) |
 | `Tools\calibrate_audio.ps1 [-Reset]` | Build -> measure with the in-graph meters -> adjust `Tools\py\ms_trims.json`, until every sound is within 0.5 dB of its target |
 | `Tools\mcp_editor.ps1 start\|stop` | Headless editor hosting the Unreal MCP server (loopback) |
@@ -23,7 +24,7 @@ Everything here runs **headless** (no window, no console, no sound) unless state
 |---|---|
 | `-ShiftScreen=title\|jams\|build\|play` | Start on a screen (default: `play` if any run flag below is given, otherwise `title`) |
 | `-ShiftJam=0..2`, `-ShiftSeed=N`, `-ShiftBuild=Q,T,N` | Jam, seed (fixes all seeds, including the "random" ones), build hours |
-| `-ShiftBot=idle\|random\|greedy\|sock`, `-ShiftSpeed=N`, `-ShiftWarp=S` | Scripted player, fast-forward factor, sim seconds to run before the first frame |
+| `-ShiftBot=idle\|random\|greedy\|sock\|finisher\|late`, `-ShiftSpeed=N`, `-ShiftWarp=S` | Scripted player, fast-forward factor, sim seconds to run before the first frame. `finisher` plays honestly and bursts sockpuppets in the last `LateSeconds`; `late` does nothing until then |
 | `-ShiftNight=0..1` | Force the night blend (also counts as SHIFT held) |
 | `-ShiftCursor=X,Y` | Fake cursor in design pixels (1280 x 720) |
 | `-ShiftClicks="T,X,Y[,n];..."` | Scripted board clicks at game time T (`n` = sockpuppet) |
@@ -33,7 +34,8 @@ Everything here runs **headless** (no window, no console, no sound) unless state
 | `-ShiftTutorial` / `-ShiftNoTutorial` | Force or skip the coach cards (QA runs skip them by default) |
 | `-ShiftNoStateTree` | Native stand-in policies instead of the StateTrees |
 | `-ShiftNoAudio`, `-ShiftMasterVolume=0..1` | Skip audio; scale all sound |
-| `-ShiftAudioMeter=all\|sfx\|music\|<asset names>` | Audio QA: plays MetaSound sources inaudibly and logs their in-graph meters (needs `-Sound`; nothing is recorded, no .wav); exit code 3 on failure |
+| `-ShiftAudioMeter=all\|sfx\|music\|<asset names>` | Audio QA: plays MetaSound sources inaudibly and logs their in-graph meters (needs `-Sound`; nothing is recorded, no .wav); exit code 3 on failure. The run starts with a warm-up that is replayed until meter data really arrives, and a one-shot that ends without any data is retried twice before it fails |
+| `-ShiftAudioMeterDrop=<starts>`, `-ShiftAudioMeterStall=<ms>@<starts>` | Audio QA hooks, start numbers count every `Play()` of the run: `Drop` ignores the meter data of those starts (forces the retry paths deterministically; `verify.ps1` uses it), `Stall` stalls the game thread as the generator of those starts appears (a stress test for the cold-start race; whether it is lost depends on timing) |
 | `-ShiftNoUI`, `-ShiftNoAutoPause` | No HUD; do not pause on focus loss (QA runs never auto-pause) |
 
 QA runs never write progress to the player's settings (best ranks, tutorial flags are skipped).

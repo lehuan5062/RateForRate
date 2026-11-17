@@ -2,13 +2,17 @@
 #   .\Tools\verify.ps1                 everything below
 #   .\Tools\verify.ps1 -SkipMeters     skip the ~3 minute audio meter run
 #
+#   0. sim core       the standalone harness copy (Tools\SimHarness\core) is identical to the numeric core the game compiles (Source\ShiftHappens\Sim)
 #   1. audio assets   no .wav anywhere, no SoundWave assets or dependencies, every MetaSound source and patch present (editor, Tools\py\verify_audio.py)
 #   2. behaviour      the full run on the real StateTrees: 10 instances, every kind of action happens (rival, other entries, mods, ambient events),
 #                     and two identical runs give an identical balance table (determinism)
 #   3. game boot      the real game starts, loads 26 of 26 effects and the music, binds the Harmonix clock and receives beat events, activates the
 #                     three Game Feature jam packs
 #   4. audio meters   every sound audible and below -1 dBFS, music day / night / tension as designed, Harmonix clock steady, every pattern lane and
-#                     voice firing (the game plays them inaudibly and reads the in-graph meters; see UShiftAudioMeter)
+#                     voice firing (the game plays them inaudibly and reads the in-graph meters; see UShiftAudioMeter). The run starts with a warm-up that is
+#                     replayed until meter data really arrives, and a one-shot that loses its meter data to a busy game thread is retried before it fails
+#   5. slow first start  the cold-start failure path forced on purpose (-ShiftAudioMeterDrop throws away the meter data of the first warm-up play and of the
+#                     first real case, as a busy game thread does on a cold first run): the warm-up is replayed, the case retried, and both still pass
 param(
 	[switch]$SkipMeters
 )
@@ -22,6 +26,10 @@ function Check([string]$Name, [bool]$Ok, [string]$Detail = '') {
 }
 
 function LogHas([string]$Path, [string]$Pattern) { return [bool](Select-String -Path $Path -Pattern $Pattern -Quiet) }
+
+# ---- 0. sim core -----------------------------------------------------------------------------------------------------------------
+& (Join-Path $PSScriptRoot 'sync_sim_core.ps1') -Check | Out-Null
+Check 'sim core: harness copy identical to Source\ShiftHappens\Sim' ($LASTEXITCODE -eq 0) ''
 
 # ---- 1. audio assets -------------------------------------------------------------------------------------------------------------
 & (Join-Path $PSScriptRoot 'run_py.ps1') -Script 'Tools\py\verify_audio.py' | Out-Null
@@ -69,7 +77,20 @@ else {
 	$cases = @(Select-String -Path $runLog -Pattern 'AudioMeter: \[PASS\]').Count
 	$fails = @(Select-String -Path $runLog -Pattern 'AudioMeter: .*\[FAIL\]|AudioMeter: \[FAIL\]').Count
 	$done = Select-String -Path $runLog -Pattern 'AudioMeter: done, (\d+) case\(s\), (\d+) failure' | Select-Object -First 1
-	Check 'audio meters: every sound, the music layers, the Harmonix clock, every lane' ($meterExit -eq 0 -and $fails -eq 0 -and $done) ($done.Matches[0].Value)
+	$warmLine = Select-String -Path $runLog -Pattern 'AudioMeter: warm-up done \(.*\)' | Select-Object -First 1
+	$meterDetail = @($(if ($warmLine) { $warmLine.Matches[0].Value } else { 'no warm-up line' }), $(if ($done) { $done.Matches[0].Value } else { 'no summary line' })) -join '; '
+	Check 'audio meters: every sound, the music layers, the Harmonix clock, every lane' ($meterExit -eq 0 -and $fails -eq 0 -and $done -and $warmLine) $meterDetail
+
+	# ---- 5. slow first start ---------------------------------------------------------------------------------------------------------
+	# The failure the playtest hit, forced on purpose: the meter data of the first warm-up play (start 1) and of the first real case (start 3) is thrown away.
+	& (Join-Path $PSScriptRoot 'run.ps1') -Sound -TimeoutSec 300 -Extra @('-ShiftAudioMeter=MS_Sfx_Click,MS_Sfx_Hover', '-ShiftAudioMeterDrop=1,3', '-ShiftNoUI', '-ShiftNoTutorial') | Out-Null
+	$dropExit = $LASTEXITCODE
+	$warmDrop = Select-String -Path $runLog -Pattern 'AudioMeter: warm-up done \((\d+) meter updates, (\d+) attempt\(s\), [\d.]+ s\)' | Select-Object -First 1
+	$retried = LogHas $runLog 'AudioMeter: MS_Sfx_Click: no meter data, retry 1/2'
+	$dropPasses = @(Select-String -Path $runLog -Pattern 'AudioMeter: \[PASS\]').Count
+	$dropFails = @(Select-String -Path $runLog -Pattern 'AudioMeter: .*\[FAIL\]|AudioMeter: \[FAIL\]').Count
+	$warmOk = $warmDrop -and [int]$warmDrop.Matches[0].Groups[1].Value -gt 0 -and [int]$warmDrop.Matches[0].Groups[2].Value -ge 2
+	Check 'audio meters: slow first start (warm-up replayed, lost case retried)' ($dropExit -eq 0 -and $dropFails -eq 0 -and $dropPasses -eq 2 -and $warmOk -and $retried) $(if ($warmDrop) { $warmDrop.Matches[0].Value } else { 'no warm-up line' })
 }
 
 Write-Host ''

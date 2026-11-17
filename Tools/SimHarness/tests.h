@@ -705,6 +705,154 @@ inline void TestStrike(const Config& Cfg)
 }
 
 // ------------------------------------------------------------------------------------------
+inline void TestOverheatAndAudit(const Config& Cfg)
+{
+    std::printf("[overheat / final audit / drain]\n");
+    const Params& P = Cfg.params;
+
+    auto PickTargets = [](const Sim& S, size_t Count)
+    {
+        std::vector<int> Out;
+        for (int I = 0; I < S.NodeCount() && Out.size() < Count; ++I)
+        {
+            if (S.Opinion(I) != kPlayerId && S.Opinion(I) >= 0 && S.LockRemaining(I) == 0.0) { Out.push_back(I); }
+        }
+        return Out;
+    };
+
+    // Overheat refusal: a sockpuppet that would take Heat to the cap is refused, free; three fit under the cap.
+    {
+        Params On = P;
+        On.SockOverheatRefuse = 1.0;
+        Sim S;
+        S.Init(Cfg.jams[1], On, 404);
+        S.SetNightHeld(true);
+        S.SetPosts(5.0);
+        S.SetHeat(0.0);
+        const std::vector<int> T = PickTargets(S, 4);
+        T_CHECK(T.size() == 4);
+        T_CHECK(S.Sock(T[0]).result == ActionResult::Flipped);
+        T_CHECK(S.Sock(T[1]).result == ActionResult::Flipped);
+        T_CHECK(S.Sock(T[2]).result == ActionResult::Flipped);
+        T_CHECK(Near(S.Heat(), 3.0 * On.SockHeat));
+        const double PostsBefore = S.Posts();
+        const double HeatBefore = S.Heat();
+        const ActionOutcome O = S.Sock(T[3]);            // 3 x 28 + 28 = 112 >= 100
+        T_CHECK(O.result == ActionResult::Overheated);
+        T_CHECK(Near(S.Posts(), PostsBefore));
+        T_CHECK(Near(S.Heat(), HeatBefore));
+        T_CHECK(S.Opinion(T[3]) != kPlayerId);
+        T_CHECK(!S.HeatMaxed());
+
+        // With the refusal off the fourth sock goes through and Heat hits the cap (the heat guard strikes).
+        Params Off = P;
+        Off.SockOverheatRefuse = 0.0;
+        Sim S2;
+        S2.Init(Cfg.jams[1], Off, 404);
+        S2.SetNightHeld(true);
+        S2.SetPosts(5.0);
+        S2.SetHeat(0.0);
+        const std::vector<int> T2 = PickTargets(S2, 4);
+        for (size_t K = 0; K < 4; ++K) { T_CHECK(S2.Sock(T2[K]).result == ActionResult::Flipped); }
+        T_CHECK(S2.HeatMaxed());
+    }
+
+    // The final audit is RevertSockpuppets without a strike: sockpuppet flips go back, honest ones stay, nothing else changes.
+    {
+        Sim S;
+        S.Init(Cfg.jams[1], P, 405);
+        S.SetNightHeld(true);
+        S.SetPosts(5.0);
+        S.SetHeat(0.0);
+        const std::vector<int> T = PickTargets(S, 3);
+        T_CHECK(T.size() == 3);
+        std::vector<int> PrevOwner;
+        std::vector<double> PrevConv;
+        for (size_t K = 0; K < T.size(); ++K) { PrevOwner.push_back(S.Opinion(T[K])); PrevConv.push_back(S.Conviction(T[K])); }
+        for (size_t K = 0; K < T.size(); ++K) { S.SetPosts(5.0); T_CHECK(S.Sock(T[K]).result == ActionResult::Flipped); }
+        int Honest = -1;
+        for (int I = 0; I < S.NodeCount(); ++I)
+        {
+            if (S.Opinion(I) >= 0 && S.Opinion(I) != kPlayerId && S.LockRemaining(I) == 0.0 && !S.GetGraph().IsGateNode(I)) { Honest = I; break; }
+        }
+        S.SetNightHeld(false);
+        S.SetNodeState(Honest, 3, 0.4, 0.0);
+        S.SetPosts(5.0);
+        T_CHECK(S.Plug(kPlayerId, Honest).result == ActionResult::Flipped);
+
+        const double HeatBefore = S.Heat();
+        const int StrikesBefore = S.Strikes();
+        const std::vector<int> Purged = S.RevertSockpuppets();
+        T_CHECK(Purged.size() == T.size());
+        for (size_t K = 0; K < T.size(); ++K)
+        {
+            T_CHECK(S.Opinion(T[K]) == PrevOwner[K]);
+            T_CHECK(Near(S.Conviction(T[K]), PrevConv[K]));
+            T_CHECK(!S.IsSockpuppet(T[K]));
+            T_CHECK(Near(S.LockRemaining(T[K]), 0.0));
+        }
+        T_CHECK(S.Opinion(Honest) == kPlayerId);
+        T_CHECK(Near(S.SockpuppetWeight(), 0.0));
+        T_CHECK(S.Strikes() == StrikesBefore);                 // not a strike
+        T_CHECK(Near(S.ShadowbanRemaining(), 0.0));            // no shadowban
+        T_CHECK(Near(S.Heat(), HeatBefore));                   // no Heat reset
+        T_CHECK(S.RevertSockpuppets().empty());                // nothing left
+    }
+
+    // Laundering plus the audit: a sockpuppet that was reinforced into a real vote survives, an unbacked one does not.
+    {
+        Params L = P;
+        L.SockLaunderConv = 0.8;
+        Sim S;
+        S.Init(Cfg.jams[1], L, 406);
+        S.SetNightHeld(true);
+        S.SetPosts(5.0);
+        S.SetHeat(0.0);
+        const std::vector<int> T = PickTargets(S, 2);
+        T_CHECK(T.size() == 2);
+        T_CHECK(S.Sock(T[0]).result == ActionResult::Flipped);
+        S.SetPosts(5.0);
+        T_CHECK(S.Sock(T[1]).result == ActionResult::Flipped);
+        S.SetPosts(5.0);
+        T_CHECK(S.Plug(kPlayerId, T[0]).result == ActionResult::Reinforced);   // 0.25 -> 0.55, allowed during the immunity
+        T_CHECK(S.Plug(kPlayerId, T[0]).result == ActionResult::Reinforced);   // 0.55 -> 0.85
+        S.Step();
+        T_CHECK(!S.IsSockpuppet(T[0]));                                        // laundered: a real vote now
+        T_CHECK(S.IsSockpuppet(T[1]));
+        const std::vector<int> Purged = S.RevertSockpuppets();
+        T_CHECK(Purged.size() == 1 && Purged[0] == T[1]);
+        T_CHECK(S.Opinion(T[0]) == kPlayerId);
+        T_CHECK(S.Opinion(T[1]) != kPlayerId);
+    }
+
+    // Drain is a derived value: never negative, zero while a voter is immune, and SecondsToFlip is conviction / drain.
+    {
+        Sim S;
+        S.Init(Cfg.jams[2], P, 407);
+        for (int Step = 0; Step < 400; ++Step) { S.Step(); }
+        bool Ok = true;
+        int Pressured = 0;
+        for (int I = 0; I < S.NodeCount(); ++I)
+        {
+            const double D = S.Drain(I);
+            Ok = Ok && D >= 0.0;
+            if (S.LockRemaining(I) > 0.0) { Ok = Ok && D == 0.0; }
+            if (D > 1.0e-9)
+            {
+                ++Pressured;
+                Ok = Ok && Near(S.SecondsToFlip(I), S.Conviction(I) / D, 1.0e-9);
+            }
+            else
+            {
+                Ok = Ok && S.SecondsToFlip(I) > 1.0e8;
+            }
+        }
+        T_CHECK(Ok);
+        (void)Pressured;
+    }
+}
+
+// ------------------------------------------------------------------------------------------
 inline void TestEconomy(const Config& Cfg)
 {
     std::printf("[posts / heat bookkeeping]\n");
@@ -911,6 +1059,7 @@ inline void RunAll(const Config& Cfg)
     TestPlugAndSock(Cfg);
     TestGates(Cfg);
     TestStrike(Cfg);
+    TestOverheatAndAudit(Cfg);
     TestEconomy(Cfg);
     TestQueries(Cfg);
     TestDeterminism(Cfg);

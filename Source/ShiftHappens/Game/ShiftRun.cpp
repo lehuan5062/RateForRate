@@ -4,6 +4,8 @@
 
 #include "Behavior/ShiftPolicies.h"
 #include "Containers/Array.h"
+#include "Containers/StringConv.h"
+#include "Containers/UnrealString.h"
 #include "GenericPlatform/GenericPlatformMisc.h"
 #include "HAL/Platform.h"
 #include "Logging/LogMacros.h"
@@ -13,7 +15,10 @@
 #include "Sim/ShiftParams.h"
 #include "Sim/ShiftRng.h"
 #include "Sim/ShiftSim.h"
+#include <string>
+#include "Templates/TupleFwd.h"
 #include "Templates/UniquePtr.h"
+#include <vector>
 
 bool FShiftRun::Start(int32 InJamIndex, uint32 InSeed, const FShiftBuild& InBuild, bool bInModsEnabled)
 {
@@ -24,6 +29,14 @@ bool FShiftRun::Start(int32 InJamIndex, uint32 InSeed, const FShiftBuild& InBuil
 	ShiftSim::Params Params;
 	ShiftSim::JamDef Jam = ShiftSim::DefaultJam(JamIndex);
 	ShiftBuildRules::Apply(InBuild, Params, Jam);
+	for (const TPair<FString, double>& Override : Overrides)
+	{
+		const std::string Name = TCHAR_TO_UTF8(*Override.Key);
+		if (!ShiftSim::SetParam(Params, Name, Override.Value) && !ShiftSim::SetJamField(Jam, Name, Override.Value) && !ShiftSim::SetPolicyParam(Policy, Name, Override.Value))
+		{
+			UE_LOG(LogShift, Error, TEXT("FShiftRun: unknown override '%s'"), *Override.Key);
+		}
+	}
 
 	Sim = MakeUnique<ShiftSim::Sim>();
 	if (!Sim->Init(Jam, Params, Seed))
@@ -32,6 +45,16 @@ bool FShiftRun::Start(int32 InJamIndex, uint32 InSeed, const FShiftBuild& InBuil
 		Sim.Reset();
 		return false;
 	}
+
+	FlipStats = FShiftFlipStats();
+	StatOwner.SetNum(Sim->NodeCount());
+	StatGainTime.Init(0.0, Sim->NodeCount());
+	StatGainSock.Init(0, Sim->NodeCount());
+	for (int32 i = 0; i < Sim->NodeCount(); ++i)
+	{
+		StatOwner[i] = Sim->Opinion(i);
+	}
+	RevertedNow.Reset();
 
 	Rival.Reset(*Sim, Policy);
 	Others.Reset(*Sim, Policy);
@@ -91,9 +114,14 @@ void FShiftRun::DrainEvents(TArray<FShiftEvent>& Out)
 void FShiftRun::ApplyModStrike()
 {
 	const ShiftSim::StrikeOutcome Strike = Sim->ApplyStrike();
+	for (const int Node : Strike.revertedNodes)
+	{
+		RevertedNow.Add(Node);
+	}
 	FShiftEvent Event;
 	Event.Type = EShiftEventType::Strike;
 	Event.Value = static_cast<float>(Strike.strikes);
+	Event.Count = static_cast<int32>(Strike.revertedNodes.size());
 	Emit(Event);
 	if (!bBlameUsed)
 	{
@@ -158,6 +186,63 @@ void FShiftRun::ModUpdate()
 	}
 }
 
+void FShiftRun::TrackOwnership()
+{
+	const ShiftSim::Sim& S = *Sim;
+	for (int32 i = 0; i < S.NodeCount(); ++i)
+	{
+		const int32 Now = S.Opinion(i);
+		const int32 Was = StatOwner[i];
+		if (Now == Was)
+		{
+			continue;
+		}
+		StatOwner[i] = Now;
+		if (Now == ShiftSim::kPlayerId)
+		{
+			const bool bSock = S.IsSockpuppet(i);
+			StatGainSock[i] = bSock ? 1 : 0;
+			StatGainTime[i] = S.Time();
+			++FlipStats.Gains;
+			FlipStats.SockGains += bSock ? 1 : 0;
+		}
+		else if (Was == ShiftSim::kPlayerId)
+		{
+			const double Dwell = S.Time() - StatGainTime[i];
+			if (StatGainSock[i] != 0)
+			{
+				FlipStats.SockDwellSum += Dwell;
+				++FlipStats.SockDwellCount;
+			}
+			else
+			{
+				FlipStats.PlugDwellSum += Dwell;
+				++FlipStats.PlugDwellCount;
+			}
+			if (RevertedNow.Contains(i))
+			{
+				++FlipStats.StrikeReverts;
+			}
+			else if (PurgedNow.Contains(i))
+			{
+				// counted as an audit purge when the audit ran
+			}
+			else
+			{
+				++FlipStats.Losses;
+				FShiftEvent Event;
+				Event.Type = EShiftEventType::PlayerLostVoter;
+				Event.Node = i;
+				Event.PrevOwner = Was;
+				Event.NewOwner = Now;
+				Emit(Event);
+			}
+		}
+	}
+	RevertedNow.Reset();
+	PurgedNow.Reset();
+}
+
 void FShiftRun::StepOnce()
 {
 	ShiftSim::Sim& S = *Sim;
@@ -182,7 +267,7 @@ void FShiftRun::StepOnce()
 
 	if (bBotActive)
 	{
-		Bot.Update(S, Policy);   // the bot manages the night flag itself when it sockpuppets
+		Bot.Update(S, Policy, bModsEnabled ? NextSweep : 1.0e30);   // the bot manages the night flag itself when it sockpuppets
 	}
 	else
 	{
@@ -217,6 +302,9 @@ void FShiftRun::StepOnce()
 		case ShiftSim::ActionResult::NoPosts:
 			Event.Type = EShiftEventType::PlayerNoPosts;
 			break;
+		case ShiftSim::ActionResult::Overheated:
+			Event.Type = EShiftEventType::PlayerOverheated;
+			break;
 		default:
 			Event.Type = EShiftEventType::PlayerRefused;
 			break;
@@ -226,6 +314,26 @@ void FShiftRun::StepOnce()
 	Pending.Reset();
 
 	S.Step();
+	if (S.Finished() && !bAuditDone && S.GetParams().FinalAudit > 0.5)
+	{
+		// The final audit: before the tally is read, the mods purge every sockpuppet vote that nobody backed (no strike, no shadowban).
+		bAuditDone = true;
+		const double Total = FMath::Max(1.0, S.TotalWeight());
+		const double PurgedWeight = S.SockpuppetWeight();
+		const std::vector<int> Purged = S.RevertSockpuppets();
+		for (const int Node : Purged)
+		{
+			PurgedNow.Add(Node);
+		}
+		FlipStats.AuditPurges += static_cast<int32>(Purged.size());
+		FlipStats.AuditPurgedShare += PurgedWeight / Total;
+		FShiftEvent Event;
+		Event.Type = EShiftEventType::FinalAudit;
+		Event.Count = static_cast<int32>(Purged.size());
+		Event.Value = static_cast<float>(PurgedWeight / Total);
+		Emit(Event);
+	}
+	TrackOwnership();
 
 	const int32 Day = S.DayIndex();
 	if (Day != LastDay)

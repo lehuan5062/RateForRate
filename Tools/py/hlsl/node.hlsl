@@ -4,12 +4,14 @@
 //   Fill float3 owner colour              Conv float  conviction 0..1           Lock float  immunity 0..1
 //   Gate float  <0 none, 0..1 progress    Hover float 0..1                      Flash float 0..1 (flip pulse)
 //   Role float  0 member 1 hub 2 celeb 3 bridge   Expr float -1..1 (frown..smile)   Sock float 0/1
-//   Dim  float  0..1 (disqualified / inactive)    Night float 0..1   Tm float seconds   Heat float 0..1   Cur float2 cursor world XY
+//   Pressure float 0..1 (the voter is about to flip back: it shakes and an orange ring pulses)
+//   Night float 0..1   Tm float seconds   Heat float 0..1   Cur float2 cursor world XY
 // q-space: x right, y down, body radius = 1.
 
 float2 dW = PW - CW;
 float2 q = float2(dW.y, -dW.x) / max(Rad, 1.0);
 float aa = max(max(fwidth(q.x), fwidth(q.y)), 1e-4);
+q.x += 0.05 * Pressure * sin(Tm * 34.0);   // a voter under pressure shakes
 
 float swell = 1.0 + 0.08 * Hover + 0.22 * Flash;
 float rr = length(q);
@@ -61,7 +63,7 @@ al = a + al * (1.0 - a);
 
 // 4. body, outline, hub ring
 float aB = 1.0 - smoothstep(-aa, aa, dBody);
-float3 body = Fill * (0.90 + 0.14 * saturate(-q.y)) * (1.0 - 0.45 * Dim);
+float3 body = Fill * (0.90 + 0.14 * saturate(-q.y));
 pm = body * aB + pm * (1.0 - aB);
 al = aB + al * (1.0 - aB);
 d = abs(dBody + 0.05) - 0.05;
@@ -124,6 +126,13 @@ float rf = 1.1 + (1.0 - Flash) * 0.9;
 d = abs(rr - rf) - 0.05;
 a = (1.0 - smoothstep(-aa, aa, d)) * Flash * 0.9;
 pm = (Fill * 1.3 + 0.2) * a + pm * (1.0 - a);
+al = a + al * (1.0 - a);
+
+// 8. pressure: a pulsing orange alarm ring on a voter that is about to flip back (the whole node also shakes, see the top)
+float pulse = 0.5 + 0.5 * sin(Tm * 9.0);
+d = abs(rr - (1.66 + 0.06 * pulse)) - 0.05;
+a = (1.0 - smoothstep(-aa, aa, d)) * saturate(Pressure) * (0.45 + 0.55 * pulse);
+pm = float3(1.0, 0.45, 0.10) * a + pm * (1.0 - a);
 al = a + al * (1.0 - a);
 
 float3 outc = pm / max(al, 1e-4);

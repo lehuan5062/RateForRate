@@ -6,10 +6,13 @@
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "Containers/UnrealString.h"
+#include "Delegates/IDelegateInstance.h"
 #include "Engine/World.h"
 #include "HAL/Platform.h"
 #include "HarmonixMetasound/Components/MusicClockComponent.h"
 #include "MetasoundOutput.h"
+#include "MetasoundSource.h"
+#include "Sound/SoundBase.h"
 #include "UObject/NameTypes.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
@@ -54,6 +57,7 @@ private:
 		float Seconds = 4.0f;        // one-shots: maximum wait for OnFinished; looping sources: how long to measure
 		bool bLooping = false;
 		bool bClock = false;         // bind a Harmonix music clock to the "MIDI Clock" output and count its beat events
+		bool bWarmUp = false;        // the throw-away case that proves a generator delivers meter data before the real cases run
 		float Day = 1.0f;
 		float Night = 0.0f;
 		float Tension = 0.0f;
@@ -122,6 +126,25 @@ private:
 	bool bCaseFinished = false;
 	bool bDone = false;
 	int32 Failures = 0;
+
+	// The generator's output analyzers attach one game-thread hop after the generator exists, so a short one-shot that starts while the game thread is busy (a cold
+	// first start) can be over before any meter data arrives. The warm-up is replayed until data arrives, and a one-shot without data is retried before it fails.
+	bool bStarted = false;           // the first case starts on the first Tick: Begin runs inside engine init
+	double WarmStartWall = 0.0;      // FPlatformTime::Seconds() at the first Tick
+	int32 Attempt = 1;               // tries of the current case so far, counting this one
+
+	UPROPERTY()
+	TArray<TObjectPtr<USoundBase>> Preloaded;   // every case asset is loaded up front, so no case starts with a synchronous LoadObject
+
+	// QA hooks: start numbers count every Play() of the run, warm-up and retries included.
+	//   -ShiftAudioMeterStall=<ms>@<starts>  stalls the game thread as the generator of those starts appears (a stress test: whether the race is lost depends on timing)
+	//   -ShiftAudioMeterDrop=<starts>        ignores every meter update of those starts (forces the zero-update path deterministically)
+	int32 StartCount = 0;
+	int32 StallMs = 0;
+	TArray<int32> StallStarts;
+	TArray<int32> DropStarts;
+	FDelegateHandle StallListener;
+	TWeakObjectPtr<UMetaSoundSource> StallSource;
 
 	FStat Peak, Rms, Low, Mid, High;
 	int32 OutputUpdates = 0;

@@ -72,7 +72,9 @@ SockConv,0.25
 SockLock,3
 SockHeat,28
 SockRequiresNight,1
-SockLaunderConv,2
+SockLaunderConv,0.9
+SockOverheatRefuse,1
+FinalAudit,1
 PostsMax,5
 PostsStart,5
 PostsRegen,0.5

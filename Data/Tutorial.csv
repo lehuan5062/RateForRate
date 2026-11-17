@@ -7,9 +7,12 @@ TUT05,5,PostsLow,"Posts refill slowly. Spend them on voters with many followers,
 TUT06,6,FirstReinforce,Plug your own voters to reinforce them. Even fans need a little love.
 TUT07,7,FirstGateSeen,A padlock marks a gate. The hub ignores you until enough of its followers back you.
 TUT08,8,FirstGateOpened,The gate opened because its followers came around. That is the honest way.
-TUT09,9,ShiftUnlocked,Hold SHIFT to work the night shift. Sticky Keys in the way? Press N instead.
-TUT10,10,FirstHeat,"Night shift flips are strong, loud and fragile. Heat rises while you hold SHIFT."
-TUT11,11,FirstModEye,The Mod Eye sweeps now and then. Keep Heat low when it passes or it notices.
-TUT12,12,FirstStrike,Strike! The mods undid your sockpuppets. Three strikes and you are out.
+TUT09,9,ShiftUnlocked,"Hold SHIFT for the night shift: sockpuppets ignore gates, so you can crack a celebrity. Sticky Keys in the way? Press N."
+TUT10,10,FirstHeat,"Night shift is loud: each sockpuppet adds {sockheat} Heat and holding SHIFT adds {heatrate} a second. Heat cools only when you let go."
+TUT11,11,FirstModEye,"The Mod Eye sweeps every 12 to 35 seconds (see the countdown up top). Above the red tick when it passes, you take a strike."
+TUT12,12,FirstStrike,Strike! The mods undid your sockpuppets and shadowbanned you for {ban} seconds. {strikes} strikes and you are out.
 TUT13,13,BlameAvailable,Once per jam you can Shift the Blame and hand a strike to your rival.
 TUT14,14,KeysHint,Space pauses. M mutes. Esc opens the menu. The rest is up to you.
+TUT15,15,FirstLostVoter,Voters drift back to where their neighbours are. A voter that shakes is about to flip back: click it to reinforce.
+TUT16,16,FirstSockpuppet,A sockpuppet vote is fake until backed. Strikes and the final audit undo it: plug your sockpuppet until it is {launder} sure.
+TUT17,17,FinalAudit,Final audit: the mods purge every sockpuppet vote that is still fake. Plug yours now to make them real.

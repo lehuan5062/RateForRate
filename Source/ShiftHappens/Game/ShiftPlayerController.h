@@ -30,13 +30,14 @@
  *   -ShiftScreen=title|jams|build|play   start on a screen (default: play if any run flag below is given, else the title)
  *   -ShiftJam=0..2 -ShiftSeed=N          which jam and seed (default jam 2, seed 7 for QA; random otherwise)
  *   -ShiftBuild=Q,T,N                    build hours (quality, thumbnail, network; default 4,4,4)
- *   -ShiftBot=idle|random|greedy|sock    scripted player; -ShiftSpeed=N fast-forwards the sim; -ShiftWarp=S runs S sim seconds first
+ *   -ShiftBot=idle|random|greedy|sock|finisher|late  scripted player; -ShiftSpeed=N fast-forwards the sim; -ShiftWarp=S runs S sim seconds first
  *   -ShiftNight=0..1                     force the night blend      -ShiftCursor=X,Y  fake cursor in design pixels
  *   -ShiftClicks="T,X,Y[,n];..."         scripted board clicks      -ShiftUi="T,Id[,V];..."  scripted UI actions
  *   -ShiftMouse="T,X,Y,m|d|u;..."        scripted mouse move / left down / left up through the real widget (design pixels)
  *   -ShiftTutorial / -ShiftNoTutorial    force or skip the coach cards
  *   -ShiftMasterVolume=0..1              scales all sound (QA runs use a small value); -ShiftNoAudio skips audio entirely
  *   -ShiftAudioMeter=all|sfx|music|spike|<names>  audio QA: plays MetaSound sources inaudibly (needs -Sound) and logs their in-graph meters; no recording
+ *   -ShiftAudioMeterDrop=<starts>        audio QA hook: ignore the meter data of those Play() starts (forces the retry paths); -ShiftAudioMeterStall=<ms>@<starts> stalls the game thread
  *   -ShiftShot=<absolute png>            screenshot (with UI) after -ShiftShotDelay seconds (default 4); -ShiftQuit exits afterwards
  */
 UCLASS()
@@ -84,6 +85,8 @@ private:
 	void PlaySfx(EShiftSfx Which, float Volume = 1.0f) const { if (Audio) { Audio->Play(Which, Volume); } }
 	void TickAudio(float DeltaTime);
 	void ShowHeadline(const FString& Event, const FString& EntryName);
+	void TickLostVoters(float DeltaTime);
+	FString ExpandTutorialText(const FString& Text) const;
 	FString NodeHandle(int32 Node) const;
 	FString EntryName(int32 EntryId) const;
 
@@ -144,6 +147,15 @@ private:
 	float ToastRemaining = 0.0f;
 	float ToastDuration = 1.0f;
 
+	// voters the player lost to opinion pressure or a rival attack, gathered into one toast every few seconds (see TickLostVoters)
+	struct FLostVoter
+	{
+		int32 Node = -1;
+		int32 NewOwner = -1;
+	};
+	TArray<FLostVoter> LostRecently;
+	float LostCooldown = 0.0f;
+
 	FString HeadlineText;
 	float HeadlineRemaining = 0.0f;
 	int32 LastLeader = -1;
@@ -164,6 +176,7 @@ private:
 	bool bPrevNight = false;
 	float HeartbeatTimer = 0.0f;
 	double LastWarnedSweep = -1.0;
+	bool bAuditWarned = false;
 	int32 LastHoverNode = -1;
 	float SliderSfxCooldown = 0.0f;
 

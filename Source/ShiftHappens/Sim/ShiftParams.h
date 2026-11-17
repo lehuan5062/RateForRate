@@ -99,7 +99,9 @@ namespace ShiftSim
 		double SockLock = 3.0;
 		double SockHeat = 28.0;
 		double SockRequiresNight = 1.0;         // 1: Sock refused unless the night-held flag is set
-		double SockLaunderConv = 2.0;           // optional: a sockpuppet flip becomes organic once conviction reaches this (>1 = disabled, strikes always revert)
+		double SockLaunderConv = 0.9;           // a sockpuppet flip becomes a real vote once its conviction reaches this: three Posts of reinforcing (0.25 + 3 x 0.3) in its 3 s immunity (>1 = off, strikes and the audit always revert)
+		double SockOverheatRefuse = 1.0;        // 1: a sockpuppet that would take Heat to the cap is refused (Overheated, costs nothing) instead of striking at once
+		double FinalAudit = 1.0;                // 1: at the end of the jam the Mod Eye purges every sockpuppet vote that is still flagged (Sim::RevertSockpuppets)
 		double PostsMax = 5.0;
 		double PostsStart = 5.0;
 		double PostsRegen = 0.5;                // per second; Jams.csv Regen overrides per jam

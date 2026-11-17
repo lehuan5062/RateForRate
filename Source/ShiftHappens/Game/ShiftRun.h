@@ -4,6 +4,8 @@
 
 #include "Behavior/ShiftPolicies.h"
 #include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/UnrealString.h"
 #include "Game/ShiftBuild.h"
 #include "HAL/Platform.h"
 #include "Math/UnrealMathUtility.h"
@@ -22,6 +24,7 @@ enum class EShiftEventType : uint8
 	PlayerLocked,
 	PlayerNoPosts,
 	PlayerRefused,       // shadowban, disqualified, night required, already owned
+	PlayerOverheated,    // a sockpuppet that would take Heat to the cap was refused (free)
 	Strike,              // Value = strikes so far
 	Disqualified,
 	ModSweepClear,
@@ -30,6 +33,8 @@ enum class EShiftEventType : uint8
 	ModTelegraph,        // the Mod Eye is about to sweep
 	DirectorEvent,       // Node = kind (0 algorithm boost, 1 streamer discovers, 2 drama thread), NewOwner = entry, Value = size
 	DayChanged,          // Value = new day index (0-based)
+	PlayerLostVoter,     // a voter the player held went to someone else (opinion pressure or a rival attack; not a strike revert): Node, NewOwner
+	FinalAudit,          // the end-of-jam audit purged sockpuppet votes: Count = how many, Value = their share of all vote weight
 	Finished,
 };
 
@@ -41,6 +46,22 @@ struct FShiftEvent
 	int32 NewOwner = -1;
 	bool bSock = false;
 	float Value = 0.0f;
+	int32 Count = 0;     // Strike: how many sockpuppet votes it reverted
+};
+
+/** How the player's voters came and went during a run. QA and the results screen only; it never feeds back into the sim. */
+struct FShiftFlipStats
+{
+	int32 Gains = 0;            // nodes that became the player's, any way (plug, sockpuppet, or followers coming around)
+	int32 SockGains = 0;        // ... of which sockpuppet flips
+	int32 Losses = 0;           // nodes the player lost to the dynamics or to a rival attack
+	int32 StrikeReverts = 0;    // sockpuppet flips undone by a strike
+	int32 AuditPurges = 0;      // sockpuppet votes purged by the final audit
+	double AuditPurgedShare = 0.0;   // ... and their share of all vote weight
+	int32 PlugDwellCount = 0;   // flips that were lost again, split by how they were won, with the seconds they were held
+	double PlugDwellSum = 0.0;
+	int32 SockDwellCount = 0;
+	double SockDwellSum = 0.0;
 };
 
 /** Drives the behaviour layer (rival, other entries, jam director) for one fixed step; the StateTree runner implements this. */
@@ -58,6 +79,9 @@ public:
 class FShiftRun
 {
 public:
+	/** QA / balance only: overrides by field name (sim Params, JamDef or PolicyParams), applied by Start() after the build. Unknown names are logged as errors. */
+	void SetOverrides(const TMap<FString, double>& InOverrides) { Overrides = InOverrides; }
+
 	/** Builds the sim and the behaviours. The build (hours split on the build screen) tunes the player's side. Returns false if the sim could not be built. */
 	bool Start(int32 InJamIndex, uint32 InSeed, const FShiftBuild& InBuild = FShiftBuild(), bool bInModsEnabled = true);
 
@@ -114,8 +138,11 @@ public:
 	/** Sim time of the next Mod Eye sweep (seconds). */
 	double NextModSweep() const { return NextSweep; }
 
+	const FShiftFlipStats& GetFlipStats() const { return FlipStats; }
+
 private:
 	void StepOnce();
+	void TrackOwnership();
 	void ModUpdate();
 	void ApplyModStrike();
 	void Emit(const FShiftEvent& Event) { Events.Add(Event); }
@@ -151,4 +178,15 @@ private:
 	};
 	TArray<FPendingAction> Pending;
 	TArray<FShiftEvent> Events;
+
+	TMap<FString, double> Overrides;
+
+	// ownership tracking for FShiftFlipStats
+	FShiftFlipStats FlipStats;
+	TArray<int32> StatOwner;        // owner of every node after the previous step
+	TArray<double> StatGainTime;    // when the player last took the node
+	TArray<uint8> StatGainSock;     // ... and whether it was a sockpuppet flip
+	TArray<int32> RevertedNow;      // nodes a strike reverted during the current step
+	TArray<int32> PurgedNow;        // nodes the final audit purged during the current step
+	bool bAuditDone = false;
 };

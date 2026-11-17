@@ -5,6 +5,8 @@
 #include "Behavior/ShiftPolicies.h"
 #include "Behavior/StateTree/ShiftBehavior.h"
 #include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/StringConv.h"
 #include "Containers/UnrealString.h"
 #include "Game/ShiftBuild.h"
 #include "Game/ShiftRun.h"
@@ -21,7 +23,9 @@
 #include "ShiftHappens.h"
 #include "Sim/ShiftParams.h"
 #include "Sim/ShiftSim.h"
+#include <string>
 #include "Templates/SharedPointer.h"
+#include "Templates/TupleFwd.h"
 #include "UI/ShiftHudModel.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/UObjectGlobals.h"
@@ -48,15 +52,12 @@ namespace
 		double R2Quality = 0.0;
 		double R2Fame = 0.0;
 		double RivalShare = 0.0;
+		FShiftFlipStats Flips;      // summed over the runs of the cell
 	};
 
 	bool ParseBot(const FString& Name, ShiftSim::BotKind& Out)
 	{
-		if (Name.Equals(TEXT("idle"), ESearchCase::IgnoreCase)) { Out = ShiftSim::BotKind::Idle; return true; }
-		if (Name.Equals(TEXT("random"), ESearchCase::IgnoreCase)) { Out = ShiftSim::BotKind::Random; return true; }
-		if (Name.Equals(TEXT("greedy"), ESearchCase::IgnoreCase)) { Out = ShiftSim::BotKind::Greedy; return true; }
-		if (Name.Equals(TEXT("sock"), ESearchCase::IgnoreCase)) { Out = ShiftSim::BotKind::GreedySock; return true; }
-		return false;
+		return ShiftSim::BotKindFromName(std::string(TCHAR_TO_UTF8(*Name)), &Out);
 	}
 }
 
@@ -68,10 +69,28 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 	FParse::Value(*Params, TEXT("Runs="), Runs);
 	FParse::Value(*Params, TEXT("Seed0="), Seed0);
 	FParse::Value(*Params, TEXT("Jam="), JamArg);
-	FParse::Value(*Params, TEXT("Bot="), BotArg);
+	FParse::Value(*Params, TEXT("Bot="), BotArg, false);          // false: keep the commas of -Bot=greedy,sock
 	FParse::Value(*Params, TEXT("Build="), BuildArg, false);
 	const bool bNoStateTree = FParse::Param(*Params, TEXT("NoStateTree"));
 	const bool bMods = !FParse::Param(*Params, TEXT("NoMods"));
+
+	// -Set=Name=Value,Name=Value overrides a sim Params, JamDef or PolicyParams field by name (for example SockLaunderConv=0.8,LateSeconds=24), so balance
+	// tuning needs no rebuild. The game never reads Data/Tuning.csv; the C++ defaults are authoritative.
+	FString SetArg;
+	TMap<FString, double> Overrides;
+	if (FParse::Value(*Params, TEXT("Set="), SetArg, false))
+	{
+		TArray<FString> SetParts;
+		SetArg.ParseIntoArray(SetParts, TEXT(","));
+		for (const FString& Part : SetParts)
+		{
+			FString Key, Value;
+			if (Part.Split(TEXT("="), &Key, &Value))
+			{
+				Overrides.Add(Key.TrimStartAndEnd(), FCString::Atod(*Value));
+			}
+		}
+	}
 
 	FShiftBuild Build;
 	if (!BuildArg.IsEmpty())
@@ -90,11 +109,16 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 	if (JamArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { Jams = { 0, 1, 2 }; }
 	else { Jams.Add(FCString::Atoi(*JamArg)); }
 	TArray<FString> BotNames;
-	if (BotArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { BotNames = { TEXT("idle"), TEXT("random"), TEXT("greedy"), TEXT("sock") }; }
+	if (BotArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { BotNames = { TEXT("idle"), TEXT("random"), TEXT("greedy"), TEXT("sock"), TEXT("finisher"), TEXT("late") }; }
 	else { BotArg.ParseIntoArray(BotNames, TEXT(",")); }
 
-	UE_LOG(LogShift, Display, TEXT("Balance: %d runs per cell, build %d/%d/%d, behaviour %s, mods %d"), Runs, Build.Quality, Build.Thumbnail, Build.Network,
-		bNoStateTree ? TEXT("native") : TEXT("StateTree"), bMods ? 1 : 0);
+	FString OverrideText;
+	for (const TPair<FString, double>& Override : Overrides)
+	{
+		OverrideText += FString::Printf(TEXT("%s%s=%g"), OverrideText.IsEmpty() ? TEXT("") : TEXT(","), *Override.Key, Override.Value);
+	}
+	UE_LOG(LogShift, Display, TEXT("Balance: %d runs per cell, build %d/%d/%d, behaviour %s, mods %d, overrides %s"), Runs, Build.Quality, Build.Thumbnail, Build.Network,
+		bNoStateTree ? TEXT("native") : TEXT("StateTree"), bMods ? 1 : 0, OverrideText.IsEmpty() ? TEXT("none") : *OverrideText);
 
 	FString Csv = TEXT("jam,bot,runs,win_pct,dq_pct,mean_rank,mean_share_pct,mean_sock_pct,mean_strikes,rival_share_pct,r2_quality,r2_fame\n");
 	for (const int32 Jam : Jams)
@@ -112,6 +136,7 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 			{
 				const uint32 Seed = static_cast<uint32>(Seed0 + R * 7919);
 				FShiftRun Run;
+				Run.SetOverrides(Overrides);
 				if (!Run.Start(Jam, Seed, Build, bMods))
 				{
 					continue;
@@ -162,6 +187,16 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				St.RivalShare += S.Share(S.RivalId());
 				St.R2Quality += FShiftHudFit::Compute(QualityDots).R2;
 				St.R2Fame += FShiftHudFit::Compute(FameDots).R2;
+				const FShiftFlipStats& Flips = Run.GetFlipStats();
+				St.Flips.Gains += Flips.Gains;
+				St.Flips.SockGains += Flips.SockGains;
+				St.Flips.Losses += Flips.Losses;
+				St.Flips.StrikeReverts += Flips.StrikeReverts;
+				St.Flips.AuditPurges += Flips.AuditPurges;
+				St.Flips.PlugDwellCount += Flips.PlugDwellCount;
+				St.Flips.PlugDwellSum += Flips.PlugDwellSum;
+				St.Flips.SockDwellCount += Flips.SockDwellCount;
+				St.Flips.SockDwellSum += Flips.SockDwellSum;
 				if (R % 40 == 39)
 				{
 					CollectGarbage(RF_NoFlags);
@@ -171,6 +206,12 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 			UE_LOG(LogShift, Display, TEXT("jam=%d bot=%-6s runs=%d  win %5.1f%%  dq %5.1f%%  rank %.2f  share %5.1f%%  sock %5.1f%%  strikes %.2f  rival %5.1f%%  R2(quality) %.2f  R2(fame) %.2f"),
 				Jam, *BotName, St.Runs, 100.0 * St.Wins / N, 100.0 * St.Dq / N, St.RankSum / N, 100.0 * St.ShareSum / N, 100.0 * St.SockSum / N,
 				St.StrikeSum / N, 100.0 * St.RivalShare / N, St.R2Quality / N, St.R2Fame / N);
+			// A separate line (it does not start with "jam=", so the determinism compare in Tools/verify.ps1 ignores it): how the player's voters came and went, per run.
+			// Dwell = seconds a flipped voter stayed the player's before being lost again; the voters still held at the end are not counted.
+			UE_LOG(LogShift, Display, TEXT("Balance: flips jam=%d bot=%-8s per run: gains %.1f (sock %.1f)  lost %.1f  strike-reverts %.1f  audit-purged %.1f  dwell plug %.1fs (%d)  sock %.1fs (%d)"),
+				Jam, *BotName, St.Flips.Gains / N, St.Flips.SockGains / N, St.Flips.Losses / N, St.Flips.StrikeReverts / N, St.Flips.AuditPurges / N,
+				St.Flips.PlugDwellCount > 0 ? St.Flips.PlugDwellSum / St.Flips.PlugDwellCount : 0.0, St.Flips.PlugDwellCount,
+				St.Flips.SockDwellCount > 0 ? St.Flips.SockDwellSum / St.Flips.SockDwellCount : 0.0, St.Flips.SockDwellCount);
 			Csv += FString::Printf(TEXT("%d,%s,%d,%.2f,%.2f,%.3f,%.2f,%.2f,%.3f,%.2f,%.3f,%.3f\n"), Jam, *BotName, St.Runs, 100.0 * St.Wins / N, 100.0 * St.Dq / N,
 				St.RankSum / N, 100.0 * St.ShareSum / N, 100.0 * St.SockSum / N, St.StrikeSum / N, 100.0 * St.RivalShare / N, St.R2Quality / N, St.R2Fame / N);
 		}

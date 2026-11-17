@@ -35,6 +35,7 @@ namespace ShiftSim
 		double BotInterval = 0.2;            // minimum seconds between bot clicks
 		double SockMaxHeat = 45.0;           // greedy+sock socks only when Heat <= this
 		double SockWindup = 0.5;             // seconds the bot holds night before the sock click
+		double LateSeconds = 12.0;           // finisher / late bots: length of the final sockpuppet burst, in seconds before the end
 	};
 
 	enum class BotKind
@@ -43,6 +44,8 @@ namespace ShiftSim
 		Random,
 		Greedy,
 		GreedySock,
+		Finisher,       // honest greedy play all run, then a sockpuppet burst in the last LateSeconds
+		Late,           // does nothing until the last LateSeconds, then only the burst (the playtester's "do nothing, flip at the last moment")
 	};
 
 	inline const char* BotName(BotKind K)
@@ -53,8 +56,27 @@ namespace ShiftSim
 		case BotKind::Random: return "random";
 		case BotKind::Greedy: return "greedy";
 		case BotKind::GreedySock: return "greedy+sock";
+		case BotKind::Finisher: return "finisher";
+		case BotKind::Late: return "late";
 		}
 		return "?";
+	}
+
+	// The command-line spellings (case-insensitive): idle, random, greedy, sock, finisher, late.
+	inline bool BotKindFromName(const std::string& Name, BotKind* Out)
+	{
+		std::string L = Name;
+		for (char& Ch : L)
+		{
+			Ch = static_cast<char>((Ch >= 'A' && Ch <= 'Z') ? Ch - 'A' + 'a' : Ch);
+		}
+		if (L == "idle") { *Out = BotKind::Idle; return true; }
+		if (L == "random") { *Out = BotKind::Random; return true; }
+		if (L == "greedy") { *Out = BotKind::Greedy; return true; }
+		if (L == "sock") { *Out = BotKind::GreedySock; return true; }
+		if (L == "finisher") { *Out = BotKind::Finisher; return true; }
+		if (L == "late") { *Out = BotKind::Late; return true; }
+		return false;
 	}
 
 	inline int PolicyRound(double V)
@@ -303,11 +325,14 @@ namespace ShiftSim
 			Next_ = 0.0;
 			Winding_ = false;
 			WindupEnd_ = 0.0;
+			ReinforceNode_ = -1;
+			ReinforceLeft_ = 0;
 		}
 
 		BotKind Kind() const { return Kind_; }
 
-		void Update(Sim& S, const PolicyParams& PP)
+		// NextSweep: sim time of the next Mod Eye sweep. The Eye's countdown is on the HUD, so a human player knows it too; 1e30 when there is none.
+		void Update(Sim& S, const PolicyParams& PP, double NextSweep = 1.0e30)
 		{
 			if (Kind_ == BotKind::Idle)
 			{
@@ -320,6 +345,14 @@ namespace ShiftSim
 			}
 			const double Now = S.Time();
 
+			// The finale bots: the finisher plays honestly (greedy) and the late bot does nothing until the last LateSeconds of the jam, then both burst.
+			const bool bFinale = (Kind_ == BotKind::Finisher || Kind_ == BotKind::Late) && S.TotalSeconds() - Now <= PP.LateSeconds + 1.0e-9;
+			if (Kind_ == BotKind::Late && !bFinale)
+			{
+				return;
+			}
+			const BotKind Mode = (Kind_ == BotKind::Finisher && !bFinale) ? BotKind::Greedy : Kind_;
+
 			if (Winding_)
 			{
 				if (S.ShadowbanRemaining() > 0.0)
@@ -331,10 +364,17 @@ namespace ShiftSim
 				if (Now + 1.0e-9 >= WindupEnd_)
 				{
 					int Node = -1;
-					if (FindGatedHub(S, &Node))
+					if (bFinale ? FindBurstTarget(S, &Node) : FindGatedHub(S, &Node))
 					{
 						LastOutcome = S.Sock(Node);
 						++Actions;
+						if (LastOutcome.result == ActionResult::Flipped && S.GetParams().SockLaunderConv <= 1.0)
+						{
+							// follow-through: reinforce until the vote is real, before a strike or the final audit takes it back
+							const Params& SP = S.GetParams();
+							ReinforceNode_ = Node;
+							ReinforceLeft_ = ReinforcesToLaunder(SP);
+						}
 					}
 					S.SetNightHeld(false);
 					Winding_ = false;
@@ -343,20 +383,45 @@ namespace ShiftSim
 				return;
 			}
 
+			if (ReinforceNode_ >= 0)
+			{
+				if (ReinforceLeft_ <= 0 || S.Opinion(ReinforceNode_) != kPlayerId || !S.IsSockpuppet(ReinforceNode_) || S.LockRemaining(ReinforceNode_) <= 0.0)
+				{
+					ReinforceNode_ = -1;    // done, laundered, lost, or too late (the immunity is over)
+				}
+				else
+				{
+					if (Now + 1.0e-9 >= Next_ && S.Posts() >= 1.0 && S.ShadowbanRemaining() <= 0.0)
+					{
+						LastOutcome = S.Plug(kPlayerId, ReinforceNode_, 1.0);
+						++Actions;
+						--ReinforceLeft_;
+						Next_ = Now + PP.BotInterval;
+					}
+					return;
+				}
+			}
+
 			if (Now + 1.0e-9 < Next_ || S.Posts() < 1.0 || S.ShadowbanRemaining() > 0.0)
 			{
 				return;
 			}
 			Next_ = Now + PP.BotInterval;
 
-			if (Kind_ == BotKind::Random)
+			if (Mode == BotKind::Random)
 			{
 				LastOutcome = S.Plug(kPlayerId, R_.Range(S.NodeCount()), 1.0);
 				++Actions;
 				return;
 			}
 
-			if (Kind_ == BotKind::GreedySock && S.Heat() <= PP.SockMaxHeat)
+			if (bFinale)
+			{
+				Finale(S, PP, NextSweep);
+				return;
+			}
+
+			if (Mode == BotKind::GreedySock && S.Heat() <= PP.SockMaxHeat)
 			{
 				int Node = -1;
 				if (FindGatedHub(S, &Node))
@@ -381,6 +446,47 @@ namespace ShiftSim
 		int Actions = 0;
 
 	private:
+		// The finale: sock the heaviest voter that is not the player's and not immune, as often as the Heat cap and the next Mod Eye sweep allow. The finisher spends
+		// the Posts it can spare on honest Plugs. Both keep a Post reserve for the next sock (plus its two reinforcements when the sim launders sockpuppet votes).
+		void Finale(Sim& S, const PolicyParams& PP, double NextSweep)
+		{
+			const Params& P = S.GetParams();
+			const double Now = S.Time();
+			const double Reserve = P.SockLaunderConv <= 1.0 ? 1.0 + ReinforcesToLaunder(P) : 1.0;
+			int Node = -1;
+			if (S.Posts() >= Reserve && FindBurstTarget(S, &Node))
+			{
+				const double HeatAfter = S.Heat() + P.SockHeat + P.HeatNightRate * PP.SockWindup;
+				const bool bCapSafe = HeatAfter < P.HeatMax - 1.0;
+				const bool bSweepSafe = NextSweep >= S.TotalSeconds() || HeatAfter - P.HeatDecay * (NextSweep - Now) <= P.HeatRedZone;
+				if (bCapSafe && bSweepSafe)
+				{
+					Winding_ = true;
+					WindupEnd_ = Now + PP.SockWindup;
+					S.SetNightHeld(true);
+					return;
+				}
+			}
+			if (Kind_ == BotKind::Finisher && S.Posts() >= Reserve + 1.0)
+			{
+				TargetFilter F;
+				Target T;
+				if (S.BestTarget(kPlayerId, F, &T))
+				{
+					LastOutcome = S.Plug(kPlayerId, T.node, 1.0);
+					++Actions;
+				}
+			}
+		}
+
+		// Reinforcing Plugs a fresh sockpuppet flip (conviction SockConv) needs to reach SockLaunderConv.
+		static int ReinforcesToLaunder(const Params& P)
+		{
+			int N = 0;
+			for (double C = P.SockConv; C < P.SockLaunderConv - 1.0e-9 && N < 6; C = C + P.PlugReinforce > 1.0 ? 1.0 : C + P.PlugReinforce) { ++N; }
+			return N;
+		}
+
 		// Best (highest value) hub or celebrity the player cannot Plug yet and that is not immune.
 		static bool FindGatedHub(const Sim& S, int* OutNode)
 		{
@@ -411,11 +517,39 @@ namespace ShiftSim
 			return true;
 		}
 
+		// Highest value voter the player does not own and that is not immune; a sockpuppet ignores gates, so gated or not does not matter.
+		static bool FindBurstTarget(const Sim& S, int* OutNode)
+		{
+			int Best = -1;
+			double BestValue = 0.0;
+			for (int I = 0; I < S.NodeCount(); ++I)
+			{
+				if (S.Opinion(I) == kPlayerId || S.LockRemaining(I) > 0.0)
+				{
+					continue;
+				}
+				const double V = S.NodeValue(kPlayerId, I);
+				if (Best < 0 || V > BestValue)
+				{
+					Best = I;
+					BestValue = V;
+				}
+			}
+			if (Best < 0)
+			{
+				return false;
+			}
+			*OutNode = Best;
+			return true;
+		}
+
 		BotKind Kind_ = BotKind::Idle;
 		Rng R_;
 		double Next_ = 0.0;
 		bool Winding_ = false;
 		double WindupEnd_ = 0.0;
+		int ReinforceNode_ = -1;    // a fresh sockpuppet flip that is being reinforced until it launders (only when SockLaunderConv <= 1)
+		int ReinforceLeft_ = 0;
 	};
 
 	// ---------------------------------------------------------------------------------------
@@ -435,7 +569,7 @@ namespace ShiftSim
 				SHIFT_PP(RivalDefendBelow), SHIFT_PP(RivalPlayerMult), SHIFT_PP(RivalCapShare), SHIFT_PP(RivalBandBase),
 				SHIFT_PP(RivalBandSlope), SHIFT_PP(RivalBandThreshold), SHIFT_PP(MegaDays), SHIFT_PP(MegaConvBoost),
 				SHIFT_PP(MegaAttackMult), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV),
-				SHIFT_PP(ModFirstSweepMin), SHIFT_PP(BotInterval), SHIFT_PP(SockMaxHeat), SHIFT_PP(SockWindup),
+				SHIFT_PP(ModFirstSweepMin), SHIFT_PP(BotInterval), SHIFT_PP(SockMaxHeat), SHIFT_PP(SockWindup), SHIFT_PP(LateSeconds),
 			};
 			*Count = static_cast<int>(sizeof(kFields) / sizeof(kFields[0]));
 			return kFields;

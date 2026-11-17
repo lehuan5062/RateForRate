@@ -208,8 +208,8 @@ Round 2 request: all audio must be MetaSound and/or Harmonix, no `.wav`. The spi
   Harmonix 16th clock stays at 133.24 ms per step across two loop wraps (270 steps, `StepCount` 1..128, 2 wraps) with 68 beat events 533.1 ms apart, all 28 pattern lanes fire
   exactly their pattern and all 40 voices are audible. Levels are calibrated by `Tools/calibrate_audio.ps1` (build -> measure -> trim, two passes), which writes
   `Tools/py/ms_trims.json`.
-- Things that bit: the `Noise` node defaults to pink noise (silent hats until set to white); the first MetaSound generator of a process takes a few hundred ms, so a short effect
-  played first lost its meter data (the meter run starts with a throw-away warm-up case); the editor picked the Git provider and staged assets (`Tools/run_py.ps1` passes
+- Things that bit: the `Noise` node defaults to pink noise (silent hats until set to white); a short one-shot that starts while the game thread is busy can be over before the output
+  analyzers attach (the real mechanism and the fix are in M7: the warm-up is replayed until meter data arrives); the editor picked the Git provider and staged assets (`Tools/run_py.ps1` passes
   `-SCCProvider=None`); the `PreSaveAsset ... is doing nothing` warning in headless builds (no audio rendering) is harmless, the assets load and play.
 - Not verified: how it sounds. I cannot listen; the recipes are ports of the original offline synth (partial ratios, decay times, filter cutoffs, lane gains) and the levels are
   measured, but timbre and mix balance need the user's ears.
@@ -257,3 +257,40 @@ Python exposure (runtime probe): `ToolsetRegistry`, `MetaSoundBuilderSubsystem`,
 The unversioned Epic pages describe 5.9. Seen so far: the MCP page lists four meta-tools (5.8: three) and a different settings location. Always add `?application_version=5.8`
 (for example `https://dev.epicgames.com/documentation/unreal-engine/unreal-mcp-in-unreal-editor?application_version=5.8`) and prefer the engine source when a page and the
 runtime disagree.
+
+## M7 - playtest round 1 (issue #1, `70e5ef8`)
+A collaborator ran `Tools\verify.ps1` (9 of 10) and played all three jams. Two findings: the first audio-meter case failed, and "the game works but is not fun": voters change their vote
+later, strikes seem guaranteed, and the best play might be to do nothing and flip votes with night shift at the last moment.
+
+**Audio meters (fixed).** Not an audio defect: a race in the QA harness. The generator handle attaches the output analyzers one game-thread hop after the generator exists
+(`MetasoundGeneratorHandle.cpp`: `HandleGeneratorCreated` -> `ExecuteOnGameThread` -> `FixUpOutputWatchers`), so a 0.15 s one-shot that starts while the game thread is busy (a cold first
+start) is over before any meter data arrives. Our own passing logs already showed `warm-up done (0 meter updates)`: the old 2 s warm-up never proved a live generator. Reproduced once with
+`-ShiftAudioMeterStall` (a stress hook; whether the race is lost depends on timing). Fix: the warm-up replays the longest one-shot until data arrives (cap 20 s), every asset is preloaded, and a
+one-shot without data is retried twice. `-ShiftAudioMeterDrop` forces those paths deterministically and `verify.ps1` checks them.
+
+**The last-moment claim, measured** (`Tools\balance.ps1 -Runs 200`, build 4/4/4, win % (DQ %), rules unchanged). New bots: `finisher` (honest greedy, then a Heat- and sweep-aware sock burst in the
+last 12 s) and `late` (idle, then only the burst).
+
+| Jam | greedy | sock | finisher | late |
+|---|---|---|---|---|
+| Tiny Jam #7 | 88.5 | 100 (0) | 92.5 (0) | 0 |
+| 48h Pixel Rumble | 56.0 | 75.0 (24) | 65.5 (0) | 0 |
+| GAME OFF 2026 | 30.0 | 56.5 (43.5) | 51.0 (0) | 0 |
+
+So "do nothing, then flip" never wins (late ends 2nd-3rd), but honest play plus a finishing burst adds 4 / 9.5 / 21 points with no strike and no disqualification: a free lunch. The flip stats
+explain "they change vote later": greedy gains 68 / 61 / 87 voters a run and loses 44 / 37 / 60 of them again; lost flips were held about 17-18 s (3 in-game days); finale socks last about 5 s.
+
+**Rules added.** Overheat refusal (a sock that would take Heat to the cap is refused, free, instead of an instant strike). Final Audit (after the last step the mods purge every sockpuppet vote that is
+still flagged; no strike). Laundering (`SockLaunderConv` 0.9: three reinforcing Posts inside a sock flip's 3 s immunity make it a real vote that strikes and the audit cannot revert). At 0.8 and 0.6 a
+last-second sock plus two reinforces launders and the finisher beat greedy by up to 9 points; 0.9 does not. Rows after (win % (DQ %)):
+
+| Jam | greedy | sock | finisher | late |
+|---|---|---|---|---|
+| Tiny Jam #7 | 88.5 | 93.0 (4.5) | 79.5 (0) | 0 |
+| 48h Pixel Rumble | 56.0 | 60.5 (34) | 56.0 (0) | 0 |
+| GAME OFF 2026 | 30.0 | 50.0 (50) | 27.0 (0) | 0 |
+
+idle, random and greedy rows are byte-identical to before. Cheating still pays (sock +4.5 / +20 over greedy on the two hard jams, a hair under the +5 target on jam 2) but only as an opening move
+with follow-through, and its risk is real (DQ 34-50%); the finale burst no longer beats honest play. Legibility, no sim change: lost-voter toasts from the previously unused `FlipToRival` / `FlipToOther`
+comments, a shaking voter with an orange ring when `Sim::SecondsToFlip` is under 8 s, the Mod Eye countdown and a dimmed Heat bar from the start, projected Heat while SHIFT is held, coach cards with live
+numbers. `harness.exe export-data` refreshed `Data/Tuning.csv`; the harness core is now synced from `Source/.../Sim` by `Tools\sync_sim_core.ps1` (checked by `verify.ps1`).

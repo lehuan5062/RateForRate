@@ -52,6 +52,7 @@ namespace ShiftSim
 		case ActionResult::AlreadyOwned: return "AlreadyOwned";
 		case ActionResult::NotNight: return "NotNight";
 		case ActionResult::InvalidTarget: return "InvalidTarget";
+		case ActionResult::Overheated: return "Overheated";
 		}
 		return "?";
 	}
@@ -83,6 +84,7 @@ namespace ShiftSim
 		NewOpinion_.assign(Count, kNoOwner);
 		NewConv_.assign(Count, 0.0);
 		Contrib_.assign(Count, 0.0);
+		Drain_.assign(Count, 0.0);
 		for (int e = 0; e < kMaxEntries; ++e)
 		{
 			Tally_[e] = 0.0;
@@ -454,6 +456,7 @@ namespace ShiftSim
 		{
 			NewOpinion_[SimIx(i)] = Opinion_[SimIx(i)];
 			NewConv_[SimIx(i)] = Conv_[SimIx(i)];
+			Drain_[SimIx(i)] = 0.0;
 			if (Lock_[SimIx(i)] > 0.0)
 			{
 				continue; // immune this step
@@ -505,6 +508,7 @@ namespace ShiftSim
 				const double Sup = Pv[Cur] + P_.Stickiness * C;
 				if (Top >= 0 && Top != Cur && Pv[Top] > Sup * P_.FlipMargin)
 				{
+					Drain_[SimIx(i)] = P_.DrainRate * (Pv[Top] - Sup) / (SumP + 1.0e-6);
 					C -= P_.DrainRate * Dt * (Pv[Top] - Sup) / (SumP + 1.0e-6);
 					if (C <= 0.0)
 					{
@@ -718,6 +722,8 @@ namespace ShiftSim
 		if (Posts_ + kSimEps < 1.0) { O.result = ActionResult::NoPosts; return O; }
 		if (Opinion_[Ix] == kPlayerId) { O.result = ActionResult::AlreadyOwned; return O; }
 		if (Lock_[Ix] > 0.0) { O.result = ActionResult::Locked; return O; }
+		// A sockpuppet that would take Heat to the cap is refused and costs nothing: the player is told to let Heat cool instead of being struck at once.
+		if (P_.SockOverheatRefuse > 0.5 && Heat_ + P_.SockHeat >= P_.HeatMax - 1.0e-9) { O.result = ActionResult::Overheated; return O; }
 
 		Posts_ = MaxOf(0.0, Posts_ - 1.0);
 		O.postsSpent = 1.0;
@@ -750,9 +756,9 @@ namespace ShiftSim
 		return O;
 	}
 
-	StrikeOutcome Sim::ApplyStrike()
+	std::vector<int> Sim::RevertSockpuppets()
 	{
-		StrikeOutcome Out;
+		std::vector<int> Reverted;
 		for (int i = 0; i < Graph_.NodeCount(); ++i)
 		{
 			if (Sock_[SimIx(i)] == 0)
@@ -763,8 +769,19 @@ namespace ShiftSim
 			Conv_[SimIx(i)] = SockPrevConv_[SimIx(i)];
 			Lock_[SimIx(i)] = 0.0;
 			Sock_[SimIx(i)] = 0;
-			Out.revertedNodes.push_back(i);
+			Reverted.push_back(i);
 		}
+		if (!Reverted.empty())
+		{
+			RecomputeRanks();
+		}
+		return Reverted;
+	}
+
+	StrikeOutcome Sim::ApplyStrike()
+	{
+		StrikeOutcome Out;
+		Out.revertedNodes = RevertSockpuppets();
 		Shadowban_ = P_.ShadowbanSeconds;
 		++Strikes_;
 		Heat_ = MinOf(Heat_, P_.HeatAfterStrike);

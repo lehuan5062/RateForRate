@@ -38,7 +38,7 @@ namespace ShiftSim
 			SHIFT_P(AdoptRate), SHIFT_P(AdoptConv), SHIFT_P(DriftRate), SHIFT_P(DriftConv),
 			SHIFT_P(PlugDrain), SHIFT_P(PlugReinforce), SHIFT_P(PlugFlipThreshold), SHIFT_P(PlugFlipConv),
 			SHIFT_P(PlugLock), SHIFT_P(SockStrength), SHIFT_P(SockConv), SHIFT_P(SockLock), SHIFT_P(SockHeat),
-			SHIFT_P(SockRequiresNight), SHIFT_P(SockLaunderConv), SHIFT_P(PostsMax), SHIFT_P(PostsStart),
+			SHIFT_P(SockRequiresNight), SHIFT_P(SockLaunderConv), SHIFT_P(SockOverheatRefuse), SHIFT_P(FinalAudit), SHIFT_P(PostsMax), SHIFT_P(PostsStart),
 			SHIFT_P(PostsRegen), SHIFT_P(GatesApplyToAll),
 			SHIFT_P(HeatDecay), SHIFT_P(HeatNightRate), SHIFT_P(HeatRedZone), SHIFT_P(HeatMax),
 			SHIFT_P(HeatAfterStrike), SHIFT_P(ShadowbanSeconds), SHIFT_P(MaxStrikes),

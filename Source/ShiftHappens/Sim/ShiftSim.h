@@ -34,6 +34,7 @@ namespace ShiftSim
 		AlreadyOwned,      // Sock on a node the player already owns
 		NotNight,          // Sock while the night-held flag is not set (Params::SockRequiresNight)
 		InvalidTarget,     // bad entry / node index
+		Overheated,        // Sock that would take Heat to the cap (Params::SockOverheatRefuse): refused, costs nothing
 	};
 
 	const char* ActionResultName(ActionResult R);
@@ -143,6 +144,9 @@ namespace ShiftSim
 		ActionOutcome Sock(int Node);
 		// Behaviour layer calls this when the Mod Eye catches the player or Heat hits the cap.
 		StrikeOutcome ApplyStrike();
+		// Undoes every sockpuppet flip that is still flagged (back to the previous owner and conviction, immunity cleared) and returns the nodes. A strike does this,
+		// and so does the final audit at the end of the jam (Params::FinalAudit); neither is a strike for the audit.
+		std::vector<int> RevertSockpuppets();
 		// Shift the Blame: takes back the last strike and its shadowban (the reverted sockpuppets stay reverted).
 		void ForgiveStrike() { if (Strikes_ > 0) { --Strikes_; } Shadowban_ = 0.0; }
 		void SetNightHeld(bool Held) { NightHeld_ = Held; }
@@ -169,6 +173,15 @@ namespace ShiftSim
 		double Conviction(int Node) const { return Conv_[static_cast<size_t>(Node)]; }
 		double LockRemaining(int Node) const { return Lock_[static_cast<size_t>(Node)]; }
 		bool IsSockpuppet(int Node) const { return Sock_[static_cast<size_t>(Node)] != 0; }
+		// Conviction the voter loses per second to opinion pressure as of the last Step() (0 when nobody out-pushes it, or while it is immune). A derived value for
+		// presentation: it is not part of StateHash and nothing in the dynamics reads it.
+		double Drain(int Node) const { return Drain_[static_cast<size_t>(Node)]; }
+		// Seconds until the voter flips away if the pressure stays as it is (a huge number when it is not under pressure).
+		double SecondsToFlip(int Node) const
+		{
+			const double D = Drain_[static_cast<size_t>(Node)];
+			return D > 1.0e-9 ? Conv_[static_cast<size_t>(Node)] / D : 1.0e9;
+		}
 		const std::vector<NodeChange>& LastStepChanges() const { return Changes_; }
 
 		double Time() const { return Time_; }
@@ -247,6 +260,7 @@ namespace ShiftSim
 		std::vector<int> NewOpinion_;
 		std::vector<double> NewConv_;
 		std::vector<double> Contrib_;
+		std::vector<double> Drain_;         // derived, see Drain()
 
 		double Tally_[kMaxEntries];
 		int Rank_[kMaxEntries];

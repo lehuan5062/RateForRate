@@ -641,17 +641,27 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 
 	if (Model.bShowHeat)
 	{
-		P.Text(TEXT("HEAT"), 800, 690, 11, C.InkDim, EShiftAlign::Left, true);
-		P.Rect(836, 694, 120, 8, C.Track, 4);
+		// Always on, so the risk is known before the first sockpuppet; dimmed until night shift is in use.
+		const float Fade = Model.bHeatActive ? 1.0f : 0.55f;
+		P.Text(TEXT("HEAT"), 800, 690, 11, WithAlpha(C.InkDim, Fade), EShiftAlign::Left, true);
+		P.Rect(836, 694, 120, 8, WithAlpha(C.Track, Fade), 4);
 		const float Heat = FMath::Clamp(Model.Heat, 0.0f, 1.0f);
-		P.Rect(836, 694, 120.0f * Heat, 8, Mix(C.Amber, C.Red, Heat), 4);
-		P.Rect(836.0f + 120.0f * Model.HeatRedZone - 1.0f, 690, 2, 16, C.Red);
+		P.Rect(836, 694, 120.0f * Heat, 8, WithAlpha(Mix(C.Amber, C.Red, Heat), Fade), 4);
+		if (Model.HeatProjected > Heat + 0.001f)
+		{
+			// While SHIFT is held: where the next sockpuppet would take Heat (red above the red tick).
+			const bool bRed = Model.HeatProjected > Model.HeatRedZone;
+			const float X0 = 836.0f + 120.0f * Heat;
+			P.Rect(X0, 692, 120.0f * (Model.HeatProjected - Heat), 12, WithAlpha(bRed ? C.Red : C.Amber, 0.45f), 4);
+			P.Text(FString::Printf(TEXT("next sock %.0f%%"), Model.HeatProjected * 100.0f), 836, 677, 10, bRed ? C.Red : C.InkDim);
+		}
+		P.Rect(836.0f + 120.0f * Model.HeatRedZone - 1.0f, 690, 2, 16, WithAlpha(C.Red, Fade));
 		for (int32 i = 0; i < Model.MaxStrikes; ++i)
 		{
 			const bool bHit = i < Model.Strikes;
-			P.Disc(976.0f + 20.0f * static_cast<float>(i), 698, 7.5f, bHit ? C.Red : C.Track);
+			P.Disc(976.0f + 20.0f * static_cast<float>(i), 698, 7.5f, WithAlpha(bHit ? C.Red : C.Track, Fade));
 		}
-		P.Text(TEXT("STRIKES"), 1042, 690, 11, C.InkDim, EShiftAlign::Left, true);
+		P.Text(TEXT("STRIKES"), 1042, 690, 11, WithAlpha(C.InkDim, Fade), EShiftAlign::Left, true);
 	}
 	P.Text(TEXT("SPACE pause   ESC menu"), 1262, 693, 11, C.InkDim, EShiftAlign::Right);
 
@@ -659,6 +669,13 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	{
 		P.Rect(470, 56, 340, 34, Hex(0xFF4D5A, 0.92f), 17);
 		P.Text(FString::Printf(TEXT("SHADOWBANNED  %.1fs"), Model.ShadowbanSeconds), 640, 63, 16, FLinearColor::White, EShiftAlign::Center, true);
+	}
+	if (Model.FinalAuditIn >= 0.0f)
+	{
+		// The last seconds of the jam: the mods purge every sockpuppet vote that is still fake.
+		const float Pulse = 0.5f + 0.5f * FMath::Sin(AnimTime * 10.0f);
+		P.Rect(430, 96, 420, 30, WithAlpha(C.Red, 0.80f + 0.15f * Pulse), 15);
+		P.Text(FString::Printf(TEXT("FINAL AUDIT in %.0fs: fake votes are purged"), FMath::CeilToFloat(Model.FinalAuditIn)), 640, 102, 14, FLinearColor::White, EShiftAlign::Center, true);
 	}
 
 	// ------------------------------------------------------------------ coach card (tutorial)

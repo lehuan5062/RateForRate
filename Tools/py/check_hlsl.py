@@ -20,7 +20,7 @@ FXC_CANDIDATES = [
 SIGNATURES = {
     "node": [("float2", "PW"), ("float2", "CW"), ("float", "Rad"), ("float3", "Fill"), ("float", "Conv"), ("float", "Lock"),
              ("float", "Gate"), ("float", "Hover"), ("float", "Flash"), ("float", "Role"), ("float", "Expr"),
-             ("float", "Sock"), ("float", "Dim"), ("float", "Night"), ("float", "Tm"), ("float", "Heat"), ("float2", "Cur")],
+             ("float", "Sock"), ("float", "Pressure"), ("float", "Night"), ("float", "Tm"), ("float", "Heat"), ("float2", "Cur")],
     "edge": [("float2", "PW"), ("float2", "P0"), ("float2", "P1"), ("float", "Bulge"), ("float3", "Col"), ("float", "Base"),
              ("float", "Pulse"), ("float", "Seed"), ("float", "Speed"), ("float", "Wid"), ("float", "Night"), ("float", "Tm")],
     "glow": [("float2", "PW"), ("float2", "CW"), ("float", "Rad"), ("float3", "Fill"), ("float", "Flash"), ("float", "Hover"),

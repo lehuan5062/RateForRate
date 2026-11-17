@@ -81,6 +81,7 @@ private:
 	TArray<float> NodeRadii_;
 	TArray<float> Flash_;
 	TArray<float> Hover_;
+	TArray<float> Pressure_;   // 0..1: how close a voter of the player is to flipping back (smoothed), drawn as a shake and an orange ring
 	TArray<int32> PrevOwner_;
 	TArray<FEdgeRec> Edges_;
 	TArray<float> EdgeLen_;

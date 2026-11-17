@@ -20,6 +20,7 @@
 #include "Math/UnrealMathUtility.h"
 #include "ShiftHappens.h"
 #include "Sim/ShiftGraph.h"
+#include "Sim/ShiftParams.h"
 #include "Sim/ShiftSim.h"
 #include "UObject/UObjectGlobals.h"
 
@@ -40,6 +41,7 @@ namespace
 	constexpr float EdgeHalfWidth = 1.4f;   // world units
 	constexpr float EdgeMargin = 6.0f;
 	constexpr float EdgeBulgeFraction = 0.14f;
+	constexpr double PressureHorizonSeconds = 8.0;   // a voter of the player that would flip back within this many seconds starts to shake
 
 	float Hash01(int32 A, int32 B)
 	{
@@ -121,6 +123,7 @@ void AShiftBoard::Build(const ShiftSim::Sim& Sim)
 	NodeRadii_.SetNum(N);
 	Flash_.Init(0.0f, N);
 	Hover_.Init(0.0f, N);
+	Pressure_.Init(0.0f, N);
 	PrevOwner_.SetNum(N);
 	for (int32 i = 0; i < N; ++i)
 	{
@@ -243,9 +246,17 @@ void AShiftBoard::Update(const ShiftSim::Sim& Sim, const FShiftBoardView& View, 
 		const float Expr = OwnerId >= 0 ? FMath::Clamp((Conv - 0.5f) * 2.0f, -1.0f, 1.0f) : 0.0f;
 		const float Sock = Sim.IsSockpuppet(i) ? 1.0f : 0.0f;
 
+		// A voter of the player that opinion pressure is about to flip away: 0 at PressureHorizonSeconds or more from flipping, 1 when it is about to go.
+		float PressureTarget = 0.0f;
+		if (OwnerId == ShiftSim::kPlayerId && Sim.LockRemaining(i) <= 0.0)
+		{
+			PressureTarget = static_cast<float>(FMath::Clamp(1.0 - Sim.SecondsToFlip(i) / PressureHorizonSeconds, 0.0, 1.0));
+		}
+		Pressure_[i] = FMath::FInterpTo(Pressure_[i], PressureTarget, DeltaTime, 5.0f);
+
 		const float NodeData[NodeFloats] = {
 			Fill.R, Fill.G, Fill.B, Conv, Lock01, Gate, Hover_[i], Flash_[i],
-			static_cast<float>(Graph.nodes[i].role), Expr, Sock, 0.0f,
+			static_cast<float>(Graph.nodes[i].role), Expr, Sock, Pressure_[i],
 			static_cast<float>(NodeWorld_[i].X), static_cast<float>(NodeWorld_[i].Y), NodeRadii_[i] };
 		NodeISM->SetCustomData(i, MakeArrayView(NodeData, NodeFloats), false);
 

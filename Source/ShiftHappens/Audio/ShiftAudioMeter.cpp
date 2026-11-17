@@ -2,14 +2,18 @@
 
 #include "Audio/ShiftAudioMeter.h"
 
+#include "Async/Async.h"
+#include "Async/TaskGraphInterfaces.h"
 #include "Audio/ShiftAudio.h"
 #include "Components/AudioComponent.h"
 #include "Containers/Array.h"
 #include "Containers/UnrealString.h"
+#include "CoreGlobals.h"
 #include "Delegates/Delegate.h"
 #include "Engine/World.h"
 #include "GenericPlatform/GenericPlatformMisc.h"
 #include "HAL/Platform.h"
+#include "HAL/PlatformProcess.h"
 #include "HAL/PlatformTime.h"
 #include "HarmonixMetasound/Components/MusicClockComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -20,12 +24,16 @@
 #include "MetasoundGeneratorHandle.h"
 #include "MetasoundOutput.h"
 #include "MetasoundOutputSubsystem.h"
+#include "MetasoundSource.h"
+#include "Misc/CommandLine.h"
 #include "Misc/CoreMiscDefines.h"
 #include "Misc/CString.h"
+#include "Misc/Parse.h"
 #include "ShiftHappens.h"
 #include "Sound/SoundBase.h"
 #include "Templates/Casts.h"
 #include "Templates/TupleFwd.h"
+#include "Templates/UnrealTemplate.h"
 #include "UObject/NameTypes.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/UObjectGlobals.h"
@@ -38,6 +46,9 @@ namespace
 	constexpr float MeterBeatSeconds = 60.0f / 112.5f;
 	constexpr float LoopSeconds = 128.0f * StepSeconds;
 	constexpr TCHAR WarmUpLabel[] = TEXT("(warm-up)");
+	constexpr TCHAR WarmUpAsset[] = TEXT("MS_Sfx_Upload");   // the longest one-shot (about 2 s): it outlives a short stall of the game thread
+	constexpr double WarmUpMaxSeconds = 20.0;                // wall time the warm-up may take before the run gives up
+	constexpr int32 MaxCaseAttempts = 3;                     // a one-shot without any meter data is retried twice before it counts as a failure
 
 	float ToDb(float V) { return 20.0f * FMath::LogX(10.0f, FMath::Max(V, 1.0e-6f)); }
 
@@ -52,63 +63,125 @@ void UShiftAudioMeter::Begin(UWorld* InWorld, const FString& Spec)
 	World = InWorld;
 	BuildCases(Spec);
 	UE_LOG(LogShift, Log, TEXT("AudioMeter: %d cases (spec '%s')"), Cases.Num(), *Spec);
+
+	// QA hooks, both take start numbers (counted over every Play() of the run, warm-up and retries included):
+	//   -ShiftAudioMeterStall=<ms>@<starts>  stalls the game thread as the generator of those starts appears, like a cold first start does; whether the race is
+	//                                        then lost depends on timing, so it is a stress test (for example 600@1,2,3)
+	//   -ShiftAudioMeterDrop=<starts>        ignores every meter update of those starts, which forces the zero-update path deterministically
+	auto ParseStarts = [](const FString& Text, TArray<int32>& Out)
+		{
+			TArray<FString> Parts;
+			Text.ParseIntoArray(Parts, TEXT(","));
+			for (const FString& Part : Parts)
+			{
+				Out.Add(FCString::Atoi(*Part));
+			}
+		};
+	FString HookSpec;
+	if (FParse::Value(FCommandLine::Get(), TEXT("ShiftAudioMeterStall="), HookSpec, false))
+	{
+		FString MsText, StartsText;
+		if (HookSpec.Split(TEXT("@"), &MsText, &StartsText))
+		{
+			StallMs = FCString::Atoi(*MsText);
+			ParseStarts(StartsText, StallStarts);
+			UE_LOG(LogShift, Log, TEXT("AudioMeter: QA stall hook: %d ms at start(s) %s"), StallMs, *StartsText);
+		}
+	}
+	if (FParse::Value(FCommandLine::Get(), TEXT("ShiftAudioMeterDrop="), HookSpec, false))
+	{
+		ParseStarts(HookSpec, DropStarts);
+		UE_LOG(LogShift, Log, TEXT("AudioMeter: QA drop hook: no meter data at start(s) %s"), *HookSpec);
+	}
+
 	CaseIndex = 0;
 	if (Cases.Num() == 0)
 	{
 		bDone = true;
 		return;
 	}
-	// The first MetaSound generator of a process takes a few hundred milliseconds to come up (node registry, graph build), long enough for a
-	// short one-shot to be over before its meters report. A throw-away copy of the first case absorbs that.
-	FCase WarmCase = Cases[0];
+
+	// Load every sound now: a case then never starts with a synchronous LoadObject (a stall of the game thread right when a generator is being created), and the
+	// MetaSound graphs are registered before the first Play.
+	auto Preload = [this](const FString& Asset) -> bool
+		{
+			const FString Path = FString::Printf(TEXT("/Game/Shift/Audio/%s.%s"), *Asset, *Asset);
+			USoundBase* Sound = LoadObject<USoundBase>(this, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+			if (Sound)
+			{
+				Preloaded.AddUnique(Sound);
+			}
+			return Sound != nullptr;
+		};
+	for (const FCase& C : Cases)
+	{
+		Preload(C.Asset);
+	}
+
+	// The throw-away warm-up. The first MetaSound generator of a process takes a while to come up and the output analyzers attach one game-thread hop after the
+	// generator exists, so a short one-shot that starts while the game thread is busy can be over before any meter data arrives. The warm-up is replayed (see Tick)
+	// until data actually arrives, so the real cases start on a live pipeline instead of on a guess about how long a cold start takes.
+	FCase WarmCase;
+	WarmCase.bWarmUp = true;
 	WarmCase.Label = WarmUpLabel;
-	WarmCase.bClock = false;
-	WarmCase.Seconds = FMath::Min(WarmCase.Seconds, 2.0f);
+	WarmCase.Seconds = 4.0f;
+	if (Preload(WarmUpAsset))
+	{
+		WarmCase.Asset = WarmUpAsset;
+	}
+	else
+	{
+		WarmCase = Cases[0];
+		WarmCase.bWarmUp = true;
+		WarmCase.Label = WarmUpLabel;
+		WarmCase.bClock = false;
+		WarmCase.Seconds = FMath::Min(WarmCase.Seconds, 4.0f);
+	}
 	Cases.Insert(WarmCase, 0);
-	StartCase();
+	// The first case starts on the first Tick: Begin runs inside BeginPlay, in the middle of engine init.
 }
 
 void UShiftAudioMeter::BuildCases(const FString& Spec)
 {
 	auto AddSfx = [this]()
-	{
-		for (int32 i = 0; i < static_cast<int32>(EShiftSfx::Count); ++i)
 		{
-			FCase C;
-			C.Asset = FString(TEXT("MS_Sfx_")) + ShiftSfxName(static_cast<EShiftSfx>(i));
-			C.Label = C.Asset;
-			C.Seconds = 4.0f;
-			Cases.Add(C);
-		}
-	};
-	auto AddMusic = [this]()
-	{
-		// One 8-bar loop is 17.07 s; the stems that are calibrated against a peak level (day, night, tension alone) run a whole loop plus
-		// the 1 s warm-up so the loudest bar (the snare roll and the riser sit in bar 8) is included. The last scenario runs two loops with
-		// the Harmonix clock bound, to check the 128-step wrap, the beat events and every lane.
-		struct FScenario { const TCHAR* Label; float Day, Night, Tension, Seconds; bool bClock; };
-		const FScenario Scenarios[] = {
-			{ TEXT("music day"), 1.0f, 0.0f, 0.0f, 19.0f, false },
-			{ TEXT("music night"), 0.0f, 1.0f, 0.0f, 19.0f, false },
-			{ TEXT("music tension only"), 0.0f, 0.0f, 1.0f, 19.0f, false },
-			{ TEXT("music day+tension"), 1.0f, 0.0f, 1.4f, 19.0f, false },
-			{ TEXT("music night+tension"), 0.0f, 1.0f, 1.4f, 19.0f, false },
-			{ TEXT("music day x2 loops"), 1.0f, 0.0f, 0.0f, 36.0f, true },
+			for (int32 i = 0; i < static_cast<int32>(EShiftSfx::Count); ++i)
+			{
+				FCase C;
+				C.Asset = FString(TEXT("MS_Sfx_")) + ShiftSfxName(static_cast<EShiftSfx>(i));
+				C.Label = C.Asset;
+				C.Seconds = 4.0f;
+				Cases.Add(C);
+			}
 		};
-		for (const FScenario& S : Scenarios)
+	auto AddMusic = [this]()
 		{
-			FCase C;
-			C.Asset = TEXT("MS_Music");
-			C.Label = S.Label;
-			C.bLooping = true;
-			C.bClock = S.bClock;
-			C.Seconds = S.Seconds;
-			C.Day = S.Day;
-			C.Night = S.Night;
-			C.Tension = S.Tension;
-			Cases.Add(C);
-		}
-	};
+			// One 8-bar loop is 17.07 s; the stems that are calibrated against a peak level (day, night, tension alone) run a whole loop plus
+			// the 1 s warm-up so the loudest bar (the snare roll and the riser sit in bar 8) is included. The last scenario runs two loops with
+			// the Harmonix clock bound, to check the 128-step wrap, the beat events and every lane.
+			struct FScenario { const TCHAR* Label; float Day, Night, Tension, Seconds; bool bClock; };
+			const FScenario Scenarios[] = {
+				{ TEXT("music day"), 1.0f, 0.0f, 0.0f, 19.0f, false },
+				{ TEXT("music night"), 0.0f, 1.0f, 0.0f, 19.0f, false },
+				{ TEXT("music tension only"), 0.0f, 0.0f, 1.0f, 19.0f, false },
+				{ TEXT("music day+tension"), 1.0f, 0.0f, 1.4f, 19.0f, false },
+				{ TEXT("music night+tension"), 0.0f, 1.0f, 1.4f, 19.0f, false },
+				{ TEXT("music day x2 loops"), 1.0f, 0.0f, 0.0f, 36.0f, true },
+			};
+			for (const FScenario& S : Scenarios)
+			{
+				FCase C;
+				C.Asset = TEXT("MS_Music");
+				C.Label = S.Label;
+				C.bLooping = true;
+				C.bClock = S.bClock;
+				C.Seconds = S.Seconds;
+				C.Day = S.Day;
+				C.Night = S.Night;
+				C.Tension = S.Tension;
+				Cases.Add(C);
+			}
+		};
 
 	TArray<FString> Tokens;
 	Spec.ParseIntoArray(Tokens, TEXT(","));
@@ -131,6 +204,15 @@ void UShiftAudioMeter::BuildCases(const FString& Spec)
 
 void UShiftAudioMeter::ReleaseComponents()
 {
+	if (StallListener.IsValid())
+	{
+		if (UMetaSoundSource* MetaSound = StallSource.Get())
+		{
+			MetaSound->OnGeneratorInstanceInfoCreated.Remove(StallListener);
+		}
+		StallListener.Reset();
+		StallSource.Reset();
+	}
 	if (Clock)
 	{
 		Clock->BeatEvent.RemoveAll(this);
@@ -189,6 +271,44 @@ void UShiftAudioMeter::StartCase()
 		return;
 	}
 	Component->bIsUISound = true;
+
+	// QA stall hook: stall the game thread at the moment this sound's generator appears (a cold first start is busiest then). The handle that attaches the
+	// output analyzers hops to the game thread when the generator is created, so a stall longer than a short one-shot reproduces the lost-meter-data failure.
+	// The listener is added before the first WatchOutput so it runs before the handle's own listener.
+	++StartCount;
+	if (StallMs > 0 && StallStarts.Contains(StartCount))
+	{
+		if (UMetaSoundSource* MetaSound = Cast<UMetaSoundSource>(Sound))
+		{
+			const uint64 ComponentId = Component->GetAudioComponentID();
+			const int32 Ms = StallMs;
+			const int32 StartNumber = StartCount;
+			StallSource = MetaSound;
+			StallListener = MetaSound->OnGeneratorInstanceInfoCreated.AddLambda([ComponentId, Ms, StartNumber](const Metasound::FGeneratorInstanceInfo& Info)
+				{
+					if (Info.AudioComponentID != ComponentId)
+					{
+						return;
+					}
+					const bool bOnGameThread = IsInGameThread();
+					auto Stall = [Ms, StartNumber, bOnGameThread]()
+						{
+							UE_LOG(LogShift, Log, TEXT("AudioMeter: QA hook: game thread stalled %d ms as the generator of start %d appeared (created %s the game thread)"), Ms, StartNumber,
+								bOnGameThread ? TEXT("on") : TEXT("off"));
+							FPlatformProcess::Sleep(static_cast<float>(Ms) / 1000.0f);
+						};
+					if (bOnGameThread)
+					{
+						Stall();
+					}
+					else
+					{
+						AsyncTask(ENamedThreads::GameThread, MoveTemp(Stall));
+					}
+				});
+		}
+	}
+
 	if (C.Asset == TEXT("MS_Music"))
 	{
 		Component->SetFloatParameter(TEXT("DayGain"), C.Day);
@@ -254,7 +374,7 @@ void UShiftAudioMeter::StartCase()
 
 void UShiftAudioMeter::OnOutput(FName OutputName, const FMetaSoundOutput& Output)
 {
-	if (CaseIndex < 0 || CaseIndex >= Cases.Num())
+	if (CaseIndex < 0 || CaseIndex >= Cases.Num() || DropStarts.Contains(StartCount))
 	{
 		return;
 	}
@@ -336,14 +456,52 @@ bool UShiftAudioMeter::Tick(float DeltaTime)
 	{
 		return false;
 	}
+	if (!bStarted)
+	{
+		bStarted = true;
+		WarmStartWall = FPlatformTime::Seconds();
+		StartCase();
+		return true;
+	}
 	CaseClock += DeltaTime;
 	const FCase& C = Cases[CaseIndex];
 	const bool bTimeUp = CaseClock >= C.Seconds;
 	const bool bOneShotDone = !C.bLooping && bCaseFinished && CaseClock >= FinishedAt + 0.3f;
 	if (bTimeUp || bOneShotDone || (!Component && bCaseFinished))
 	{
+		// A one-shot that ended without a single meter update lost the race against the game thread (see Begin). That is not a verdict on the sound: play it again.
+		// The warm-up repeats until data arrives or its wall-clock budget is gone; a real case gets MaxCaseAttempts tries. Looping sources are not retried.
+		if (Component && !C.bLooping && OutputUpdates == 0)
+		{
+			if (C.bWarmUp)
+			{
+				const double WarmWall = FPlatformTime::Seconds() - WarmStartWall;
+				if (WarmWall < WarmUpMaxSeconds)
+				{
+					++Attempt;
+					ReleaseComponents();
+					StartCase();
+					return true;
+				}
+				UE_LOG(LogShift, Error, TEXT("AudioMeter: [FAIL] warm-up: no meter data after %.0f s and %d attempt(s) (no audio device? run with -Sound)"), WarmWall, Attempt);
+				++Failures;
+				ReleaseComponents();
+				LogSummary();
+				bDone = true;
+				return false;
+			}
+			if (Attempt < MaxCaseAttempts)
+			{
+				UE_LOG(LogShift, Log, TEXT("AudioMeter: %s: no meter data, retry %d/%d"), *C.Label, Attempt, MaxCaseAttempts - 1);
+				++Attempt;
+				ReleaseComponents();
+				StartCase();
+				return true;
+			}
+		}
 		FinishCase();
 		++CaseIndex;
+		Attempt = 1;
 		if (CaseIndex >= Cases.Num())
 		{
 			LogSummary();
@@ -424,10 +582,10 @@ void UShiftAudioMeter::CheckMusicLanes()
 void UShiftAudioMeter::FinishCase()
 {
 	const FCase& C = Cases[CaseIndex];
-	if (C.Label == WarmUpLabel)
+	if (C.bWarmUp)
 	{
 		ReleaseComponents();
-		UE_LOG(LogShift, Log, TEXT("AudioMeter: warm-up done (%d meter updates)"), OutputUpdates);
+		UE_LOG(LogShift, Log, TEXT("AudioMeter: warm-up done (%d meter updates, %d attempt(s), %.2f s)"), OutputUpdates, Attempt, FPlatformTime::Seconds() - WarmStartWall);
 		return;
 	}
 
@@ -487,22 +645,22 @@ void UShiftAudioMeter::FinishCase()
 void UShiftAudioMeter::LogSummary()
 {
 	auto Find = [this](const TCHAR* Label) -> const FResult*
-	{
-		for (const FResult& R : Results)
 		{
-			if (R.Label == Label)
+			for (const FResult& R : Results)
 			{
-				return &R;
+				if (R.Label == Label)
+				{
+					return &R;
+				}
 			}
-		}
-		return nullptr;
-	};
+			return nullptr;
+		};
 	auto Share = [](float Part, const FResult& R) { return Part / FMath::Max(R.Low + R.Mid + R.High, 1.0e-6f); };
 	auto Check = [this](bool bOk, const FString& Text)
-	{
-		UE_LOG(LogShift, Log, TEXT("AudioMeter: [%s] %s"), bOk ? TEXT("PASS") : TEXT("FAIL"), *Text);
-		Failures += bOk ? 0 : 1;
-	};
+		{
+			UE_LOG(LogShift, Log, TEXT("AudioMeter: [%s] %s"), bOk ? TEXT("PASS") : TEXT("FAIL"), *Text);
+			Failures += bOk ? 0 : 1;
+		};
 
 	const FResult* Day = Find(TEXT("music day"));
 	const FResult* Night = Find(TEXT("music night"));
