@@ -29,8 +29,8 @@ namespace
 	constexpr float DesignW = 1280.0f;
 	constexpr float DesignH = 720.0f;
 	constexpr float RowHeight = 31.0f;
-	constexpr float CompactRowH = 22.0f;
-	constexpr float CompactLeaderboardW = 206.0f;
+	constexpr float CompactRowH = 16.0f;
+	constexpr float CompactLeaderboardW = 186.0f;
 
 	/** sRGB hex to the linear colour Slate expects. */
 	FLinearColor Hex(uint32 Rgb, float Alpha = 1.0f)
@@ -546,7 +546,7 @@ void SShiftHud::PaintTooltip(FShiftPainter& P, const FPal& C) const
 	else if (Model.LeaderboardMode == 0)
 	{
 		LeaderboardX = DesignW - 10.0f - CompactLeaderboardW;
-		LeaderboardBottom = 48.0f + 24.0f + CompactRowH * 4.0f + 4.0f;
+		LeaderboardBottom = 48.0f + 20.0f + CompactRowH * static_cast<float>(FMath::Max(1, Model.Rows.Num())) + 4.0f;
 	}
 	float X = T.Anchor.X + T.AnchorRadius + 14.0f;
 	float Y = T.Anchor.Y + 12.0f;
@@ -583,6 +583,14 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	P.Rect(510, 33, 260.0f * FMath::Clamp(Model.RunProgress, 0.0f, 1.0f), 3, C.Teal, 1.5f);
 	P.Text(Model.DeadlineLabel, 1224, 12, 13, C.InkDim, EShiftAlign::Right);
 	MuteButton(P, C, 1250.0f, 20.0f);
+	if (Model.FakeShare > 0.004f)
+	{
+		// Sockpuppet votes you hold right now, backed or not: what a strike would take from you. Holding them heats you up, so above the limit Heat climbs.
+		const bool bOver = Model.FakeLimit > 0.0f && Model.FakeShare > Model.FakeLimit;
+		P.Rect(786, 9, 104, 22, WithAlpha(bOver ? C.Red : Hex(0x7B5CF0), 0.88f), 11);
+		P.Text(Model.FakeLimit > 0.0f ? FString::Printf(TEXT("FAKE %.0f/%.0f%%"), Model.FakeShare * 100.0f, Model.FakeLimit * 100.0f) : FString::Printf(TEXT("FAKE %.0f%%"), Model.FakeShare * 100.0f),
+			838, 13, 12, FLinearColor::White, EShiftAlign::Center, true);
+	}
 	if (Model.bModsEnabled && Model.NextSweepIn >= 0.0f)
 	{
 		const bool bSoon = Model.NextSweepIn < 3.0f;
@@ -637,32 +645,28 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	}
 	else if (Model.LeaderboardMode == 0)
 	{
-		TArray<const FShiftHudRow*> Shown;
-		for (const FShiftHudRow& Row : Model.Rows)
-		{
-			if (Row.Rank < 3) { Shown.Add(&Row); }
-		}
-		for (const FShiftHudRow& Row : Model.Rows)
-		{
-			if (Row.bPlayer && Row.Rank >= 3) { Shown.Add(&Row); }
-		}
+		// All nine entries, one thin row each, on a see-through panel: the board stays readable underneath and nobody is hidden.
 		const float PanelW = CompactLeaderboardW;
 		const float PanelX = DesignW - 10.0f - PanelW;
 		const float PanelY = 48.0f;
-		P.Rect(PanelX, PanelY, PanelW, 24.0f + CompactRowH * static_cast<float>(Shown.Num()) + 4.0f, WithAlpha(C.Panel, 0.62f), 8);
-		P.Text(TEXT("LEADERBOARD  (L)"), PanelX + 10, PanelY + 6, 10, C.InkDim, EShiftAlign::Left, true);
-		for (int32 i = 0; i < Shown.Num(); ++i)
+		const int32 RowCount = FMath::Max(1, Model.Rows.Num());
+		P.Rect(PanelX, PanelY, PanelW, 20.0f + CompactRowH * static_cast<float>(RowCount) + 4.0f, WithAlpha(C.Panel, 0.58f), 8);
+		P.Text(TEXT("LEADERBOARD  (L)"), PanelX + 10, PanelY + 4, 10, C.InkDim, EShiftAlign::Left, true);
+		for (const FShiftHudRow& Row : Model.Rows)
 		{
-			const FShiftHudRow& Row = *Shown[i];
-			const float Y = PanelY + 22.0f + CompactRowH * static_cast<float>(i);
+			const float Y = PanelY + 18.0f + CompactRowH * static_cast<float>(Row.Rank);
 			if (Row.bPlayer)
 			{
-				P.Rect(PanelX + 4, Y - 1, PanelW - 8, CompactRowH - 1, WithAlpha(C.Teal, 0.22f), 6);
+				P.Rect(PanelX + 4, Y - 1, PanelW - 8, CompactRowH, WithAlpha(C.Teal, 0.24f), 5);
 			}
-			P.Text(FString::FromInt(Row.Rank + 1), PanelX + 16, Y + 3, 12, Row.bPlayer ? C.Teal : C.Ink, EShiftAlign::Center, true);
-			P.Disc(PanelX + 32, Y + 10, 5.0f, Row.Color);
-			P.Text(P.Fit(Row.Name, 116.0f, 12, Row.bPlayer), PanelX + 44, Y + 3, 12, C.Ink, EShiftAlign::Left, Row.bPlayer);
-			P.Text(FString::Printf(TEXT("%.0f%%"), Row.Share * 100.0f), PanelX + PanelW - 8, Y + 3, 12, C.InkDim, EShiftAlign::Right);
+			P.Text(FString::FromInt(Row.Rank + 1), PanelX + 14, Y + 1, 11, Row.bPlayer ? C.Teal : C.Ink, EShiftAlign::Center, true);
+			P.Disc(PanelX + 28, Y + 7, 4.0f, Row.Color);
+			P.Text(P.Fit(Row.Name, Row.bPlayer && Model.FakeShare > 0.004f ? 74.0f : 104.0f, 11, Row.bPlayer), PanelX + 38, Y + 1, 11, C.Ink, EShiftAlign::Left, Row.bPlayer);
+			if (Row.bPlayer && Model.FakeShare > 0.004f)
+			{
+				P.Text(FString::Printf(TEXT("+%.0f%% fake"), Model.FakeShare * 100.0f), PanelX + PanelW - 40, Y + 1, 10, Hex(0xB79BFF), EShiftAlign::Right, true);
+			}
+			P.Text(FString::Printf(TEXT("%.0f%%"), Row.Share * 100.0f), PanelX + PanelW - 8, Y + 1, 11, C.InkDim, EShiftAlign::Right);
 		}
 	}
 	else
@@ -697,7 +701,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	{
 		const bool bReady = Model.RallyCooldown <= 0.0f;
 		P.Rect(268, 683, 214, 28, WithAlpha(bReady ? C.Teal : C.Track, bReady ? 0.22f : 0.60f), 14);
-		P.Text(bReady ? FString::Printf(TEXT("RALLY  right-click  (%.0f Posts)"), Model.RallyCost) : FString::Printf(TEXT("RALLY  %.0fs"), FMath::CeilToFloat(Model.RallyCooldown)),
+		P.Text(bReady ? FString::Printf(TEXT("RALLY  right-click  (%.0f Post%s)"), Model.RallyCost, Model.RallyCost > 1.5f ? TEXT("s") : TEXT("")) : FString::Printf(TEXT("RALLY  %.0fs"), FMath::CeilToFloat(Model.RallyCooldown)),
 			375, 689, 12, bReady ? C.Teal : C.InkDim, EShiftAlign::Center, true);
 	}
 
@@ -739,10 +743,10 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	}
 	if (Model.FinalAuditIn >= 0.0f)
 	{
-		// The last seconds of the jam: the mods purge every sockpuppet vote that is still fake.
+		// The last seconds of the jam: the mods purge every sockpuppet vote that is still fake, and every one bought from now on.
 		const float Pulse = 0.5f + 0.5f * FMath::Sin(AnimTime * 10.0f);
 		P.Rect(430, 96, 420, 30, WithAlpha(C.Red, 0.80f + 0.15f * Pulse), 15);
-		P.Text(FString::Printf(TEXT("FINAL AUDIT in %.0fs: fake votes are purged"), FMath::CeilToFloat(Model.FinalAuditIn)), 640, 102, 14, FLinearColor::White, EShiftAlign::Center, true);
+		P.Text(FString::Printf(TEXT("FINAL AUDIT in %.0fs: new sockpuppet votes are purged"), FMath::CeilToFloat(Model.FinalAuditIn)), 640, 102, 14, FLinearColor::White, EShiftAlign::Center, true);
 	}
 
 	// ------------------------------------------------------------------ coach card (tutorial)

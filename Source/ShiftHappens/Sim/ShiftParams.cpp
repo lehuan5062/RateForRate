@@ -37,8 +37,8 @@ namespace ShiftSim
 			SHIFT_P(DrainRate), SHIFT_P(RegainRate), SHIFT_P(FlipConv), SHIFT_P(AdoptThreshold),
 			SHIFT_P(AdoptRate), SHIFT_P(AdoptConv), SHIFT_P(DriftRate), SHIFT_P(DriftConv),
 			SHIFT_P(PlugDrain), SHIFT_P(PlugReinforce), SHIFT_P(PlugFlipThreshold), SHIFT_P(PlugFlipConv),
-			SHIFT_P(PlugLock), SHIFT_P(PlayerFlipConv), SHIFT_P(PlayerPlugLock), SHIFT_P(SockStrength), SHIFT_P(SockConv), SHIFT_P(SockLock), SHIFT_P(SockHeat),
-			SHIFT_P(SockRequiresNight), SHIFT_P(SockLaunderConv), SHIFT_P(SockOverheatRefuse), SHIFT_P(FinalAudit), SHIFT_P(RallyCost), SHIFT_P(RallyBoost), SHIFT_P(RallyLock), SHIFT_P(RallyCooldown), SHIFT_P(PostsMax), SHIFT_P(PostsStart),
+			SHIFT_P(AttackTelegraph), SHIFT_P(PlugLock), SHIFT_P(PlayerFlipConv), SHIFT_P(PlayerPlugLock), SHIFT_P(SockStrength), SHIFT_P(SockConv), SHIFT_P(SockLock), SHIFT_P(SockHeat),
+			SHIFT_P(SockRequiresNight), SHIFT_P(SockLaunderConv), SHIFT_P(SockOverheatRefuse), SHIFT_P(FinalAudit), SHIFT_P(SockReview), SHIFT_P(SockTolerance), SHIFT_P(SockHeldHeat), SHIFT_P(RallyCost), SHIFT_P(RallyBoost), SHIFT_P(RallyLock), SHIFT_P(RallyCooldown), SHIFT_P(PostsMax), SHIFT_P(PostsStart),
 			SHIFT_P(PostsRegen), SHIFT_P(GatesApplyToAll),
 			SHIFT_P(HeatDecay), SHIFT_P(HeatNightRate), SHIFT_P(HeatRedZone), SHIFT_P(HeatMax),
 			SHIFT_P(HeatAfterStrike), SHIFT_P(ShadowbanSeconds), SHIFT_P(MaxStrikes),
@@ -121,7 +121,7 @@ namespace ShiftSim
 		{
 			J.name = "Tiny Jam #7";
 			J.nodes = 36; J.communities = 5; J.bridges = 2; J.celebs = 2;
-			J.days = 31; J.secPerDay = 6.0; J.regen = 0.50;
+			J.days = 31; J.secPerDay = 6.0; J.regen = 0.487;
 			J.localGate = 0.25; J.celebGate = 0.15;
 			J.celebExtraFollowers = 8.0;
 			J.modIntervalMin = 25.0; J.modIntervalMax = 35.0;
@@ -130,7 +130,7 @@ namespace ShiftSim
 		{
 			J.name = "48h Pixel Rumble";
 			J.nodes = 52; J.communities = 7; J.bridges = 3; J.celebs = 2;
-			J.days = 31; J.secPerDay = 6.0; J.regen = 0.48;
+			J.days = 31; J.secPerDay = 6.0; J.regen = 0.462;
 			J.localGate = 0.25; J.celebGate = 0.20;
 			J.celebExtraFollowers = 8.0;
 			J.modIntervalMin = 15.0; J.modIntervalMax = 25.0;
@@ -139,7 +139,7 @@ namespace ShiftSim
 		{
 			J.name = "GAME OFF 2026";
 			J.nodes = 72; J.communities = 9; J.bridges = 4; J.celebs = 2;
-			J.days = 31; J.secPerDay = 8.0; J.regen = 0.505;
+			J.days = 31; J.secPerDay = 8.0; J.regen = 0.487;
 			J.localGate = 0.25; J.celebGate = 0.25;
 			J.celebExtraFollowers = 14.0;
 			J.modIntervalMin = 12.0; J.modIntervalMax = 20.0;

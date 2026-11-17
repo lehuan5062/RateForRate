@@ -13,7 +13,8 @@ TUT11,11,FirstModEye,"The Mod Eye sweeps every 12 to 35 seconds (see the countdo
 TUT12,12,FirstStrike,Strike! The mods undid your sockpuppets and shadowbanned you for {ban} seconds. {strikes} strikes and you are out.
 TUT13,13,BlameAvailable,Once per jam you can Shift the Blame and hand a strike to your rival.
 TUT14,14,KeysHint,Space pauses. M mutes. Esc opens the menu. The rest is up to you.
-TUT15,15,FirstLostVoter,Voters drift back to where their neighbours are. A voter that shakes is about to flip back: click it to reinforce.
-TUT16,16,FirstSockpuppet,A sockpuppet vote is fake until backed. Strikes and the final audit undo it: plug your sockpuppet until it is {launder} sure.
-TUT17,17,FinalAudit,Final audit: the mods purge every sockpuppet vote that is still fake. Plug yours now to make them real.
-TUT18,18,RallyHint,Right-click a voter you hold to Rally: {rallycost} Posts give it and its neighbours +{rallyboost} conviction. Ready again after {rallycd}s.
+TUT15,15,FirstLostVoter,A voter changed sides. A shaking ring means it is drifting; a closing coloured ring means another game is about to plug it.
+TUT16,16,FirstSockpuppet,Fake votes keep you hot while you hold them. A strike undoes them all and the audit the unbacked: plug one to {launder} to back it.
+TUT17,17,FinalAudit,"Final audit: fake votes are purged, and so is every sockpuppet vote bought in the last {review}s, even if backed."
+TUT18,18,RallyHint,Right-click a voter you hold to Rally it: {rallycost} Post shields it and its neighbours from plugs for {rallylock}s. Ready in {rallycd}s.
+TUT19,19,ThreatRing,A ring closing in on your voter is an attack in the attacker's colour. Reinforce the voter or Rally it before the ring lands.

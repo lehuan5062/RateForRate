@@ -5,7 +5,8 @@ Per-instance data comes from PerInstanceCustomData; global theme (night, time, c
 Idempotent: reuses and resets existing assets.   Run: Tools\\run_py.ps1 -Script Tools\\py\\build_materials.py
 
 Custom-data layouts (must match Source/ShiftHappens/Board/ShiftBoard.cpp):
-  node (15): 0-2 fill rgb, 3 conv, 4 lock, 5 gate, 6 hover, 7 flash, 8 role, 9 expr, 10 sock, 11 pressure, 12-13 centre world xy, 14 radius
+  node (20): 0-2 fill rgb, 3 conv, 4 lock, 5 gate, 6 hover, 7 flash, 8 role, 9 expr, 10 sock, 11 pressure, 12-13 centre world xy, 14 radius,
+             15 threat, 16-18 pusher rgb, 19 shield
   glow (9):  0-2 fill rgb, 3 flash, 4 hover, 5-6 centre world xy, 7 radius, 8 strength
   edge (13): 0-2 colour rgb, 3 base alpha, 4 pulse, 5 seed, 6 speed, 7 half width, 8-9 P0 xy, 10-11 P1 xy, 12 bulge
 """
@@ -172,21 +173,23 @@ def build_bg(mpc):
 def build_node(mpc):
     mat = fresh_material("M_Node", MAT_DIR)
     base_flags(mat, translucent=True, instanced=True)
-    d = [idata(mat, i, 0.0, -1800, i * 110) for i in range(15)]
+    d = [idata(mat, i, 0.0, -1800, i * 110) for i in range(20)]
     pw = world_xy(mat, -1500, -300)
     fill = vec3(mat, d[0], d[1], d[2], -1400, 0)
     cw = vec2(mat, d[12], d[13], -1400, 1450)
+    push = vec3(mat, d[16], d[17], d[18], -1400, 2300)
     night = mpc_param(mat, mpc, "Night", -1500, -100)
     tm = mpc_param(mat, mpc, "Time", -1500, 0)
     heat = mpc_param(mat, mpc, "Heat", -1500, 100)
     cur = mask(mat, mpc_param(mat, mpc, "Cursor", -1500, 200), True, True, False, False, -1340, 200)
     node = custom(mat, "voter node", read_hlsl("node"),
                   ["PW", "CW", "Rad", "Fill", "Conv", "Lock", "Gate", "Hover", "Flash", "Role", "Expr", "Sock", "Pressure",
-                   "Night", "Tm", "Heat", "Cur"],
+                   "Threat", "PushCol", "Shield", "Night", "Tm", "Heat", "Cur"],
                   unreal.CustomMaterialOutputType.CMOT_FLOAT4, -400, 300)
     wiring = (
         (pw, "PW"), (cw, "CW"), (d[14], "Rad"), (fill, "Fill"), (d[3], "Conv"), (d[4], "Lock"), (d[5], "Gate"),
         (d[6], "Hover"), (d[7], "Flash"), (d[8], "Role"), (d[9], "Expr"), (d[10], "Sock"), (d[11], "Pressure"),
+        (d[15], "Threat"), (push, "PushCol"), (d[19], "Shield"),
         (night, "Night"), (tm, "Tm"), (heat, "Heat"), (cur, "Cur"),
     )
     for src, pin in wiring:

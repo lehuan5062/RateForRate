@@ -56,6 +56,7 @@ namespace ShiftSim
 		case ActionResult::Rallied: return "Rallied";
 		case ActionResult::OnCooldown: return "OnCooldown";
 		case ActionResult::NotYours: return "NotYours";
+		case ActionResult::Telegraphed: return "Telegraphed";
 		}
 		return "?";
 	}
@@ -84,11 +85,15 @@ namespace ShiftSim
 		Sock_.assign(Count, 0);
 		SockPrevOpinion_.assign(Count, kNoOwner);
 		SockPrevConv_.assign(Count, 0.0);
+		SockAt_.assign(Count, -1.0);
 		NewOpinion_.assign(Count, kNoOwner);
 		NewConv_.assign(Count, 0.0);
 		Contrib_.assign(Count, 0.0);
 		Drain_.assign(Count, 0.0);
 		Challenger_.assign(Count, kNoOwner);
+		Shield_.assign(Count, 0.0);
+		Pending_.clear();
+		AttackStats_ = AttackCounters();
 		Flipper_.assign(Count, kNoOwner);
 		for (int e = 0; e < kMaxEntries; ++e)
 		{
@@ -341,6 +346,7 @@ namespace ShiftSim
 			Tally_[NewOwner] += W;
 		}
 		Opinion_[SimIx(Node)] = NewOwner;
+		Shield_[SimIx(Node)] = 0.0;
 	}
 
 	double Sim::Share(int Entry) const
@@ -391,6 +397,39 @@ namespace ShiftSim
 		return Sum;
 	}
 
+	double Sim::SockBoughtWeight() const
+	{
+		double Sum = 0.0;
+		for (int i = 0; i < Graph_.NodeCount(); ++i)
+		{
+			if (Sock_[SimIx(i)] != 0 || (SockAt_[SimIx(i)] >= 0.0 && Opinion_[SimIx(i)] == kPlayerId))
+			{
+				Sum += Graph_.nodes[SimIx(i)].weight;
+			}
+		}
+		return Sum;
+	}
+
+	bool Sim::OverTolerance() const
+	{
+		return P_.SockTolerance < 1.0 && SockBoughtWeight() > P_.SockTolerance * TotalWeight() + kSimEps;
+	}
+
+	double Sim::AuditWeight() const
+	{
+		const double Since = TotalSeconds() - P_.SockReview - kSimEps;
+		double Sum = 0.0;
+		for (int i = 0; i < Graph_.NodeCount(); ++i)
+		{
+			const size_t Ix = SimIx(i);
+			if (Sock_[Ix] != 0 || (P_.SockReview > 0.0 && SockAt_[Ix] >= 0.0 && SockAt_[Ix] >= Since && Opinion_[Ix] == kPlayerId))
+			{
+				Sum += Graph_.nodes[Ix].weight;
+			}
+		}
+		return Sum;
+	}
+
 	int Sim::DayIndex() const
 	{
 		int D = static_cast<int>(Time_ / Jam_.secPerDay + 1.0e-9);
@@ -424,6 +463,35 @@ namespace ShiftSim
 			Shadowban_ = MaxOf(0.0, Shadowban_ - Dt);
 		}
 		RallyCooldown_ = MaxOf(0.0, RallyCooldown_ - Dt);
+
+		// Announced attacks that are due now. The target is checked again: if the player lost it meanwhile the attack fizzles, if it is immune (a Rally, a fresh
+		// flip) the plug is refused, and a reinforcement in between changes the arithmetic as usual.
+		for (size_t k = 0; k < Pending_.size();)
+		{
+			Pending_[k].timeLeft -= Dt;
+			if (Pending_[k].timeLeft > 1.0e-9)
+			{
+				++k;
+				continue;
+			}
+			const PendingAttack A = Pending_[k];
+			Pending_.erase(Pending_.begin() + static_cast<std::ptrdiff_t>(k));
+			if (Opinion_[SimIx(A.node)] != kPlayerId)
+			{
+				++AttackStats_.fizzled;
+				continue;
+			}
+			const ActionOutcome Landed = PlugNow(A.who, A.node, A.strength);
+			if (Landed.result == ActionResult::Locked)
+			{
+				++AttackStats_.blocked;
+			}
+			else
+			{
+				++AttackStats_.landed;
+				AttackStats_.flipped += Landed.flipped ? 1 : 0;
+			}
+		}
 		if (NightHeld_)
 		{
 			Heat_ += P_.HeatNightRate * Dt;
@@ -432,12 +500,17 @@ namespace ShiftSim
 		{
 			Heat_ -= P_.HeatDecay * Dt;
 		}
+		if (P_.SockHeldHeat > 0.0)
+		{
+			Heat_ += P_.SockHeldHeat * (SockBoughtWeight() / MaxOf(1.0, TotalWeight())) * Dt;
+		}
 		Heat_ = ClampRange(Heat_, 0.0, P_.HeatMax);
 
 		const int Count = Graph_.NodeCount();
 		for (int i = 0; i < Count; ++i)
 		{
 			Lock_[SimIx(i)] = MaxOf(0.0, Lock_[SimIx(i)] - Dt);
+			Shield_[SimIx(i)] = MaxOf(0.0, Shield_[SimIx(i)] - Dt);
 		}
 
 		RecomputeRanks();
@@ -569,6 +642,7 @@ namespace ShiftSim
 				SetOwner(i, New);
 				Flipper_[SimIx(i)] = kFlipNatural;
 				Sock_[SimIx(i)] = 0;
+				SockAt_[SimIx(i)] = -1.0;
 			}
 			Conv_[SimIx(i)] = NewConv_[SimIx(i)];
 			if (Sock_[SimIx(i)] != 0 && Conv_[SimIx(i)] >= P_.SockLaunderConv)
@@ -629,6 +703,51 @@ namespace ShiftSim
 
 	ActionOutcome Sim::Plug(int Who, int Node, double Strength)
 	{
+		if (Who != kPlayerId && Who >= 0 && Who < NumEntries_ && Node >= 0 && Node < Graph_.NodeCount() && P_.AttackTelegraph > 0.0 && Opinion_[SimIx(Node)] == kPlayerId && Sock_[SimIx(Node)] == 0)
+		{
+			// Another entry has picked one of the player's (honest) voters: announce it, so the player can answer before it lands. A sockpuppet vote is flagged and gets no warning:
+			// nobody waits to tell a cheat, and the late burst of a sockpuppet run is not shielded by the delay.
+			PendingAttack A;
+			A.who = Who;
+			A.node = Node;
+			A.strength = Strength;
+			A.timeLeft = P_.AttackTelegraph;
+			A.total = P_.AttackTelegraph;
+			Pending_.push_back(A);
+			++AttackStats_.queued;
+			ActionOutcome O;
+			O.result = ActionResult::Telegraphed;
+			O.who = Who;
+			O.node = Node;
+			O.prevOwner = kPlayerId;
+			O.newOwner = kPlayerId;
+			O.convBefore = Conv_[SimIx(Node)];
+			O.convAfter = Conv_[SimIx(Node)];
+			return O;
+		}
+		return PlugNow(Who, Node, Strength);
+	}
+
+	bool Sim::ThreatOn(int Node, int* Who, double* TimeLeft, double* Total) const
+	{
+		bool Found = false;
+		double Best = 1.0e30;
+		for (size_t k = 0; k < Pending_.size(); ++k)
+		{
+			if (Pending_[k].node == Node && Pending_[k].timeLeft < Best)
+			{
+				Best = Pending_[k].timeLeft;
+				if (Who != nullptr) { *Who = Pending_[k].who; }
+				if (TimeLeft != nullptr) { *TimeLeft = Pending_[k].timeLeft; }
+				if (Total != nullptr) { *Total = Pending_[k].total; }
+				Found = true;
+			}
+		}
+		return Found;
+	}
+
+	ActionOutcome Sim::PlugNow(int Who, int Node, double Strength)
+	{
 		ActionOutcome O;
 		O.who = Who;
 		O.node = Node;
@@ -684,6 +803,7 @@ namespace ShiftSim
 				Conv_[Ix] = IsPlayer ? P_.PlayerFlipConv : P_.PlugFlipConv;
 				Lock_[Ix] = IsPlayer ? P_.PlayerPlugLock : P_.PlugLock;
 				Sock_[Ix] = 0;
+				SockAt_[Ix] = -1.0;
 				O.result = ActionResult::Flipped;
 				O.flipped = true;
 			}
@@ -753,6 +873,7 @@ namespace ShiftSim
 			Conv_[Ix] = P_.SockConv;
 			Lock_[Ix] = P_.SockLock;
 			Sock_[Ix] = 1;
+			SockAt_[Ix] = Time_;
 			O.result = ActionResult::Flipped;
 			O.flipped = true;
 			RecomputeRanks();
@@ -808,6 +929,7 @@ namespace ShiftSim
 			Done[J] = 1;
 			Conv_[J] = MinOf(1.0, Conv_[J] + P_.RallyBoost);
 			Lock_[J] = MaxOf(Lock_[J], P_.RallyLock);
+			Shield_[J] = MaxOf(Shield_[J], P_.RallyLock);
 			++O.touched;
 		}
 		O.result = ActionResult::Rallied;
@@ -820,7 +942,7 @@ namespace ShiftSim
 		std::vector<int> Reverted;
 		for (int i = 0; i < Graph_.NodeCount(); ++i)
 		{
-			if (Sock_[SimIx(i)] == 0)
+			if (Sock_[SimIx(i)] == 0 && !(SockAt_[SimIx(i)] >= 0.0 && Opinion_[SimIx(i)] == kPlayerId))
 			{
 				continue;
 			}
@@ -828,6 +950,33 @@ namespace ShiftSim
 			Conv_[SimIx(i)] = SockPrevConv_[SimIx(i)];
 			Lock_[SimIx(i)] = 0.0;
 			Sock_[SimIx(i)] = 0;
+			SockAt_[SimIx(i)] = -1.0;
+			Reverted.push_back(i);
+		}
+		if (!Reverted.empty())
+		{
+			RecomputeRanks();
+		}
+		return Reverted;
+	}
+
+	std::vector<int> Sim::AuditSockpuppets()
+	{
+		std::vector<int> Reverted;
+		const double Since = TotalSeconds() - P_.SockReview - kSimEps;
+		for (int i = 0; i < Graph_.NodeCount(); ++i)
+		{
+			const size_t Ix = SimIx(i);
+			const bool bRecent = P_.SockReview > 0.0 && SockAt_[Ix] >= 0.0 && SockAt_[Ix] >= Since && Opinion_[Ix] == kPlayerId;
+			if (Sock_[Ix] == 0 && !bRecent)
+			{
+				continue;
+			}
+			SetOwner(i, SockPrevOpinion_[Ix]);
+			Conv_[Ix] = SockPrevConv_[Ix];
+			Lock_[Ix] = 0.0;
+			Sock_[Ix] = 0;
+			SockAt_[Ix] = -1.0;
 			Reverted.push_back(i);
 		}
 		if (!Reverted.empty())
@@ -876,6 +1025,7 @@ namespace ShiftSim
 		Conv_[SimIx(Node)] = Clamp01(Conviction);
 		Lock_[SimIx(Node)] = MaxOf(0.0, LockSeconds);
 		Sock_[SimIx(Node)] = 0;
+		SockAt_[SimIx(Node)] = -1.0;
 		RecomputeRanks();
 	}
 
@@ -1096,12 +1246,19 @@ namespace ShiftSim
 			SimHashMix(H, SimDoubleBits(Conv_[SimIx(i)]));
 			SimHashMix(H, SimDoubleBits(Lock_[SimIx(i)]));
 			SimHashMix(H, static_cast<uint64_t>(Sock_[SimIx(i)]));
+			SimHashMix(H, SimDoubleBits(SockAt_[SimIx(i)]));
 		}
 		SimHashMix(H, SimDoubleBits(Posts_));
 		SimHashMix(H, SimDoubleBits(Heat_));
 		SimHashMix(H, SimDoubleBits(Shadowban_));
 		SimHashMix(H, static_cast<uint64_t>(Strikes_));
 		SimHashMix(H, static_cast<uint64_t>(StepCount_));
+		SimHashMix(H, static_cast<uint64_t>(Pending_.size()));
+		for (size_t k = 0; k < Pending_.size(); ++k)
+		{
+			SimHashMix(H, static_cast<uint64_t>(Pending_[k].who) * 1000003ull + static_cast<uint64_t>(Pending_[k].node));
+			SimHashMix(H, SimDoubleBits(Pending_[k].timeLeft));
+		}
 		return H;
 	}
 

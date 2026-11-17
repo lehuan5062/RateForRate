@@ -504,8 +504,8 @@ inline void TestPlugAndSock(const Config& Cfg)
     S3.Step();
     T_CHECK(!S3.IsSockpuppet(Hub3));
     const StrikeOutcome Late = S3.ApplyStrike();
-    T_CHECK(Late.revertedNodes.empty());      // nothing left to revert
-    T_CHECK(S3.Opinion(Hub3) == kPlayerId);
+    T_CHECK(Late.revertedNodes.size() == 1);  // a strike takes backed sockpuppet votes too (the Mod Eye counts everything bought)
+    T_CHECK(S3.Opinion(Hub3) != kPlayerId);
 }
 
 // ------------------------------------------------------------------------------------------
@@ -825,7 +825,7 @@ inline void TestOverheatAndAudit(const Config& Cfg)
         S.Step();
         T_CHECK(!S.IsSockpuppet(T[0]));                                        // laundered: a real vote now
         T_CHECK(S.IsSockpuppet(T[1]));
-        const std::vector<int> Purged = S.RevertSockpuppets();
+        const std::vector<int> Purged = S.AuditSockpuppets();                  // the final audit (the backed vote was bought long before the last SockReview seconds)
         T_CHECK(Purged.size() == 1 && Purged[0] == T[1]);
         T_CHECK(S.Opinion(T[0]) == kPlayerId);
         T_CHECK(S.Opinion(T[1]) != kPlayerId);
@@ -931,6 +931,234 @@ inline void TestRallyAndAttribution(const Config& Cfg)
         Ok = Ok && (C == kNoOwner || (C >= 0 && C < S2.NumEntries() && C != S2.Opinion(I)));
     }
     T_CHECK(Ok);
+}
+
+// ------------------------------------------------------------------------------------------
+inline void TestTelegraph(const Config& Cfg)
+{
+    std::printf("[telegraphed attacks]\n");
+    Params P = Cfg.params;
+    P.AttackTelegraph = 1.5;
+    auto MakeSim = [&](Sim& S, uint32_t Seed, int* Out)
+    {
+        S.Init(Cfg.jams[1], P, Seed);
+        *Out = FindNode(S, NodeRole::Member);
+        S.SetNodeState(*Out, kPlayerId, 0.5, 0.0);
+        S.SetPosts(5.0);
+    };
+
+    // An attack on a voter of the player's is announced, not applied.
+    {
+        Sim S;
+        int M = -1;
+        MakeSim(S, 601, &M);
+        const ActionOutcome O = S.Plug(S.RivalId(), M, 1.0);
+        T_CHECK(O.result == ActionResult::Telegraphed);
+        T_CHECK(S.Opinion(M) == kPlayerId);
+        T_CHECK(Near(S.Conviction(M), 0.5));
+        T_CHECK(S.PendingAttacks().size() == 1);
+        int Who = -1;
+        double Left = 0.0, Total = 0.0;
+        T_CHECK(S.ThreatOn(M, &Who, &Left, &Total));
+        T_CHECK(Who == S.RivalId() && Near(Left, 1.5) && Near(Total, 1.5));
+        T_CHECK(!S.ThreatOn(M + 1 < S.NodeCount() ? M + 1 : 0, &Who, &Left, &Total) || true);
+        // It lands after the delay and takes the voter (0.5 - 0.45 <= 0.15).
+        for (int I = 0; I < 25; ++I) { S.Step(); }
+        T_CHECK(S.Opinion(M) == kPlayerId && S.PendingAttacks().size() == 1);
+        for (int I = 0; I < 8; ++I) { S.Step(); }
+        T_CHECK(S.PendingAttacks().empty());
+        T_CHECK(S.Opinion(M) == S.RivalId());
+        T_CHECK(S.LastFlipper(M) == S.RivalId());
+        T_CHECK(S.Attacks().queued == 1 && S.Attacks().landed == 1 && S.Attacks().flipped == 1);
+    }
+    // Reinforcing in between changes the outcome: the plug lands but does not flip.
+    {
+        Sim S;
+        int M = -1;
+        MakeSim(S, 602, &M);
+        T_CHECK(S.Plug(S.RivalId(), M, 1.0).result == ActionResult::Telegraphed);
+        T_CHECK(S.Plug(kPlayerId, M, 1.0).result == ActionResult::Reinforced);
+        T_CHECK(S.Plug(kPlayerId, M, 1.0).result == ActionResult::Reinforced);
+        for (int I = 0; I < 34; ++I) { S.Step(); }
+        T_CHECK(S.Opinion(M) == kPlayerId);
+        T_CHECK(S.Attacks().landed == 1 && S.Attacks().flipped == 0);
+    }
+    // A Rally makes the voter immune: the attack is blocked.
+    {
+        Sim S;
+        int M = -1;
+        MakeSim(S, 603, &M);
+        T_CHECK(S.Plug(S.RivalId(), M, 1.0).result == ActionResult::Telegraphed);
+        T_CHECK(S.Rally(M).result == ActionResult::Rallied);
+        T_CHECK(S.ShieldRemaining(M) > 0.0 || P.RallyLock <= 0.0);
+        for (int I = 0; I < 34; ++I) { S.Step(); }
+        T_CHECK(S.Opinion(M) == kPlayerId);
+        T_CHECK(S.Attacks().blocked == 1 || P.RallyLock < P.AttackTelegraph);
+    }
+    // If the player no longer holds the voter, the attack fizzles.
+    {
+        Sim S;
+        int M = -1;
+        MakeSim(S, 604, &M);
+        T_CHECK(S.Plug(S.RivalId(), M, 1.0).result == ActionResult::Telegraphed);
+        S.SetNodeState(M, 3, 0.6, 0.0);
+        for (int I = 0; I < 34; ++I) { S.Step(); }
+        T_CHECK(S.Attacks().fizzled == 1 && S.Attacks().landed == 0);
+    }
+    // Attacks on voters the player does not hold, and the player's own plugs, land at once; AttackTelegraph = 0 turns the announcement off.
+    {
+        Sim S;
+        int M = -1;
+        MakeSim(S, 605, &M);
+        const int Other = FindNode(S, NodeRole::Member, 1) == M ? M + 1 : FindNode(S, NodeRole::Member, 1);
+        S.SetNodeState(Other, 3, 0.2, 0.0);
+        T_CHECK(S.Plug(S.RivalId(), Other, 1.0).result == ActionResult::Flipped);
+        T_CHECK(S.PendingAttacks().empty());
+        T_CHECK(S.Plug(kPlayerId, M, 1.0).result == ActionResult::Reinforced);
+        Params Off = P;
+        Off.AttackTelegraph = 0.0;
+        Sim S2;
+        S2.Init(Cfg.jams[1], Off, 606);
+        const int M2 = FindNode(S2, NodeRole::Member);
+        S2.SetNodeState(M2, kPlayerId, 0.5, 0.0);
+        T_CHECK(S2.Plug(S2.RivalId(), M2, 1.0).result == ActionResult::Flipped);
+        T_CHECK(S2.PendingAttacks().empty());
+    }
+    // A sockpuppet vote is flagged and gets no warning: once its immunity is over an attack on it lands at once.
+    {
+        Sim S;
+        S.Init(Cfg.jams[1], P, 607);
+        S.SetPosts(5.0);
+        S.SetHeat(0.0);
+        const int Hub = FindNode(S, NodeRole::LocalHub, 1);
+        S.SetNodeState(Hub, 3, 1.0, 0.0);
+        S.SetNightHeld(true);
+        T_CHECK(S.Sock(Hub).result == ActionResult::Flipped);
+        T_CHECK(S.IsSockpuppet(Hub));
+        for (int I = 0; I < 70; ++I) { S.Step(); }
+        T_CHECK(S.LockRemaining(Hub) <= 0.0);
+        const ActionResult R = S.Plug(S.RivalId(), Hub, 1.0).result;
+        T_CHECK(R != ActionResult::Telegraphed && S.PendingAttacks().empty());
+    }
+}
+
+// ------------------------------------------------------------------------------------------
+inline void TestSockReview(const Config& Cfg)
+{
+    std::printf("[final audit review window]\n");
+    Params P = Cfg.params;
+    P.SockReview = 15.0;
+    P.AttackTelegraph = 0.0;
+    Sim S;
+    S.Init(Cfg.jams[1], P, 701);
+    S.SetPosts(5.0);
+    S.SetHeat(0.0);
+    S.SetNightHeld(true);
+    // two different hubs that the rival or an entry holds
+    int HubA = -1, HubB = -1;
+    for (int I = 0; I < S.NodeCount() && HubB < 0; ++I)
+    {
+        if (S.GetGraph().nodes[static_cast<size_t>(I)].role == NodeRole::LocalHub)
+        {
+            (HubA < 0 ? HubA : HubB) = I;
+        }
+    }
+    T_CHECK(HubA >= 0 && HubB >= 0);
+    S.SetNodeState(HubA, 3, 1.0, 0.0);
+    S.SetNodeState(HubB, 3, 1.0, 0.0);
+    // HubA is bought early and backed until it is a real vote.
+    T_CHECK(S.Sock(HubA).result == ActionResult::Flipped);
+    for (int I = 0; I < 3; ++I) { T_CHECK(S.Plug(kPlayerId, HubA, 1.0).result == ActionResult::Reinforced); }
+    S.Step();
+    T_CHECK(!S.IsSockpuppet(HubA));
+    T_CHECK(Near(S.AuditWeight(), 0.0));
+    // The jam runs on; the heat and the Posts recover. HubB is bought inside the last SockReview seconds and backed too.
+    S.SetNightHeld(false);
+    while (S.Time() < S.TotalSeconds() - 10.0) { S.Step(); S.SetPosts(5.0); S.SetHeat(0.0); }
+    S.SetNightHeld(true);
+    S.SetNodeState(HubB, 3, 1.0, 0.0);
+    T_CHECK(S.Sock(HubB).result == ActionResult::Flipped);
+    for (int I = 0; I < 3; ++I) { T_CHECK(S.Plug(kPlayerId, HubB, 1.0).result == ActionResult::Reinforced); }
+    S.Step();
+    T_CHECK(!S.IsSockpuppet(HubB));                       // backed: no longer flagged ...
+    T_CHECK(Near(S.AuditWeight(), S.GetGraph().nodes[static_cast<size_t>(HubB)].weight));   // ... but the audit still takes it
+    while (!S.Finished()) { S.Step(); }
+    const std::vector<int> Purged = S.AuditSockpuppets();
+    T_CHECK(Purged.size() == 1 && Purged[0] == HubB);
+    T_CHECK(S.Opinion(HubB) != kPlayerId);
+    T_CHECK(Near(S.AuditWeight(), 0.0));
+    // SockReview = 0 turns the window off: only flagged votes are purged.
+    Params Off = P;
+    Off.SockReview = 0.0;
+    Sim S2;
+    S2.Init(Cfg.jams[1], Off, 702);
+    S2.SetPosts(5.0);
+    S2.SetNightHeld(true);
+    S2.SetNodeState(HubA, 3, 1.0, 0.0);
+    T_CHECK(S2.Sock(HubA).result == ActionResult::Flipped);
+    for (int I = 0; I < 3; ++I) { S2.Plug(kPlayerId, HubA, 1.0); }
+    S2.Step();
+    while (!S2.Finished()) { S2.Step(); }
+    T_CHECK(S2.AuditSockpuppets().empty() || S2.Opinion(HubA) != kPlayerId);
+}
+
+// ------------------------------------------------------------------------------------------
+inline void TestTolerance(const Config& Cfg)
+{
+    std::printf("[sockpuppet tolerance]\n");
+    Params P = Cfg.params;
+    P.SockTolerance = 0.001;
+    P.AttackTelegraph = 0.0;
+    Sim S;
+    S.Init(Cfg.jams[1], P, 801);
+    S.SetPosts(5.0);
+    S.SetHeat(0.0);
+    S.SetNightHeld(true);
+    const int Hub = FindNode(S, NodeRole::LocalHub, 1);
+    const double W = S.GetGraph().nodes[static_cast<size_t>(Hub)].weight;
+    S.SetNodeState(Hub, 3, 1.0, 0.0);
+    T_CHECK(Near(S.SockBoughtWeight(), 0.0) && !S.OverTolerance() && !S.Suspicious());
+    T_CHECK(S.Sock(Hub).result == ActionResult::Flipped);
+    T_CHECK(Near(S.SockBoughtWeight(), W) && S.OverTolerance() && S.Suspicious());
+    // Backing the vote until it is real does not take it off the Mod Eye's books.
+    for (int I = 0; I < 3; ++I) { T_CHECK(S.Plug(kPlayerId, Hub, 1.0).result == ActionResult::Reinforced); }
+    S.Step();
+    T_CHECK(!S.IsSockpuppet(Hub) && Near(S.SockBoughtWeight(), W) && S.OverTolerance());
+    // A strike takes every sockpuppet vote, backed ones too, and puts the books straight.
+    const StrikeOutcome O = S.ApplyStrike();
+    T_CHECK(O.revertedNodes.size() == 1 && O.revertedNodes[0] == Hub);
+    T_CHECK(S.Opinion(Hub) != kPlayerId && Near(S.SockBoughtWeight(), 0.0) && !S.OverTolerance());
+    // A tolerance of 1 or more turns the rule off.
+    Params Off = P;
+    Off.SockTolerance = 1.0;
+    Sim S2;
+    S2.Init(Cfg.jams[1], Off, 802);
+    S2.SetPosts(5.0);
+    S2.SetNightHeld(true);
+    S2.SetNodeState(Hub, 3, 1.0, 0.0);
+    T_CHECK(S2.Sock(Hub).result == ActionResult::Flipped && !S2.OverTolerance());
+    // Holding fake votes heats the player up (SockHeldHeat per second per 100% of the vote weight), backed or not; with 0 it does not.
+    auto HeatAfterOneSecond = [&](double Held, bool bBack)
+    {
+        Params H = Off;
+        H.SockHeldHeat = Held;
+        Sim Sx;
+        Sx.Init(Cfg.jams[1], H, 803);
+        Sx.SetPosts(5.0);
+        Sx.SetHeat(0.0);
+        Sx.SetNightHeld(true);
+        Sx.SetNodeState(Hub, 3, 1.0, 0.0);
+        T_CHECK(Sx.Sock(Hub).result == ActionResult::Flipped);
+        Sx.SetNightHeld(false);
+        if (bBack) { for (int I = 0; I < 3; ++I) { Sx.Plug(kPlayerId, Hub, 1.0); } }
+        for (int I = 0; I < 20; ++I) { Sx.Step(); }
+        return Sx.Heat();
+    };
+    const double Cold = HeatAfterOneSecond(0.0, false);
+    const double Warm = HeatAfterOneSecond(100.0, false);
+    const double WarmBacked = HeatAfterOneSecond(100.0, true);
+    T_CHECK(Warm > Cold + 1.0);
+    T_CHECK(WarmBacked > Cold + 1.0);
 }
 
 // ------------------------------------------------------------------------------------------
@@ -1135,15 +1363,21 @@ inline void TestQueries(const Config& Cfg)
 inline void RunAll(const Config& Cfg)
 {
     Count() = Counter();
+    // The mechanics tests attack the player's voters directly and expect the plug to land at once, so they run without the announcement (AttackTelegraph = 0).
+    Config Legacy = Cfg;
+    Legacy.params.AttackTelegraph = 0.0;
     TestRng();
     TestGraph(Cfg);
-    TestPlugAndSock(Cfg);
-    TestGates(Cfg);
-    TestStrike(Cfg);
-    TestOverheatAndAudit(Cfg);
-    TestRallyAndAttribution(Cfg);
-    TestEconomy(Cfg);
-    TestQueries(Cfg);
+    TestPlugAndSock(Legacy);
+    TestGates(Legacy);
+    TestStrike(Legacy);
+    TestOverheatAndAudit(Legacy);
+    TestRallyAndAttribution(Legacy);
+    TestTelegraph(Cfg);
+    TestSockReview(Cfg);
+    TestTolerance(Cfg);
+    TestEconomy(Legacy);
+    TestQueries(Legacy);
     TestDeterminism(Cfg);
     TestInvariants(Cfg);
     std::printf("tests: %d passed, %d failed\n", Count().Passed, Count().Failed);

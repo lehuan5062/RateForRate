@@ -49,6 +49,7 @@ struct FShiftEvent
 	bool bSock = false;
 	float Value = 0.0f;
 	int32 Count = 0;     // Strike: how many sockpuppet votes it reverted
+	float Share = 0.0f;  // Strike: the share of all vote weight those votes were (0..1)
 };
 
 /** How the player's voters came and went during a run. QA and the results screen only; it never feeds back into the sim. */
@@ -61,6 +62,7 @@ struct FShiftFlipStats
 	int32 LossRival = 0;        // ... voters the rival plugged away
 	int32 LossOthers = 0;       // ... voters another entry (or an ambient event) plugged away
 	int32 StrikeReverts = 0;    // sockpuppet flips undone by a strike
+	int32 Laundered = 0;        // sockpuppet votes that were backed until they became real
 	int32 AuditPurges = 0;      // sockpuppet votes purged by the final audit
 	double AuditPurgedShare = 0.0;   // ... and their share of all vote weight
 	int32 PlugDwellCount = 0;   // flips that were lost again, split by how they were won, with the seconds they were held

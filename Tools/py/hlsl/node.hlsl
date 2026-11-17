@@ -4,7 +4,9 @@
 //   Fill float3 owner colour              Conv float  conviction 0..1           Lock float  immunity 0..1
 //   Gate float  <0 none, 0..1 progress    Hover float 0..1                      Flash float 0..1 (flip pulse)
 //   Role float  0 member 1 hub 2 celeb 3 bridge   Expr float -1..1 (frown..smile)   Sock float 0/1
-//   Pressure float 0..1 (the voter is about to flip back: it shakes and an orange ring pulses)
+//   Pressure float 0..1 (the voter is about to flip back: it shakes and a ring pulses in the colour of the entry pushing it)
+//   Threat float 0..1 (an announced attack on this voter: 1 just announced .. 0 lands now; a ring closes in), PushCol float3 colour of the pusher / attacker
+//   Shield float 0..1 (a Rally shield: a teal dome and ring while it lasts)
 //   Night float 0..1   Tm float seconds   Heat float 0..1   Cur float2 cursor world XY
 // q-space: x right, y down, body radius = 1.
 
@@ -74,6 +76,22 @@ pm = float3(0.30, 0.27, 0.33) * a + pm * (1.0 - a);
 al = a + al * (1.0 - a);
 a = ringGate * step(a01, saturate(Gate)) * step(0.001, Gate);
 pm = float3(1.0, 0.80, 0.15) * a + pm * (1.0 - a);
+al = a + al * (1.0 - a);
+
+// 3b. Rally shield: a translucent teal dome behind the body and a solid ring at its edge, for as long as the shield lasts
+float shieldOn = step(0.001, Shield);
+float rShield = edgeOut + 13.0 * px;
+d = rr - rShield;
+a = (1.0 - smoothstep(-aa, aa, d)) * 0.20 * shieldOn * saturate(Shield * 3.0);
+pm = float3(0.20, 0.85, 0.75) * a + pm * (1.0 - a);
+al = a + al * (1.0 - a);
+d = abs(rr - rShield) - 3.0 * px;
+a = (1.0 - smoothstep(-aa, aa, d)) * 0.92 * shieldOn;
+pm = ink * a + pm * (1.0 - a);
+al = a + al * (1.0 - a);
+d = abs(rr - rShield) - 1.9 * px;
+a = (1.0 - smoothstep(-aa, aa, d)) * shieldOn * (0.55 + 0.45 * saturate(Shield * 2.0));
+pm = float3(0.20, 0.90, 0.78) * a + pm * (1.0 - a);
 al = a + al * (1.0 - a);
 
 // 4. body, outline, hub ring
@@ -154,7 +172,21 @@ pm = ink * a + pm * (1.0 - a);
 al = a + al * (1.0 - a);
 d = abs(rr - rPress) - 2.9 * px;
 a = (1.0 - smoothstep(-aa, aa, d)) * pOn * (0.80 + 0.20 * pulse);
-pm = float3(1.0, 0.38, 0.05) * a + pm * (1.0 - a);
+pm = (PushCol * 1.15 + 0.05) * a + pm * (1.0 - a);
+al = a + al * (1.0 - a);
+
+// 9. threat: an announced attack on this voter. A segmented ring in the attacker's colour closes in on the body and lands when it reaches it.
+float tOn = step(0.001, Threat);
+float rThreat = edgeOut + (5.0 + 12.0 * saturate(Threat)) * px;
+float seg = step(0.5, frac(a01 * 8.0 - Tm * 0.8));
+float tPulse = 0.75 + 0.25 * sin(Tm * 16.0) * (1.0 - saturate(Threat * 3.0));
+d = abs(rr - rThreat) - 4.0 * px;
+a = (1.0 - smoothstep(-aa, aa, d)) * 0.95 * tOn;
+pm = ink * a + pm * (1.0 - a);
+al = a + al * (1.0 - a);
+d = abs(rr - rThreat) - 2.7 * px;
+a = (1.0 - smoothstep(-aa, aa, d)) * tOn * tPulse * (0.55 + 0.45 * seg);
+pm = (PushCol * 1.2 + 0.08) * a + pm * (1.0 - a);
 al = a + al * (1.0 - a);
 
 float3 outc = pm / max(al, 1e-4);

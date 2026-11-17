@@ -23,6 +23,7 @@ struct FShiftBoardView
 	float Heat = 0.0f;                               // 0..1
 	float Beat = 0.0f;                               // 0..1 pulse on the music beat
 	int32 EdgeMode = 0;                              // relation lines: 0 faint, 1 off, 2 full (the old look)
+	int32 RallyNode = -1;                            // a Rally just went off here: teal lines to the voters it shields (-1 none)
 };
 
 /**

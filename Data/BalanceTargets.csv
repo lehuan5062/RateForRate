@@ -1,0 +1,28 @@
+Id,Jam,Bot,Metric,RelativeTo,Min,Max,Why
+idle_0,0,idle,win_pct,,,0,Doing nothing must never win
+idle_1,1,idle,win_pct,,,0,Doing nothing must never win
+idle_2,2,idle,win_pct,,,0,Doing nothing must never win
+random_0,0,random,win_pct,,,5,Random clicking must not win (noise allowance)
+random_1,1,random,win_pct,,,5,Random clicking must not win (noise allowance)
+random_2,2,random,win_pct,,,5,Random clicking must not win (noise allowance)
+greedy_0,0,greedy,win_pct,,83,93,Honest play on the easy jam wins about 88%
+greedy_1,1,greedy,win_pct,,51,61,Honest play on the middle jam wins about 56%
+greedy_2,2,greedy,win_pct,,25,35,Honest play on GAME OFF wins about 30%
+finisher_0,0,finisher,win_pct,greedy,,5,Honest play then a last-moment sockpuppet burst must not beat honest play
+finisher_1,1,finisher,win_pct,greedy,,5,Honest play then a last-moment sockpuppet burst must not beat honest play
+finisher_2,2,finisher,win_pct,greedy,,5,Honest play then a last-moment sockpuppet burst must not beat honest play
+late_0,0,late,win_pct,,,5,Doing nothing then flipping at the last moment must not win
+late_1,1,late,win_pct,,,5,Doing nothing then flipping at the last moment must not win
+late_2,2,late,win_pct,,,5,Doing nothing then flipping at the last moment must not win
+sock_0,0,sock,win_pct,greedy,,10,Reckless sockpuppets never beat honest play
+sock_1,1,sock,win_pct,greedy,,10,Reckless sockpuppets never beat honest play
+sock_2,2,sock,win_pct,greedy,,10,Reckless sockpuppets never beat honest play
+sock_dq_0,0,sock,dq_pct,,50,,Holding fake votes heats you up: reckless sockpuppets get caught
+sock_dq_1,1,sock,dq_pct,,50,,Holding fake votes heats you up: reckless sockpuppets get caught
+sock_dq_2,2,sock,dq_pct,,50,,Holding fake votes heats you up: reckless sockpuppets get caught
+reactor_0,0,reactor,win_pct,greedy,0,15,Answering announced attacks is at least as good as ignoring them
+reactor_1,1,reactor,win_pct,greedy,3,25,Answering announced attacks (Rally) beats ignoring them on the hard jams
+reactor_2,2,reactor,win_pct,greedy,3,25,Answering announced attacks (Rally) beats ignoring them on the hard jams
+explorer_0,0,explorer,best_response,greedy,,30,No searched strategy beats honest play by more than 30 points on fresh seeds (greedy is weaker on them; needs -Explore)
+explorer_1,1,explorer,best_response,greedy,,30,No searched strategy beats honest play by more than 30 points on fresh seeds (greedy is weaker on them; needs -Explore)
+explorer_2,2,explorer,best_response,greedy,,30,No searched strategy beats honest play by more than 30 points on fresh seeds (greedy is weaker on them; needs -Explore)

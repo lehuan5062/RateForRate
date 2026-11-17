@@ -125,6 +125,7 @@ namespace
 		TutFirstSockpuppet,
 		TutFinalAudit,
 		TutRally,
+		TutThreat,
 		TutCount
 	};
 
@@ -132,7 +133,7 @@ namespace
 	{
 		TEXT("JamStart"), TEXT("FirstHover"), TEXT("FirstPlug"), TEXT("FirstConvictionRing"), TEXT("PostsLow"), TEXT("FirstReinforce"),
 		TEXT("FirstGateSeen"), TEXT("FirstGateOpened"), TEXT("ShiftUnlocked"), TEXT("FirstHeat"), TEXT("FirstModEye"), TEXT("FirstStrike"),
-		TEXT("BlameAvailable"), TEXT("KeysHint"), TEXT("FirstLostVoter"), TEXT("FirstSockpuppet"), TEXT("FinalAudit"), TEXT("RallyHint"),
+		TEXT("BlameAvailable"), TEXT("KeysHint"), TEXT("FirstLostVoter"), TEXT("FirstSockpuppet"), TEXT("FinalAudit"), TEXT("RallyHint"), TEXT("ThreatRing"),
 	};
 
 	enum ETutEvent : uint32
@@ -447,6 +448,8 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 	LostRecently.Reset();
 	LostCooldown = 0.0f;
 	bAuditWarned = false;
+	RallyFxNode = -1;
+	RallyFxAge = 99.0f;
 	CoachQueue.Reset();
 	CoachQueuedMask = 0;
 	CoachCurrent = -1;
@@ -897,8 +900,8 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			TutEventMask |= EvStrike;
 			PlaySfx(EShiftSfx::Strike);
 			PlaySfx(EShiftSfx::Shadowban, 0.7f);
-			ShowToast(FString::Printf(TEXT("STRIKE %d of %d: the mods noticed. %d sockpuppet vote%s reverted."), static_cast<int32>(E.Value),
-				static_cast<int32>(Run->GetSim().GetParams().MaxStrikes), E.Count, E.Count == 1 ? TEXT("") : TEXT("s")), RedColor(), 3.2f);
+			ShowToast(FString::Printf(TEXT("STRIKE %d of %d: the mods noticed. %d sockpuppet vote%s reverted (-%.1f%% of the vote)."), static_cast<int32>(E.Value),
+				static_cast<int32>(Run->GetSim().GetParams().MaxStrikes), E.Count, E.Count == 1 ? TEXT("") : TEXT("s"), E.Share * 100.0f), RedColor(), 3.2f);
 			break;
 		case EShiftEventType::PlayerLostVoter:
 			TutEventMask |= EvLost;
@@ -908,7 +911,21 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 		{
 			const ShiftSim::Params& RP = Run->GetSim().GetParams();
 			PlaySfx(EShiftSfx::Reinforce);
-			ShowToast(FString::Printf(TEXT("RALLY: %d voter%s +%.0f%% conviction"), E.Count, E.Count == 1 ? TEXT("") : TEXT("s"), RP.RallyBoost * 100.0), TealColor(), 2.0f);
+			ShowToast(FString::Printf(TEXT("RALLY: %d voter%s shielded for %.0fs, +%.0f%% conviction"), E.Count, E.Count == 1 ? TEXT("") : TEXT("s"), RP.RallyLock, RP.RallyBoost * 100.0), TealColor(), 2.0f);
+			RallyFxNode = E.Node;
+			RallyFxAge = 0.0f;
+			if (Board)
+			{
+				// a ripple: every voter the Rally shields pulses once
+				const ShiftSim::Sim& RS = Run->GetSim();
+				for (int32 Other = 0; Other < RS.NodeCount(); ++Other)
+				{
+					if (Other == E.Node || (RS.Opinion(Other) == ShiftSim::kPlayerId && RS.ShieldRemaining(Other) > 0.0))
+					{
+						Board->FlashNode(Other);
+					}
+				}
+			}
 			break;
 		}
 		case EShiftEventType::PlayerRallyBlocked:
@@ -1026,6 +1043,8 @@ FString AShiftPlayerController::ExpandTutorialText(const FString& Text) const
 	Out.ReplaceInline(TEXT("{rallycost}"), *FString::Printf(TEXT("%.0f"), P.RallyCost));
 	Out.ReplaceInline(TEXT("{rallyboost}"), *FString::Printf(TEXT("%.0f%%"), P.RallyBoost * 100.0));
 	Out.ReplaceInline(TEXT("{rallycd}"), *FString::Printf(TEXT("%.0f"), P.RallyCooldown));
+	Out.ReplaceInline(TEXT("{rallylock}"), *FString::Printf(TEXT("%.0f"), P.RallyLock));
+	Out.ReplaceInline(TEXT("{review}"), *FString::Printf(TEXT("%.0f"), P.SockReview));
 	Out.ReplaceInline(TEXT("{launder}"), *FString::Printf(TEXT("%.0f%%"), P.SockLaunderConv * 100.0));
 	return Out;
 }
@@ -1122,7 +1141,18 @@ void AShiftPlayerController::TickTutorial(float DeltaTime)
 	{
 		QueueCoach(TutFirstLostVoter);
 	}
-	if (Seen(TutFirstLostVoter) && S.Posts() >= S.GetParams().RallyCost)
+	if (!S.PendingAttacks().empty())
+	{
+		for (const ShiftSim::PendingAttack& A : S.PendingAttacks())
+		{
+			if (S.Opinion(A.node) == ShiftSim::kPlayerId)
+			{
+				QueueCoach(TutThreat);
+				break;
+			}
+		}
+	}
+	if ((Seen(TutFirstLostVoter) || Seen(TutThreat)) && S.Posts() >= S.GetParams().RallyCost)
 	{
 		QueueCoach(TutRally);
 	}
@@ -1130,7 +1160,7 @@ void AShiftPlayerController::TickTutorial(float DeltaTime)
 	{
 		QueueCoach(TutFirstSockpuppet);
 	}
-	if (S.GetParams().FinalAudit > 0.5 && S.TotalSeconds() - S.Time() <= 10.0)
+	if (S.GetParams().FinalAudit > 0.5 && S.TotalSeconds() - S.Time() <= FMath::Max(10.0, S.GetParams().SockReview))
 	{
 		QueueCoach(TutFinalAudit);
 	}
@@ -1220,7 +1250,20 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 	const FLinearColor SockColor = FLinearColor::FromSRGBColor(FColor(0xB7, 0x9B, 0xFF));
 	if (OwnerId == ShiftSim::kPlayerId)
 	{
-		if (S.IsSockpuppet(HoverNode))
+		int32 ThreatWho = -1;
+		double ThreatLeft = 0.0;
+		double ThreatTotal = 0.0;
+		if (S.ThreatOn(HoverNode, &ThreatWho, &ThreatLeft, &ThreatTotal))
+		{
+			T.Status = FString::Printf(TEXT("%s plugs this voter in %.1fs: reinforce it, or Rally (right-click)"), *EntryName(ThreatWho), ThreatLeft);
+			T.StatusColor = ShiftPalette::Entry(ThreatWho);
+		}
+		else if (S.ShieldRemaining(HoverNode) > 0.0)
+		{
+			T.Status = FString::Printf(TEXT("Shielded for %.1fs: nothing can plug it"), S.ShieldRemaining(HoverNode));
+			T.StatusColor = TealColor();
+		}
+		else if (S.IsSockpuppet(HoverNode))
 		{
 			T.Status = P.SockLaunderConv <= 1.0
 				? FString::Printf(TEXT("Sockpuppet (%.0f%% sure): reinforce to %.0f%% to make it real"), T.Conviction * 100.0f, P.SockLaunderConv * 100.0)
@@ -1360,6 +1403,10 @@ void AShiftPlayerController::BuildResults(FShiftHudModel& Out) const
 	const FShiftFlipStats& Flips = Run->GetFlipStats();
 	Out.PlaysLine = FString::Printf(TEXT("%d votes cast for your game. About %d people played it. You won %d voters: %d drifted away, %d were snatched."), FMath::RoundToInt(static_cast<float>(Votes)),
 		Plays, Flips.Gains, Flips.LossHerd, Flips.LossRival + Flips.LossOthers);
+	if (Flips.SockGains > 0)
+	{
+		Out.PlaysLine += FString::Printf(TEXT(" Sockpuppets: %d flipped, %d made real, %d reverted by strikes, %d purged by the audit."), Flips.SockGains, Flips.Laundered, Flips.StrikeReverts, Flips.AuditPurges);
+	}
 	Out.HonestShare = static_cast<float>((Votes - SockVotes) / Total);
 	Out.SockShare = static_cast<float>(SockVotes / Total);
 	Out.bCanNextJam = JamIndex < 2;
@@ -1465,6 +1512,8 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 	}
 
 	M.LeaderboardMode = LeaderboardMode;
+	M.FakeShare = static_cast<float>(FMath::Max(S.AuditWeight(), S.SockBoughtWeight()) / FMath::Max(1.0, S.TotalWeight()));
+	M.FakeLimit = P.SockHeldHeat > 0.0 ? static_cast<float>(FMath::Min(1.0, P.HeatDecay / P.SockHeldHeat)) : (P.SockTolerance < 1.0 ? static_cast<float>(P.SockTolerance) : 0.0f);
 	M.RallyCooldown = static_cast<float>(S.RallyCooldownRemaining());
 	M.RallyCost = static_cast<float>(P.RallyCost);
 	M.Posts = static_cast<float>(S.Posts());
@@ -1481,7 +1530,7 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 	M.bModsEnabled = Run->ModsEnabled();
 	M.NextSweepIn = static_cast<float>(Run->NextModSweep() - S.Time());
 	const double SecondsLeft = S.TotalSeconds() - S.Time();
-	M.FinalAuditIn = (P.FinalAudit > 0.5 && SecondsLeft > 0.0 && SecondsLeft <= 10.0) ? static_cast<float>(SecondsLeft) : -1.0f;
+	M.FinalAuditIn = (P.FinalAudit > 0.5 && SecondsLeft > 0.0 && SecondsLeft <= FMath::Max(10.0, P.SockReview)) ? static_cast<float>(SecondsLeft) : -1.0f;
 	M.Night = NightBlend;
 	M.bNightActive = bNight;
 	M.bPaused = bPaused;
@@ -1670,6 +1719,8 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 	View.Heat = static_cast<float>(S.Heat() / S.GetParams().HeatMax);
 	View.Beat = Audio ? Audio->BeatPulse() : 0.0f;
 	View.EdgeMode = EdgeMode;
+	RallyFxAge = FMath::Min(RallyFxAge + DeltaTime, 99.0f);
+	View.RallyNode = RallyFxAge < 1.2f ? RallyFxNode : -1;
 	Board->Update(S, View, DeltaTime);
 
 	if (Hud.IsValid())
@@ -1739,10 +1790,10 @@ void AShiftPlayerController::TickAudio(float DeltaTime)
 		LastWarnedSweep = Run->NextModSweep();
 	}
 	const double ToAudit = S.TotalSeconds() - S.Time();
-	if (S.GetParams().FinalAudit > 0.5 && ToAudit <= 10.0 && ToAudit > 0.0 && !bAuditWarned)
+	if (S.GetParams().FinalAudit > 0.5 && ToAudit <= FMath::Max(10.0, S.GetParams().SockReview) && ToAudit > 0.0 && !bAuditWarned)
 	{
 		PlaySfx(EShiftSfx::ModWarn);
-		bAuditWarned = true;   // once per run: the HUD banner counts the last 10 s down
+		bAuditWarned = true;   // once per run: the HUD banner counts the last seconds down
 	}
 
 	if (HoverNode != LastHoverNode && HoverNode >= 0)

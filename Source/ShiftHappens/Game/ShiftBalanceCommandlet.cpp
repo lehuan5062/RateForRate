@@ -53,6 +53,7 @@ namespace
 		double R2Fame = 0.0;
 		double RivalShare = 0.0;
 		FShiftFlipStats Flips;      // summed over the runs of the cell
+		ShiftSim::AttackCounters Threats;   // announced attacks on the player's voters, summed
 	};
 
 	bool ParseBot(const FString& Name, ShiftSim::BotKind& Out)
@@ -109,7 +110,7 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 	if (JamArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { Jams = { 0, 1, 2 }; }
 	else { Jams.Add(FCString::Atoi(*JamArg)); }
 	TArray<FString> BotNames;
-	if (BotArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { BotNames = { TEXT("idle"), TEXT("random"), TEXT("greedy"), TEXT("sock"), TEXT("finisher"), TEXT("late"), TEXT("rally") }; }
+	if (BotArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { BotNames = { TEXT("idle"), TEXT("random"), TEXT("greedy"), TEXT("sock"), TEXT("finisher"), TEXT("late"), TEXT("rally"), TEXT("reactor") }; }
 	else { BotArg.ParseIntoArray(BotNames, TEXT(",")); }
 
 	FString OverrideText;
@@ -188,6 +189,12 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				St.R2Quality += FShiftHudFit::Compute(QualityDots).R2;
 				St.R2Fame += FShiftHudFit::Compute(FameDots).R2;
 				const FShiftFlipStats& Flips = Run.GetFlipStats();
+				const ShiftSim::AttackCounters& Atk = S.Attacks();
+				St.Threats.queued += Atk.queued;
+				St.Threats.landed += Atk.landed;
+				St.Threats.flipped += Atk.flipped;
+				St.Threats.blocked += Atk.blocked;
+				St.Threats.fizzled += Atk.fizzled;
 				St.Flips.Gains += Flips.Gains;
 				St.Flips.SockGains += Flips.SockGains;
 				St.Flips.Losses += Flips.Losses;
@@ -211,10 +218,11 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				St.StrikeSum / N, 100.0 * St.RivalShare / N, St.R2Quality / N, St.R2Fame / N);
 			// A separate line (it does not start with "jam=", so the determinism compare in Tools/verify.ps1 ignores it): how the player's voters came and went, per run.
 			// Dwell = seconds a flipped voter stayed the player's before being lost again; the voters still held at the end are not counted.
-			UE_LOG(LogShift, Display, TEXT("Balance: flips jam=%d bot=%-8s per run: gains %.1f (sock %.1f)  lost %.1f (herd %.1f rival %.1f others %.1f)  strike-reverts %.1f  audit-purged %.1f  dwell plug %.1fs (%d)  sock %.1fs (%d)"),
+			UE_LOG(LogShift, Display, TEXT("Balance: flips jam=%d bot=%-8s per run: gains %.1f (sock %.1f)  lost %.1f (herd %.1f rival %.1f others %.1f)  strike-reverts %.1f  audit-purged %.1f  dwell plug %.1fs (%d)  sock %.1fs (%d)  threats %.1f (landed %.1f flipped %.1f blocked %.1f fizzled %.1f)"),
 				Jam, *BotName, St.Flips.Gains / N, St.Flips.SockGains / N, St.Flips.Losses / N, St.Flips.LossHerd / N, St.Flips.LossRival / N, St.Flips.LossOthers / N, St.Flips.StrikeReverts / N, St.Flips.AuditPurges / N,
 				St.Flips.PlugDwellCount > 0 ? St.Flips.PlugDwellSum / St.Flips.PlugDwellCount : 0.0, St.Flips.PlugDwellCount,
-				St.Flips.SockDwellCount > 0 ? St.Flips.SockDwellSum / St.Flips.SockDwellCount : 0.0, St.Flips.SockDwellCount);
+				St.Flips.SockDwellCount > 0 ? St.Flips.SockDwellSum / St.Flips.SockDwellCount : 0.0, St.Flips.SockDwellCount,
+				St.Threats.queued / N, St.Threats.landed / N, St.Threats.flipped / N, St.Threats.blocked / N, St.Threats.fizzled / N);
 			Csv += FString::Printf(TEXT("%d,%s,%d,%.2f,%.2f,%.3f,%.2f,%.2f,%.3f,%.2f,%.3f,%.3f\n"), Jam, *BotName, St.Runs, 100.0 * St.Wins / N, 100.0 * St.Dq / N,
 				St.RankSum / N, 100.0 * St.ShareSum / N, 100.0 * St.SockSum / N, St.StrikeSum / N, 100.0 * St.RivalShare / N, St.R2Quality / N, St.R2Fame / N);
 		}

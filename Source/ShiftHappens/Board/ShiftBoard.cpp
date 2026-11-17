@@ -27,7 +27,7 @@
 namespace
 {
 	// Custom-data layouts: keep in sync with Tools/py/build_materials.py.
-	constexpr int32 NodeFloats = 15;
+	constexpr int32 NodeFloats = 20;
 	constexpr int32 GlowFloats = 9;
 	constexpr int32 EdgeFloats = 13;
 
@@ -256,10 +256,29 @@ void AShiftBoard::Update(const ShiftSim::Sim& Sim, const FShiftBoardView& View, 
 		}
 		Pressure_[i] = FMath::FInterpTo(Pressure_[i], PressureTarget, DeltaTime, 5.0f);
 
+		// Who is after this voter: an announced attack (a ring in the attacker's colour closing in) comes first, then herd pressure (the colour of the entry that
+		// out-pushes it), so the colour always names the entry that will take the voter.
+		float ThreatFrac = 0.0f;
+		FLinearColor PushCol(1.0f, 0.38f, 0.05f);
+		int32 ThreatWho = -1;
+		double ThreatLeft = 0.0;
+		double ThreatTotal = 0.0;
+		if (Sim.ThreatOn(i, &ThreatWho, &ThreatLeft, &ThreatTotal) && ThreatTotal > 1.0e-6)
+		{
+			ThreatFrac = static_cast<float>(FMath::Clamp(ThreatLeft / ThreatTotal, 0.02, 1.0));
+			PushCol = ColorOfOwner(ThreatWho);
+		}
+		else if (Pressure_[i] > 0.05f && Sim.Challenger(i) >= 0)
+		{
+			PushCol = ColorOfOwner(Sim.Challenger(i));
+		}
+		const float Shield01 = static_cast<float>(FMath::Clamp(Sim.ShieldRemaining(i) / FMath::Max(0.1, Sim.GetParams().RallyLock), 0.0, 1.0));
+
 		const float NodeData[NodeFloats] = {
 			Fill.R, Fill.G, Fill.B, Conv, Lock01, Gate, Hover_[i], Flash_[i],
 			static_cast<float>(Graph.nodes[i].role), Expr, Sock, Pressure_[i],
-			static_cast<float>(NodeWorld_[i].X), static_cast<float>(NodeWorld_[i].Y), NodeRadii_[i] };
+			static_cast<float>(NodeWorld_[i].X), static_cast<float>(NodeWorld_[i].Y), NodeRadii_[i],
+			ThreatFrac, PushCol.R, PushCol.G, PushCol.B, Shield01 };
 		NodeISM->SetCustomData(i, MakeArrayView(NodeData, NodeFloats), false);
 
 		const float GlowData[GlowFloats] = {
@@ -297,11 +316,19 @@ void AShiftBoard::Update(const ShiftSim::Sim& Sim, const FShiftBoardView& View, 
 			}
 			if (bPush)
 			{
-				EdgeCol = FLinearColor(1.0f, 0.42f, 0.08f);
+				EdgeCol = ColorOfOwner((PushOnFollower >= 0 && Pressure_[E.Follower] > PressureEdgeMin && Sim.Opinion(E.Influencer) == PushOnFollower) ? PushOnFollower : PushOnInfluencer);
 				Base = 0.95f;
 				Pulse = 0.9f;
 				Wid = EdgeHalfWidth + 1.0f;
 			}
+		}
+		// A Rally that just went off: teal lines from the rallied voter to the voters it shields.
+		if (View.RallyNode >= 0 && (E.Influencer == View.RallyNode || E.Follower == View.RallyNode) && Sim.ShieldRemaining(E.Influencer) > 0.0 && Sim.ShieldRemaining(E.Follower) > 0.0)
+		{
+			EdgeCol = FLinearColor(0.15f, 0.85f, 0.75f);
+			Base = 0.95f;
+			Pulse = 0.9f;
+			Wid = EdgeHalfWidth + 1.0f;
 		}
 		const FVector2D P0 = NodeWorld_[E.Influencer];
 		const FVector2D P1 = NodeWorld_[E.Follower];

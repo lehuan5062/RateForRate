@@ -66,6 +66,7 @@ PlugDrain,0.45
 PlugReinforce,0.3
 PlugFlipThreshold,0.15
 PlugFlipConv,0.55
+AttackTelegraph,1.5
 PlugLock,6
 PlayerFlipConv,0.8
 PlayerPlugLock,6
@@ -77,10 +78,13 @@ SockRequiresNight,1
 SockLaunderConv,0.9
 SockOverheatRefuse,1
 FinalAudit,1
-RallyCost,2
+SockReview,15
+SockTolerance,1
+SockHeldHeat,40
+RallyCost,1
 RallyBoost,0.3
-RallyLock,3
-RallyCooldown,8
+RallyLock,6
+RallyCooldown,3
 PostsMax,5
 PostsStart,5
 PostsRegen,0.5

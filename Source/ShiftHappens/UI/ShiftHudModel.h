@@ -179,6 +179,8 @@ struct FShiftHudModel
 
 	// leaderboard, best first
 	TArray<FShiftHudRow> Rows;
+	float FakeShare = 0.0f;            // share of all vote weight held by sockpuppet votes right now (0..1)
+	float FakeLimit = 0.0f;            // the fake share Heat can hold steady (cooling = held-vote heating), above it you heat up; 0 = no limit
 	int32 LeaderboardMode = 0;         // 0 compact (top three and you), 1 full, 2 hidden (a one-line chip)
 
 	// player resources
@@ -195,7 +197,7 @@ struct FShiftHudModel
 	bool bModsEnabled = false;
 	float NextSweepIn = -1.0f;         // seconds, < 0 when unknown
 	float RallyCooldown = 0.0f;        // seconds until the next Rally is possible (0 = ready)
-	float RallyCost = 2.0f;            // Posts a Rally costs
+	float RallyCost = 1.0f;            // Posts a Rally costs
 	float FinalAuditIn = -1.0f;        // seconds until the final audit while it is close (the last 10 s), < 0 otherwise
 
 	// state

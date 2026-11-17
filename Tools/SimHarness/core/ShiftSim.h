@@ -39,6 +39,7 @@ namespace ShiftSim
 		Rallied,           // Rally done: conviction added to the voter and its neighbours (ActionOutcome::touched)
 		OnCooldown,        // Rally before the cooldown is over: refused, costs nothing
 		NotYours,          // Rally on a voter the player does not hold: refused, costs nothing
+		Telegraphed,       // another entry's Plug on a voter of the player's was queued; it lands after Params::AttackTelegraph seconds (see PendingAttacks)
 	};
 
 	const char* ActionResultName(ActionResult R);
@@ -75,6 +76,26 @@ namespace ShiftSim
 		int node = -1;
 		int prevOwner = kNoOwner;
 		int newOwner = kNoOwner;
+	};
+
+	// An attack on a voter of the player's that has been announced and not landed yet.
+	struct PendingAttack
+	{
+		int who = -1;
+		int node = -1;
+		double strength = 1.0;
+		double timeLeft = 0.0;
+		double total = 0.0;
+	};
+
+	// How the announced attacks ended (for QA and the results screen).
+	struct AttackCounters
+	{
+		int queued = 0;
+		int landed = 0;       // resolved against a voter that was still the player's and not immune
+		int flipped = 0;      // ... and took it
+		int blocked = 0;      // the voter was immune (Rally, a fresh flip) when it landed
+		int fizzled = 0;      // the voter was no longer the player's
 	};
 
 	struct StrikeOutcome
@@ -145,7 +166,11 @@ namespace ShiftSim
 		void Step();
 
 		// ---- player-facing actions (who = entry index; the player is kPlayerId) -----------
+		// Plug by any entry. Another entry's Plug on a voter of the player's is announced first (Params::AttackTelegraph) and returns Telegraphed; everything else, the
+		// player's own Plugs included, lands at once.
 		ActionOutcome Plug(int Who, int Node, double Strength = 1.0);
+		// The Plug itself, with no announcement. Plug() uses it when an attack is due.
+		ActionOutcome PlugNow(int Who, int Node, double Strength = 1.0);
 		ActionOutcome Sock(int Node);
 		// Behaviour layer calls this when the Mod Eye catches the player or Heat hits the cap.
 		StrikeOutcome ApplyStrike();
@@ -153,9 +178,11 @@ namespace ShiftSim
 		// following). Immune voters are boosted too. Refused (free) when not the player's, on cooldown, shadowbanned or disqualified.
 		ActionOutcome Rally(int Node);
 		double RallyCooldownRemaining() const { return RallyCooldown_; }
-		// Undoes every sockpuppet flip that is still flagged (back to the previous owner and conviction, immunity cleared) and returns the nodes. A strike does this,
-		// and so does the final audit at the end of the jam (Params::FinalAudit); neither is a strike for the audit.
+		// Undoes every sockpuppet vote the player holds, flagged or backed (back to the previous owner and conviction, immunity cleared) and returns the nodes. A strike does this.
 		std::vector<int> RevertSockpuppets();
+		// The final audit (Params::FinalAudit): RevertSockpuppets() plus every sockpuppet vote bought in the last Params::SockReview seconds of the jam, even one that was
+		// backed since. Returns the nodes.
+		std::vector<int> AuditSockpuppets();
 		// Shift the Blame: takes back the last strike and its shadowban (the reverted sockpuppets stay reverted).
 		void ForgiveStrike() { if (Strikes_ > 0) { --Strikes_; } Shadowban_ = 0.0; }
 		void SetNightHeld(bool Held) { NightHeld_ = Held; }
@@ -195,6 +222,12 @@ namespace ShiftSim
 		int Challenger(int Node) const { return Challenger_[static_cast<size_t>(Node)]; }
 		// Who last flipped this voter: an entry id (a Plug or Sock), kFlipNatural for opinion pressure, kNoOwner if it has not changed hands. Derived, not in StateHash.
 		int LastFlipper(int Node) const { return Flipper_[static_cast<size_t>(Node)]; }
+		// Announced attacks on the player's voters, and the soonest one on a given voter (false when none).
+		const std::vector<PendingAttack>& PendingAttacks() const { return Pending_; }
+		bool ThreatOn(int Node, int* Who, double* TimeLeft, double* Total) const;
+		const AttackCounters& Attacks() const { return AttackStats_; }
+		// Seconds of Rally shield left on a voter (derived for presentation; the immunity itself is LockRemaining).
+		double ShieldRemaining(int Node) const { return Shield_[static_cast<size_t>(Node)]; }
 		const std::vector<NodeChange>& LastStepChanges() const { return Changes_; }
 
 		double Time() const { return Time_; }
@@ -223,6 +256,11 @@ namespace ShiftSim
 		// Winner by tally, skipping the player if disqualified.
 		int Leader() const;
 		double SockpuppetWeight() const;                                                // V of sock-owned nodes
+		double SockBoughtWeight() const;                                                // V of the sockpuppet votes the player holds, flagged or backed (what a strike takes)
+		// The Mod Eye strikes when this is true as it passes: Heat above the red zone, or more than Params::SockTolerance of all vote weight bought with sockpuppets.
+		bool OverTolerance() const;
+		bool Suspicious() const { return InRedZone() || OverTolerance(); }
+		double AuditWeight() const;                                                     // V of the sockpuppet votes the final audit will purge (flagged, or bought in the last SockReview seconds)
 
 		// ---- gates ---------------------------------------------------------------------
 		// Gate for entry Who (default: the player). Gates always apply to the player; they apply to
@@ -269,6 +307,7 @@ namespace ShiftSim
 		std::vector<uint8_t> Sock_;
 		std::vector<int> SockPrevOpinion_;
 		std::vector<double> SockPrevConv_;
+		std::vector<double> SockAt_;        // sim time the sockpuppet vote on the node was bought (-1 = none; cleared when the node changes hands or is reverted)
 
 		std::vector<int> NewOpinion_;
 		std::vector<double> NewConv_;
@@ -276,6 +315,9 @@ namespace ShiftSim
 		std::vector<double> Drain_;         // derived, see Drain()
 		std::vector<int> Challenger_;       // derived, see Challenger()
 		std::vector<int> Flipper_;          // derived, see LastFlipper()
+		std::vector<double> Shield_;        // derived, see ShieldRemaining()
+		std::vector<PendingAttack> Pending_;
+		AttackCounters AttackStats_;
 
 		double Tally_[kMaxEntries];
 		int Rank_[kMaxEntries];

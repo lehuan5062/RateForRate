@@ -180,6 +180,8 @@ private:
 	float HeartbeatTimer = 0.0f;
 	double LastWarnedSweep = -1.0;
 	bool bAuditWarned = false;
+	int32 RallyFxNode = -1;         // the voter a Rally just went off on, for the teal lines on the board
+	float RallyFxAge = 99.0f;
 	int32 LastHoverNode = -1;
 	float SliderSfxCooldown = 0.0f;
 

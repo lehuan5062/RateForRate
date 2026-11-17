@@ -317,3 +317,49 @@ Rings are laid out in screen pixels (a member is about 11 px across, the old rin
 
 Final rows (`-Runs 200`, build 4/4/4, win % (DQ %)): idle 0 / 0 / 0, random 0 / 0 / 0, greedy 90.5 / 58.5 / 25.0, sock 87 (2.5) / 61 (22.5) / 57 (35), finisher 88 / 63 / 30, late 0 / 0 / 0, rally 85 / 55 / 17.5.
 The finale burst still does not beat honest play (finisher at most +5), cheating pays on the hard jams with real disqualification risk, and the do-nothing-then-flip run still loses.
+
+## M9 - playtest round 3 (issue #1, `601dbf4`)
+The tester: better, "still doesn't seem to be enough"; the orange countdown is unreliable because voters get plugged by other entries before it ends ("who take the voter are only known after they already been
+taken... it could show red putting pressure but they flip to purple"); Rally looks like pressure and has no visible effect ("still click way more than rally"); the leaderboard shows only three games; the
+consequence of a sockpuppet is unclear, and "have automate bot to play the game to fine tune value and find problem beforehand are recommended". (A short video was linked; I cannot watch video, so only the text
+was used.)
+
+**The countdown only knew about herd pressure, and most losses are plugs.** `Sim::SecondsToFlip` is conviction over herd drain, but 60-90% of a player's losses are plugs by the rival, the seven other entries
+and the streamer event, which landed instantly. So "safe" voters flipped to another colour with no warning: missing information, not a display bug. **Attacks are now announced**: when another entry picks one of
+the player's voters the plug is queued (`Params::AttackTelegraph`, 1.5 s) and lands afterwards, after re-checking the target (no longer the player's: it fizzles; immune: blocked; reinforced in between: the
+plug weakens instead of flipping). The board draws a closing ring in the **attacker's colour** (outlined, segmented) and the pressure ring and push lines take the pusher's colour instead of orange. Flagged
+sockpuppet votes get no warning (below). `AttackTelegraph=0` reproduces the round-2 table exactly (21 of 21 rows identical, kept as a determinism proof).
+
+**The telegraph is a buff for everyone, so regen was re-solved**: greedy went from 88 / 59 / 31 to 93 / 72 / 44 with nothing else changed, so Post regen went 0.50 / 0.48 / 0.505 -> 0.487 / 0.462 / 0.487 a second
+(greedy 86 / 58 / 32). Win rate is very steep in regen (0.08 less on the middle jam: 72 -> 16%).
+
+**Rally as the answer.** Answering threats naively is a trap: a `reactor` bot (honest greedy play that keeps a Post spare and answers announced attacks after a 0.6 s reaction delay) at the round-2 Rally (2 Posts,
+3 s, 8 s cooldown) fell from 70 to 43% on the middle jam, because a reinforcement or a 2-Post Rally costs as much as it saves. What works: Rally **1 Post, 6 s shield, 3 s cooldown**, and answering only
+threats on hubs and celebrities (cluster value 400+): reactor 91 / 70 / 42 against greedy 86 / 58 / 32 (+5 / +12 / +10). Rally now draws a teal shield dome and ring on every shielded voter, a ripple and teal
+lines to the boosted neighbours, and the toast says what it did. Rally settings alone do not make it dominant (a 3 s shield with a 6 s cooldown scores about the same as the shipped one).
+
+**Leaderboard.** Compact mode lists all nine entries (16 px rows, 58% opaque, your row highlighted); `L` still cycles compact / full / hidden.
+
+**Sockpuppet consequence, found by the explorer.** `Tools\explore.ps1` (a parameterised bot searched at random plus a hill climb, validated on fresh seeds, see `Docs/QA.md`) found what the hand-written bots
+missed: a **careful sockpuppeteer** who socks gated hubs only while Heat is at most about 21 (one at a time, backing each to a real vote) wins **77% on GAME OFF with 0% disqualified** against greedy 32%
+(+45), because Heat cools 3 a second, which is faster than the Posts allow a sock. Careful sockpuppets had no consequence at all, which is exactly the "unclear" the tester felt. Rules tried, all measured
+(win % on 100 runs, jams 1 / 2 / 3):
+* `HeatDecay` 3 -> 1 made the careful bot *better* (95 / 91 / 91: it socks rarer and plays honestly in between), `SockHeat` 26-34 left the finisher untouched and only hurt the reckless bot.
+* A **last-minute review** (`SockReview` 15 s: the final audit also purges sockpuppet votes bought in the last 15 s even if backed) closes the late burst for good: finisher 87 / 63 / 45 -> 32 / 36 / 21 (bursts
+  started 16 s or 24 s out: 38 / 37 / 20 and 29 / 45 / 23), the do-nothing-then-flip run stays at 0. Before it, the telegraph's delay had pushed the finisher to +13 over greedy on GAME OFF.
+* A strike now undoes **every** sockpuppet vote, backed ones too (backing only protects against the final audit).
+* A share cap (`SockTolerance`: strike if more than X% of the vote is bought) has a cliff where one celebrity fits (jam 2 between 14 and 16%): at 16% the best response was reactor plus careful sockpuppets, 92 / 92 / 92.
+  Kept in the sim, switched off.
+* **Shipped: held fake votes heat you up** (`SockHeldHeat` 40: 40 Heat a second per 100% of the vote weight held in sockpuppet votes, flagged or backed; cooling is 3 a second, so a fake share above 7.5% heats you
+  up). The "FAKE 4/8%" chip is that share against the limit and turns red above it. Sweep of the careful combo (reactor plus careful sockpuppets): held-heat 20: 99 / 95 / 98 (no DQ); 30: 88 / 94 / 87
+  (DQ 10 / 4 / 12); 34: 86 / 73 / 78 (DQ 11 / 25 / 20); 37: 81 / 56 / 65 (DQ 17 / 43 / 34); **40: 77 / 60 / 51 (DQ 21 / 37 / 49)**. The reckless sockpuppet bot (Heat limit 45) goes from 84 / 67 / 57 (DQ 3 / 21 / 36)
+  to 4 / 0 / 0 (**DQ 96 / 100 / 100**).
+Consequence in numbers: a sockpuppet is a gamble. The careful play gains about +19 on GAME OFF at 49% disqualification and loses a few points on the easier jams, and the explorer's best response on every jam is
+honest play with Rally defence (validated on fresh seeds, where greedy is weaker: +2.5 / +17.5 / +23.8).
+
+**Bots and the gate.** New bots: `reactor` and `explorer` (`Tools\explore.ps1`); `Tools\sweep.ps1` runs per-jam variants one after the other; `Data\BalanceTargets.csv` states the acceptance bands and
+`Tools\balance_gate.ps1` (and `verify.ps1 -Balance`) fails with a readable diff when a number leaves its band.
+
+Final rows (`-Runs 100`, build 4/4/4, win % (DQ %)): idle 0 / 0 / 0, random 0 / 0 / 0, greedy 86 / 58 / 32, reactor 91 / 70 / 42, rally 88 / 54 / 33, sock (reckless) 4 (96) / 0 (100) / 0 (100),
+finisher 32 / 36 / 21, late 0 / 0 / 0. Before this round (round-2 rules): greedy 88 / 59 / 31, sock 84 (3) / 67 (21) / 57 (36), finisher 86 / 63 / 32, rally 84 / 55 / 23. The gate passes; win rates carry about
++-5 points of noise at 100 runs and the explorer is a search, not a proof. Nothing here is validated by feel: it needs the tester's hands again.

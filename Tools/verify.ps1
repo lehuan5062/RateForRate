@@ -1,6 +1,7 @@
 # One-command check of what this project claims, all headless (no window, no console, nothing audible):
 #   .\Tools\verify.ps1                 everything below
 #   .\Tools\verify.ps1 -SkipMeters     skip the ~3 minute audio meter run
+#   .\Tools\verify.ps1 -Balance        also run the balance gate (Tools\balance_gate.ps1: every row of Data\BalanceTargets.csv, about 8 minutes)
 #
 #   0. sim core       the standalone harness copy (Tools\SimHarness\core) is identical to the numeric core the game compiles (Source\ShiftHappens\Sim)
 #   1. audio assets   no .wav anywhere, no SoundWave assets or dependencies, every MetaSound source and patch present (editor, Tools\py\verify_audio.py)
@@ -14,7 +15,8 @@
 #   5. slow first start  the cold-start failure path forced on purpose (-ShiftAudioMeterDrop throws away the meter data of the first warm-up play and of the
 #                     first real case, as a busy game thread does on a cold first run): the warm-up is replayed, the case retried, and both still pass
 param(
-	[switch]$SkipMeters
+	[switch]$SkipMeters,
+	[switch]$Balance
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -91,6 +93,18 @@ else {
 	$dropFails = @(Select-String -Path $runLog -Pattern 'AudioMeter: .*\[FAIL\]|AudioMeter: \[FAIL\]').Count
 	$warmOk = $warmDrop -and [int]$warmDrop.Matches[0].Groups[1].Value -gt 0 -and [int]$warmDrop.Matches[0].Groups[2].Value -ge 2
 	Check 'audio meters: slow first start (warm-up replayed, lost case retried)' ($dropExit -eq 0 -and $dropFails -eq 0 -and $dropPasses -eq 2 -and $warmOk -and $retried) $(if ($warmDrop) { $warmDrop.Matches[0].Value } else { 'no warm-up line' })
+}
+
+# ---- 6. balance gate (opt-in) ----------------------------------------------------------------------------------------------------
+if ($Balance) {
+	$gate = & (Join-Path $PSScriptRoot 'balance_gate.ps1') -Runs 100
+	$gateExit = $LASTEXITCODE
+	$gate | Write-Host
+	$gateSummary = @($gate | Where-Object { $_ -match 'balance gate:' }) -join ' '
+	Check 'balance gate: every target in Data\BalanceTargets.csv is met' ($gateExit -eq 0) $gateSummary
+}
+else {
+	Write-Host '[skip] balance gate (-Balance)'
 }
 
 Write-Host ''

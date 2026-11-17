@@ -121,6 +121,7 @@ void FShiftRun::DrainEvents(TArray<FShiftEvent>& Out)
 
 void FShiftRun::ApplyModStrike()
 {
+	const double FakeShareBefore = Sim->SockBoughtWeight() / FMath::Max(1.0, Sim->TotalWeight());
 	const ShiftSim::StrikeOutcome Strike = Sim->ApplyStrike();
 	for (const int Node : Strike.revertedNodes)
 	{
@@ -130,6 +131,7 @@ void FShiftRun::ApplyModStrike()
 	Event.Type = EShiftEventType::Strike;
 	Event.Value = static_cast<float>(Strike.strikes);
 	Event.Count = static_cast<int32>(Strike.revertedNodes.size());
+	Event.Share = static_cast<float>(FakeShareBefore);
 	Emit(Event);
 	if (!bBlameUsed)
 	{
@@ -172,7 +174,7 @@ void FShiftRun::ResolveModSweep()
 	const ShiftSim::JamDef& Jam = Sim->Jam();
 	NextSweep += ModRng.Uniform(Jam.modIntervalMin, Jam.modIntervalMax);
 	FShiftEvent Event;
-	if (Sim->InRedZone() && !Sim->Disqualified())
+	if (Sim->Suspicious() && !Sim->Disqualified())
 	{
 		Event.Type = EShiftEventType::ModSweepHit;
 		Emit(Event);
@@ -203,6 +205,11 @@ void FShiftRun::TrackOwnership()
 		const int32 Was = StatOwner[i];
 		if (Now == Was)
 		{
+			if (Now == ShiftSim::kPlayerId && StatGainSock[i] != 0 && !S.IsSockpuppet(i))
+			{
+				++FlipStats.Laundered;   // still the player's, no longer flagged: it was backed until it became a real vote
+				StatGainSock[i] = 0;
+			}
 			continue;
 		}
 		StatOwner[i] = Now;
@@ -340,8 +347,8 @@ void FShiftRun::StepOnce()
 		// The final audit: before the tally is read, the mods purge every sockpuppet vote that nobody backed (no strike, no shadowban).
 		bAuditDone = true;
 		const double Total = FMath::Max(1.0, S.TotalWeight());
-		const double PurgedWeight = S.SockpuppetWeight();
-		const std::vector<int> Purged = S.RevertSockpuppets();
+		const double PurgedWeight = S.AuditWeight();
+		const std::vector<int> Purged = S.AuditSockpuppets();
 		for (const int Node : Purged)
 		{
 			PurgedNow.Add(Node);
