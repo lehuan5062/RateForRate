@@ -78,6 +78,7 @@ private:
 	void BuildHudModel(FShiftHudModel& Out);
 	void BuildMenuModel(FShiftHudModel& Out);
 	void BuildHoverTooltip(FShiftHudTooltip& Out) const;
+	void FillBuildEffects(FShiftHudBuild& B) const;
 	void BuildResults(FShiftHudModel& Out) const;
 	FString BuildShareText() const;
 	void HandleEvents(const TArray<FShiftEvent>& Events);
@@ -144,10 +145,18 @@ private:
 	FShiftHudModel ResultsModel;
 	TArray<float> InitialShares;
 
-	FString ToastText;
-	FLinearColor ToastColor = FLinearColor::White;
-	float ToastRemaining = 0.0f;
-	float ToastDuration = 1.0f;
+	/** A card in the right gutter: a toast or a news headline. The newest is first. */
+	struct FFeedItem
+	{
+		FString Text;
+		FLinearColor Color = FLinearColor::White;
+		float Remaining = 0.0f;
+		float Duration = 1.0f;
+		bool bNews = false;
+	};
+	TArray<FFeedItem> Feed;
+	void PushFeed(const FString& Text, const FLinearColor& Color, float Seconds, bool bNews);
+	bool HasActiveToast(float MinRemaining) const;
 
 	// voters the player lost to opinion pressure or a rival attack, gathered into one toast every few seconds (see TickLostVoters)
 	struct FLostVoter
@@ -159,8 +168,6 @@ private:
 	TArray<FLostVoter> LostRecently;
 	float LostCooldown = 0.0f;
 
-	FString HeadlineText;
-	float HeadlineRemaining = 0.0f;
 	int32 LastLeader = -1;
 	int32 LastHeadlineDay = -1;
 

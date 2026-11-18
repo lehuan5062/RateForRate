@@ -18,8 +18,8 @@ Hubs and celebrities carry most of the vote weight. Flip them and their follower
 | Input | What it does |
 |---|---|
 | **Hover** a voter | Tooltip: handle, followers, vote weight, who they back and how sure they are, and why you can or cannot flip them |
-| **Click** | **Plug** (day shift): spend 1 Post to chip away at a voter's conviction (the ring). At zero they flip to you. Click your own voters to reinforce them |
-| **Right-click** a voter you hold | **Rally**: spend 1 Post to shield it and your voters one hop away from every plug for 6 s (teal dome) and add a little conviction (3 s cooldown) |
+| **Click** | **Plug** (day shift): spend 1 Post to chip away at a voter's conviction (the ring). At zero they flip to you. Click your own voters to reinforce them, and click a voter a ring is closing in on to **parry** the attack |
+| **Right-click** a voter you hold | **Rally**: spend 1 Post to shield it and your voters one hop away from every plug for 6 s (teal dome) and add a little conviction (8 s cooldown) |
 | **Hold SHIFT** (or press **N** to toggle) | **Night shift**: the world goes dark. Clicks become **sockpuppets**: 3x stronger, ignore gates, but fragile, and they build **Heat** |
 | **B** | **Shift the Blame**: right after a strike, once per jam, hand the strike to your rival |
 | **Space / Esc** | Pause and menu |
@@ -28,13 +28,15 @@ Hubs and celebrities carry most of the vote weight. Flip them and their follower
 | **L** | Leaderboard: compact (default) / full / hidden |
 | **R** | Retry (when paused or on the results screen) |
 
-* **Posts** are your energy (max 5) and come back over time.
+* **Posts** are your energy and come back over time. Your build sets the bank (3 to 7, 5 at an even split), how fast they refill, how far each Plug goes and how many voters you start with: the build screen and the pause menu list the numbers.
 * **Gates**: a famous voter ignores you until enough of their own followers already back you (a padlock ring shows progress). Night shift skips gates.
 * **Heat and the Mod Eye**: each sockpuppet adds 22 Heat and holding SHIFT adds 4 a second; Heat only cools when you let go. The Mod Eye sweeps every 12 to 35 seconds (the countdown is always on screen); if you are above the red tick when it passes, or Heat hits the cap, you get a **strike**: your sockpuppets are reverted and you are shadowbanned for a few seconds. Three strikes and you are disqualified. A sockpuppet that would take Heat to the cap is refused instead.
-* **Sockpuppets are fake until backed**: plug your own sockpuppet (reinforce it three times inside its 3 s immunity) and it becomes a real vote. At the end of the jam a **final audit** purges every sockpuppet vote that is still fake, and every sockpuppet vote bought in the last 15 seconds even if you backed it, so night shift is an opening move, not a last-second trick. **Holding fake votes heats you up** (the **FAKE 4/8%** chip is your fake share against what your cooling can hold, red above it), and a strike undoes every sockpuppet vote, backed or not, so cheating is a gamble: careful play gains a little on the hardest jam and costs you a lot of disqualifications.
+* **Sockpuppets are fake until backed**: plug your own sockpuppet (reinforce it three times inside its 3 s immunity) and it becomes a real vote. At the end of the jam a **final audit** purges every sockpuppet vote that is still fake, and every sockpuppet vote bought in the last 15 seconds even if you backed it, so night shift is an opening move, not a last-second trick. **Holding fake votes heats you up** (the **SOCKPUPPET VOTES** card in the right-hand strip shows your fake share against what your cooling can hold, red above it, and explains itself when you hover it), and a strike undoes every sockpuppet vote, backed or not, so cheating is a gamble: careful play gains a little on the hardest jam and costs you a lot of disqualifications.
 * **Voters drift back** to where their neighbours are. A voter that shakes is about to flip back, and a line in the pushing entry's colour runs from each neighbour pushing it: reinforce it or win those neighbours.
-* **Attacks are announced.** When the rival or another entry picks one of your voters, a ring in *their* colour closes in on it for 1.5 seconds before the plug lands. Reinforce the voter, or Rally it and its neighbours (the ring bounces off the shield), or let it go. Your fans are loyal (a voter you flip starts at 80% conviction). Sockpuppet votes are flagged and get no warning.
+* **Attacks are announced.** When the rival or another entry picks one of your voters, a ring in *their* colour closes in on it for 1.5 seconds before the plug lands. Click the voter to **parry** it (the ring bounces, 1 Post), or Rally it and its neighbours (the ring bounces off the shield), or let it go. Your fans are loyal (a voter you flip starts at 80% conviction). Sockpuppet votes are flagged and get no warning.
 * **Front page**: the top three entries get a boost, so leads snowball.
+* **The rival's final push**: in the last three days the rival doubles its attacks. A countdown announces it, and your Posts refill 25% faster for the same days.
+* **Nothing floats over the board**: the voters keep left of a right-hand strip that holds the leaderboard, the states you are in (shadowban, final push, final audit, fake votes) and the notification cards.
 
 Flow: **Title** → **Pick a jam** (Tiny Jam #7, 48h Pixel Rumble, GAME OFF 2026) → **Build your entry** (spend 12 hours on Quality, Thumbnail and Network, with a live forecast) → **Vote** (31 days) → **Results**
 (the results screen computes, from your own run, how much of the vote is explained by quality and how much by starting fame).

@@ -58,6 +58,7 @@ namespace
 {
 	FLinearColor TealColor() { return FLinearColor::FromSRGBColor(FColor(0x1F, 0xB6, 0xA6)); }
 	FLinearColor AmberColor() { return FLinearColor::FromSRGBColor(FColor(0xF2, 0xB1, 0x34)); }
+	FLinearColor PurpleColor() { return FLinearColor::FromSRGBColor(FColor(0x7B, 0x5C, 0xF0)); }
 	FLinearColor RedColor() { return FLinearColor::FromSRGBColor(FColor(0xFF, 0x4D, 0x5A)); }
 
 	FString Ordinal(int32 N)
@@ -126,6 +127,9 @@ namespace
 		TutFinalAudit,
 		TutRally,
 		TutThreat,
+		TutEyeAway,
+		TutFake,
+		TutPush,
 		TutCount
 	};
 
@@ -133,7 +137,7 @@ namespace
 	{
 		TEXT("JamStart"), TEXT("FirstHover"), TEXT("FirstPlug"), TEXT("FirstConvictionRing"), TEXT("PostsLow"), TEXT("FirstReinforce"),
 		TEXT("FirstGateSeen"), TEXT("FirstGateOpened"), TEXT("ShiftUnlocked"), TEXT("FirstHeat"), TEXT("FirstModEye"), TEXT("FirstStrike"),
-		TEXT("BlameAvailable"), TEXT("KeysHint"), TEXT("FirstLostVoter"), TEXT("FirstSockpuppet"), TEXT("FinalAudit"), TEXT("RallyHint"), TEXT("ThreatRing"),
+		TEXT("BlameAvailable"), TEXT("KeysHint"), TEXT("FirstLostVoter"), TEXT("FirstSockpuppet"), TEXT("FinalAudit"), TEXT("RallyHint"), TEXT("ThreatRing"), TEXT("EyeAway"), TEXT("FirstFake"), TEXT("FinalPush"),
 	};
 
 	enum ETutEvent : uint32
@@ -145,6 +149,7 @@ namespace
 		EvLost = 1u << 4,
 		EvSock = 1u << 5,
 		EvTelegraph = 1u << 6,
+		EvEyeAway = 1u << 7,
 	};
 }
 
@@ -436,8 +441,7 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 	bPaused = false;
 	bNightLatch = false;
 	NightBlend = 0.0f;
-	ToastRemaining = 0.0f;
-	HeadlineRemaining = 0.0f;
+	Feed.Reset();
 	HoverNode = -1;
 	LastLeader = S.Leader();
 	LastHeadlineDay = -1;
@@ -635,12 +639,45 @@ FString AShiftPlayerController::EntryName(int32 EntryId) const
 	return FShiftContent::EntryName(JamIndex, EntryId, Seed);
 }
 
+void AShiftPlayerController::PushFeed(const FString& Text, const FLinearColor& Color, float Seconds, bool bNews)
+{
+	for (FFeedItem& Existing : Feed)
+	{
+		if (Existing.bNews == bNews && Existing.Text == Text)
+		{
+			Existing.Remaining = Seconds;   // the same line again: keep one card and renew it
+			Existing.Duration = FMath::Max(0.1f, Seconds);
+			return;
+		}
+	}
+	FFeedItem Item;
+	Item.Text = Text;
+	Item.Color = Color;
+	Item.Remaining = Seconds;
+	Item.Duration = FMath::Max(0.1f, Seconds);
+	Item.bNews = bNews;
+	Feed.Insert(Item, 0);
+	while (Feed.Num() > 6)
+	{
+		Feed.Pop();
+	}
+}
+
+bool AShiftPlayerController::HasActiveToast(float MinRemaining) const
+{
+	for (const FFeedItem& Item : Feed)
+	{
+		if (!Item.bNews && Item.Remaining > MinRemaining)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void AShiftPlayerController::ShowToast(const FString& Text, const FLinearColor& Color, float Seconds)
 {
-	ToastText = Text;
-	ToastColor = Color;
-	ToastRemaining = Seconds;
-	ToastDuration = FMath::Max(0.1f, Seconds);
+	PushFeed(Text, Color, Seconds, false);
 }
 
 void AShiftPlayerController::ShowHeadline(const FString& Event, const FString& Entry)
@@ -658,8 +695,7 @@ void AShiftPlayerController::ShowHeadline(const FString& Event, const FString& E
 		const FString Handle = NodeHandles.Num() > 0 ? NodeHandles[CosmeticRng.RandRange(0, NodeHandles.Num() - 1)] : FString(TEXT("someone"));
 		Line.ReplaceInline(TEXT("{handle}"), *(TEXT("@") + Handle));
 	}
-	HeadlineText = Line;
-	HeadlineRemaining = 6.5f;
+	PushFeed(Line, AmberColor(), 6.5f, true);
 }
 
 void AShiftPlayerController::CopyResultToClipboard()
@@ -678,7 +714,7 @@ void AShiftPlayerController::CopyResultToClipboard()
 void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 {
 	const bool bSilent = Id == EShiftUi::SliderQuality || Id == EShiftUi::SliderThumbnail || Id == EShiftUi::SliderNetwork
-		|| Id == EShiftUi::Upload || Id == EShiftUi::Blame || Id == EShiftUi::TitleStart;
+		|| Id == EShiftUi::Upload || Id == EShiftUi::Blame || Id == EShiftUi::TitleStart || Id == EShiftUi::FakeInfo;
 	if (!bSilent)
 	{
 		PlaySfx(EShiftSfx::Click);
@@ -868,6 +904,17 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			ShowToast(FString::Printf(TEXT("@%s: %s"), *NodeHandle(E.Node), Line.IsEmpty() ? TEXT("still with you") : *Line), TealColor(), 1.8f);
 			break;
 		}
+		case EShiftEventType::PlayerParried:
+		{
+			TutEventMask |= EvReinforce;
+			PlaySfx(EShiftSfx::Reinforce);
+			if (Board)
+			{
+				Board->BounceNode(E.Node, E.PrevOwner, E.Value);
+			}
+			ShowToast(FString::Printf(TEXT("PARRIED: %s's plug on @%s bounced off"), *EntryName(E.PrevOwner), *NodeHandle(E.Node)), TealColor(), 1.8f);
+			break;
+		}
 		case EShiftEventType::PlayerWeakened:
 		{
 			TutEventMask |= EvPlug;
@@ -936,6 +983,23 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			PlaySfx(EShiftSfx::NoPosts);
 			ShowToast(TEXT("Sockpuppets overheated: let Heat cool before the next one."), RedColor(), 2.2f);
 			break;
+		case EShiftEventType::FinalPushStart:
+			PlaySfx(EShiftSfx::ModWarn);
+			ShowToast(FString::Printf(TEXT("%s goes all-in for the last %.0f s: double attacks. Your Posts refill %.0f%% faster."), *EntryName(Run->GetSim().RivalId()), E.Value, E.Share * 100.0f), RedColor(), 4.0f);
+			break;
+		case EShiftEventType::EyeAwayWarn:
+			TutEventMask |= EvEyeAway;
+			PlaySfx(EShiftSfx::Tip);
+			ShowToast(FString::Printf(TEXT("The Mod Eye looks away in %.0f s: night shift will be free."), E.Value), PurpleColor(), 3.5f);
+			break;
+		case EShiftEventType::EyeAwayStart:
+			PlaySfx(EShiftSfx::NightOn);
+			ShowToast(FString::Printf(TEXT("THE MOD EYE LOOKS AWAY for %.0f s: hold SHIFT, sockpuppets add no Heat."), E.Value), PurpleColor(), 4.0f);
+			break;
+		case EShiftEventType::EyeAwayEnd:
+			PlaySfx(EShiftSfx::NightOff);
+			ShowToast(TEXT("The Mod Eye is back. Fake votes you hold heat you up again."), AmberColor(), 3.0f);
+			break;
 		case EShiftEventType::FinalAudit:
 			PlaySfx(EShiftSfx::ModSweep);
 			ShowToast(E.Count > 0 ? FString::Printf(TEXT("FINAL AUDIT: %d sockpuppet vote%s purged (%.1f%% of the vote)."), E.Count, E.Count == 1 ? TEXT("") : TEXT("s"), E.Value * 100.0f)
@@ -981,7 +1045,7 @@ void AShiftPlayerController::TickLostVoters(float DeltaTime)
 	{
 		return;
 	}
-	if (LostCooldown > 0.0f || ToastRemaining > 0.6f || Run->IsOver())
+	if (LostCooldown > 0.0f || HasActiveToast(0.6f) || Run->IsOver())
 	{
 		LostRecently.Reset();   // a fresher toast is showing, or one was just shown: the board's wobble and flash already told the player
 		return;
@@ -1044,6 +1108,9 @@ FString AShiftPlayerController::ExpandTutorialText(const FString& Text) const
 	Out.ReplaceInline(TEXT("{rallyboost}"), *FString::Printf(TEXT("%.0f%%"), P.RallyBoost * 100.0));
 	Out.ReplaceInline(TEXT("{rallycd}"), *FString::Printf(TEXT("%.0f"), P.RallyCooldown));
 	Out.ReplaceInline(TEXT("{rallylock}"), *FString::Printf(TEXT("%.0f"), P.RallyLock));
+	Out.ReplaceInline(TEXT("{eyeaway}"), *FString::Printf(TEXT("%.0f"), Run->GetPolicy().EyeAwaySeconds));
+	Out.ReplaceInline(TEXT("{fakelimit}"), *FString::Printf(TEXT("%.0f"), P.SockHeldHeat > 0.0 ? 100.0 * P.HeatDecay / P.SockHeldHeat : 100.0));
+	Out.ReplaceInline(TEXT("{pushpct}"), *FString::Printf(TEXT("%.0f"), 100.0 * FMath::Max(0.0, Run->GetPolicy().FinalPushRegen - 1.0)));
 	Out.ReplaceInline(TEXT("{review}"), *FString::Printf(TEXT("%.0f"), P.SockReview));
 	Out.ReplaceInline(TEXT("{launder}"), *FString::Printf(TEXT("%.0f%%"), P.SockLaunderConv * 100.0));
 	return Out;
@@ -1125,9 +1192,22 @@ void AShiftPlayerController::TickTutorial(float DeltaTime)
 			QueueCoach(TutFirstGateOpened);
 		}
 	}
-	if (S.DayIndex() >= 8)
+	if (S.DayIndex() >= 8 && Run->GetPolicy().EyeAwayCount < 0.5)
 	{
 		QueueCoach(TutShiftUnlocked);
+	}
+	if ((TutEventMask & EvEyeAway) != 0)
+	{
+		QueueCoach(TutShiftUnlocked);   // the first Mod Eye window is the night shift's introduction: the plain card first, then the window's
+		QueueCoach(TutEyeAway);
+	}
+	if (S.SockBoughtWeight() > 0.0)
+	{
+		QueueCoach(TutFake);
+	}
+	if (S.TotalSeconds() - FMath::RoundToInt(static_cast<float>(Run->GetPolicy().MegaDays)) * S.Jam().secPerDay - S.Time() <= 12.0)
+	{
+		QueueCoach(TutPush);
 	}
 	if (S.Heat() > 4.0)
 	{
@@ -1255,7 +1335,7 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 		double ThreatTotal = 0.0;
 		if (S.ThreatOn(HoverNode, &ThreatWho, &ThreatLeft, &ThreatTotal))
 		{
-			T.Status = FString::Printf(TEXT("%s plugs this voter in %.1fs: reinforce it, or Rally (right-click)"), *EntryName(ThreatWho), ThreatLeft);
+			T.Status = FString::Printf(TEXT("%s plugs this voter in %.1fs: click to parry, or Rally"), *EntryName(ThreatWho), ThreatLeft);
 			T.StatusColor = ShiftPalette::Entry(ThreatWho);
 		}
 		else if (S.ShieldRemaining(HoverNode) > 0.0)
@@ -1311,7 +1391,7 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 	else if (S.IsGated(HoverNode))
 	{
 		const ShiftSim::GateInfo Gate = S.Gate(HoverNode);
-		T.Status = FString::Printf(TEXT("Gated: %.0f%% of followers back you, need %.0f%%"), Gate.progress * 100.0, Gate.needed * 100.0);
+		T.Status = FString::Printf(TEXT("Gated: %.0f%% of followers back you, need %.0f%%. Hold SHIFT to skip it"), Gate.progress * 100.0, Gate.needed * 100.0);
 		T.StatusColor = RedColor();
 	}
 	else
@@ -1434,6 +1514,19 @@ void AShiftPlayerController::BuildResults(FShiftHudModel& Out) const
 	}
 }
 
+/** What the build comes to in play, in words and numbers, from the same rules the sim runs (ShiftBuildRules::Summary). */
+void AShiftPlayerController::FillBuildEffects(FShiftHudBuild& B) const
+{
+	B.Hours[0] = Build.Quality;
+	B.Hours[1] = Build.Thumbnail;
+	B.Hours[2] = Build.Network;
+	const ShiftSim::BuildSummary Sm = ShiftBuildRules::Summary(JamIndex, Build);
+	const ShiftSim::Params Neutral;
+	B.Effects[0] = FString::Printf(TEXT("Voters you win start %.0f%% sure, pull on neighbours %+.0f%%"), Sm.flipConv * 100.0, (Sm.appeal - 1.0) * 100.0);
+	B.Effects[1] = FString::Printf(TEXT("A Plug costs %.2f Post, first look x%.2f"), Sm.plugCost, Sm.clout / FMath::Max(1.0e-6, Neutral.PlayerClout));
+	B.Effects[2] = FString::Printf(TEXT("Post bank %.0f, refill %.2f/s, %d start voter%s"), Sm.postsMax, Sm.postsRegen, Sm.startNodes, Sm.startNodes == 1 ? TEXT("") : TEXT("s"));
+}
+
 void AShiftPlayerController::BuildMenuModel(FShiftHudModel& M)
 {
 	M.Screen = Screen;
@@ -1445,9 +1538,7 @@ void AShiftPlayerController::BuildMenuModel(FShiftHudModel& M)
 	M.SelectedJam = JamIndex;
 
 	FShiftHudBuild& B = M.Build;
-	B.Hours[0] = Build.Quality;
-	B.Hours[1] = Build.Thumbnail;
-	B.Hours[2] = Build.Network;
+	FillBuildEffects(B);
 	B.TotalHours = FShiftBuild::TotalHours;
 	B.JamTitle = FString(UTF8_TO_TCHAR(ShiftSim::DefaultJam(JamIndex).name.c_str()));
 	B.RivalFollowers = RivalFollowers(JamIndex);
@@ -1534,12 +1625,59 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 	M.Night = NightBlend;
 	M.bNightActive = bNight;
 	M.bPaused = bPaused;
+	FillBuildEffects(M.Build);
 	M.bOver = Run->IsOver();
-	M.Toast = ToastText;
-	M.ToastAlpha = ToastRemaining > 0.0f ? FMath::Clamp(ToastRemaining / 0.4f, 0.0f, 1.0f) * FMath::Clamp((ToastDuration - ToastRemaining) / 0.12f, 0.0f, 1.0f) : 0.0f;
-	M.ToastColor = ToastColor;
-	M.Headline = HeadlineText;
-	M.HeadlineAlpha = HeadlineRemaining > 0.0f ? FMath::Clamp(HeadlineRemaining / 0.6f, 0.0f, 1.0f) * FMath::Clamp((6.5f - HeadlineRemaining) / 0.3f, 0.0f, 1.0f) : 0.0f;
+	M.Feed.Reset();
+	for (const FFeedItem& Item : Feed)
+	{
+		if (M.Feed.Num() >= 4)
+		{
+			break;
+		}
+		FShiftHudFeedItem Out;
+		Out.Text = Item.Text;
+		Out.Color = Item.Color;
+		Out.bNews = Item.bNews;
+		Out.Alpha = FMath::Clamp(Item.Remaining / 0.4f, 0.0f, 1.0f) * FMath::Clamp((Item.Duration - Item.Remaining) / 0.12f, 0.0f, 1.0f);
+		M.Feed.Add(Out);
+	}
+	{
+		const ShiftSim::PolicyParams& Pol = Run->GetPolicy();
+		const double PushStart = S.TotalSeconds() - FMath::RoundToInt(static_cast<float>(Pol.MegaDays)) * S.Jam().secPerDay;
+		const double ToPush = PushStart - S.Time();
+		M.FinalPushIn = (ToPush > 0.0 && ToPush <= 12.0) ? static_cast<float>(ToPush) : -1.0f;
+		M.FinalPushLeft = (ToPush <= 0.0 && SecondsLeft > 0.0) ? static_cast<float>(SecondsLeft) : -1.0f;
+		M.FinalPushBonus = static_cast<float>(FMath::Max(0.0, Pol.FinalPushRegen - 1.0));
+	}
+	M.EyeAwayLeft = S.EyeAwayRemaining() > 0.0 ? static_cast<float>(S.EyeAwayRemaining()) : -1.0f;
+	M.EyeAwayWarnIn = (Run->EyeWindowAnnounced() && S.EyeAwayRemaining() <= 0.0) ? static_cast<float>(FMath::Max(0.0, Run->NextEyeWindowStart() - S.Time())) : -1.0f;
+	M.FakeHeatRate = static_cast<float>(P.SockHeldHeat * (S.EyeAwayRemaining() > 0.0 ? P.EyeAwayHeldMult : 1.0) * M.FakeShare);
+	M.FakeInfo = FString::Printf(TEXT("Votes you bought with sockpuppets: %.0f%% of the vote right now, backed or not. Holding them heats you up by %.1f a second (you cool by %.0f a second), so above %.0f%% your Heat climbs. A strike undoes every one of them, and the final audit also purges any bought in the last %.0f s."),
+		M.FakeShare * 100.0f, M.FakeHeatRate, P.HeatDecay, M.FakeLimit * 100.0f, P.SockReview);
+	if (!bNight && !S.Disqualified() && S.ShadowbanRemaining() <= 0.0)
+	{
+		if (S.EyeAwayRemaining() > 0.0)
+		{
+			M.NightHint = FString::Printf(TEXT("free for %.0fs: hold SHIFT"), S.EyeAwayRemaining());
+		}
+		else
+		{
+			int32 GatedHub = -1;
+			double GatedWeight = 80.0;
+			for (int32 I = 0; I < S.NodeCount(); ++I)
+			{
+				if (S.GetGraph().IsGateNode(I) && S.IsGated(I) && S.Opinion(I) != ShiftSim::kPlayerId && S.LockRemaining(I) <= 0.0 && S.GetGraph().nodes[static_cast<size_t>(I)].weight > GatedWeight)
+				{
+					GatedWeight = S.GetGraph().nodes[static_cast<size_t>(I)].weight;
+					GatedHub = I;
+				}
+			}
+			if (GatedHub >= 0)
+			{
+				M.NightHint = FString::Printf(TEXT("SHIFT skips @%s's gate"), *NodeHandle(GatedHub));
+			}
+		}
+	}
 	M.CoachText = CoachText;
 	M.CoachAlpha = CoachAlpha;
 	M.bBlameOffer = Run->BlameAvailable();
@@ -1694,8 +1832,11 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 			}
 		}
 	}
-	ToastRemaining = FMath::Max(0.0f, ToastRemaining - DeltaTime);
-	HeadlineRemaining = FMath::Max(0.0f, HeadlineRemaining - DeltaTime);
+	for (FFeedItem& Item : Feed)
+	{
+		Item.Remaining -= DeltaTime;
+	}
+	Feed.RemoveAll([](const FFeedItem& Item) { return Item.Remaining <= 0.0f; });
 	SliderSfxCooldown = FMath::Max(0.0f, SliderSfxCooldown - DeltaTime);
 	TickTutorial(DeltaTime);
 	TickAudio(DeltaTime);

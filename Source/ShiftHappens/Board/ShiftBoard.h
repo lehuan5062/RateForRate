@@ -55,6 +55,9 @@ public:
 	/** Starts the flip pulse on a node. Called automatically when a node's owner changes between updates. */
 	void FlashNode(int32 Node);
 
+	/** A parried attack: the ring in the attacker's colour (Who) is flung back out from where it was (FromFrac: 1 = just announced, 0 = about to land) for a third of a second. */
+	void BounceNode(int32 Node, int32 Who, float FromFrac);
+
 	int32 NodeCount() const { return NodeWorld_.Num(); }
 	int32 EdgeCount() const { return Edges_.Num(); }
 
@@ -83,6 +86,9 @@ private:
 	TArray<float> NodeRadii_;
 	TArray<float> Flash_;
 	TArray<float> Hover_;
+	TArray<float> Bounce_;       // 1 -> 0 over 0.35 s after a parry
+	TArray<float> BounceFrom_;
+	TArray<int32> BounceWho_;
 	TArray<float> Pressure_;   // 0..1: how close a voter of the player is to flipping back (smoothed), drawn as a shake and an orange ring
 	TArray<int32> PrevOwner_;
 	TArray<FEdgeRec> Edges_;

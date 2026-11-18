@@ -17,4 +17,7 @@ TUT15,15,FirstLostVoter,A voter changed sides. A shaking ring means it is drifti
 TUT16,16,FirstSockpuppet,Fake votes keep you hot while you hold them. A strike undoes them all and the audit the unbacked: plug one to {launder} to back it.
 TUT17,17,FinalAudit,"Final audit: fake votes are purged, and so is every sockpuppet vote bought in the last {review}s, even if backed."
 TUT18,18,RallyHint,Right-click a voter you hold to Rally it: {rallycost} Post shields it and its neighbours from plugs for {rallylock}s. Ready in {rallycd}s.
-TUT19,19,ThreatRing,A ring closing in on your voter is an attack in the attacker's colour. Reinforce the voter or Rally it before the ring lands.
+TUT19,19,ThreatRing,"A ring closing in on your voter is an attack, in the attacker's colour. Click the voter to parry it, or Rally it and its neighbours."
+TUT20,20,EyeAway,"The Mod Eye looks away! For {eyeaway}s night shift adds no Heat: hold SHIFT, sockpuppet a big voter, then plug it to back it."
+TUT21,21,FirstFake,Votes bought with sockpuppets are fake: they heat you up while you hold them. Keep them under {fakelimit}% or a strike takes them all.
+TUT22,22,FinalPush,"The rival goes all-in for the last days: double attacks. Your Posts refill {pushpct}% faster, so spend them."

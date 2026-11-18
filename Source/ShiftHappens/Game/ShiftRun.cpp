@@ -28,13 +28,21 @@ bool FShiftRun::Start(int32 InJamIndex, uint32 InSeed, const FShiftBuild& InBuil
 
 	ShiftSim::Params Params;
 	ShiftSim::JamDef Jam = ShiftSim::DefaultJam(JamIndex);
-	ShiftBuildRules::Apply(InBuild, Params, Jam);
-	for (const TPair<FString, double>& Override : Overrides)
+	// QA overrides go in twice: before the build, so that its slopes (Params::Build*) can be tuned by name, and after it, so that an explicit value (-Set PostsMax=3) wins over what
+	// the build made of it.
+	for (int32 Pass = 0; Pass < 2; ++Pass)
 	{
-		const std::string Name = TCHAR_TO_UTF8(*Override.Key);
-		if (!ShiftSim::SetParam(Params, Name, Override.Value) && !ShiftSim::SetJamField(Jam, Name, Override.Value) && !ShiftSim::SetPolicyParam(Policy, Name, Override.Value))
+		if (Pass == 1)
 		{
-			UE_LOG(LogShift, Error, TEXT("FShiftRun: unknown override '%s'"), *Override.Key);
+			ShiftBuildRules::Apply(InBuild, Params, Jam);
+		}
+		for (const TPair<FString, double>& Override : Overrides)
+		{
+			const std::string Name = TCHAR_TO_UTF8(*Override.Key);
+			if (!ShiftSim::SetParam(Params, Name, Override.Value) && !ShiftSim::SetJamField(Jam, Name, Override.Value) && !ShiftSim::SetPolicyParam(Policy, Name, Override.Value) && Pass == 1)
+			{
+				UE_LOG(LogShift, Error, TEXT("FShiftRun: unknown override '%s'"), *Override.Key);
+			}
 		}
 	}
 
@@ -61,11 +69,34 @@ bool FShiftRun::Start(int32 InJamIndex, uint32 InSeed, const FShiftBuild& InBuil
 	ModRng.Seed(ShiftSim::Rng::Derive(Seed, 0x4D4F44u));
 	NextSweep = ModRng.Uniform(Policy.ModFirstSweepMin, Jam.modIntervalMax);
 
+	// The Mod Eye looks away: a few windows spread over the jam, jittered with their own stream (the sweeps' stream stays as it was), the last one ending well before the
+	// final audit's review window so a burst cannot hide in it.
+	EyeWindowStart.Reset();
+	EyeWindowNext = 0;
+	bEyeWarned = false;
+	bEyeActive = false;
+	EyeWindowEnd = 0.0;
+	if (bModsEnabled && Policy.EyeAwayCount >= 0.5 && Policy.EyeAwaySeconds > 0.0)
+	{
+		ShiftSim::Rng EyeRng;
+		EyeRng.Seed(ShiftSim::Rng::Derive(Seed, 0x455945u));
+		const int32 Count = FMath::RoundToInt(static_cast<float>(Policy.EyeAwayCount));
+		const double Total = Sim->TotalSeconds();
+		for (int32 I = 0; I < Count; ++I)
+		{
+			const double Centre = Total * (I + 1) / (Count + 1);
+			const double Jitter = EyeRng.Uniform(-0.12, 0.12) * Total / (Count + 1);
+			const double Start = FMath::Clamp(Centre + Jitter - 0.5 * Policy.EyeAwaySeconds, 15.0, FMath::Max(15.0, Total - Policy.EyeAwayEndMargin - Policy.EyeAwaySeconds));
+			EyeWindowStart.Add(Start);
+		}
+	}
+
 	Accumulator = 0.0;
 	LastDay = 0;
 	BlameRemaining = 0.0;
 	RivalFrozenUntil = 0.0;
 	bBlameUsed = false;
+	bFinalPushAnnounced = false;
 	bNightHeld = false;
 	bPaused = false;
 	bOver = false;
@@ -262,11 +293,55 @@ void FShiftRun::TrackOwnership()
 	PurgedNow.Reset();
 }
 
+/** Starts, announces and ends the Mod Eye's windows. A sweep that would fall inside a window (or just after it) waits until 3.5 s after it. */
+void FShiftRun::UpdateEyeWindows()
+{
+	ShiftSim::Sim& S = *Sim;
+	const double Now = S.Time();
+	if (bEyeActive && Now + 1.0e-9 >= EyeWindowEnd)
+	{
+		bEyeActive = false;
+		bEyeWarned = false;
+		++EyeWindowNext;
+		FShiftEvent End;
+		End.Type = EShiftEventType::EyeAwayEnd;
+		Emit(End);
+	}
+	if (bEyeActive || !EyeWindowStart.IsValidIndex(EyeWindowNext))
+	{
+		return;
+	}
+	const double Start = EyeWindowStart[EyeWindowNext];
+	if (!bEyeWarned && Now + 1.0e-9 >= Start - Policy.EyeAwayWarn)
+	{
+		bEyeWarned = true;
+		if (NextSweep > Start - 1.0e-9 && NextSweep < Start + Policy.EyeAwaySeconds + 3.5)
+		{
+			NextSweep = Start + Policy.EyeAwaySeconds + 3.5;
+		}
+		FShiftEvent Warn;
+		Warn.Type = EShiftEventType::EyeAwayWarn;
+		Warn.Value = static_cast<float>(FMath::Max(0.0, Start - Now));
+		Emit(Warn);
+	}
+	if (Now + 1.0e-9 >= Start)
+	{
+		bEyeActive = true;
+		EyeWindowEnd = Start + Policy.EyeAwaySeconds;
+		S.SetEyeAway(Policy.EyeAwaySeconds);
+		FShiftEvent Go;
+		Go.Type = EShiftEventType::EyeAwayStart;
+		Go.Value = static_cast<float>(Policy.EyeAwaySeconds);
+		Emit(Go);
+	}
+}
+
 void FShiftRun::StepOnce()
 {
 	ShiftSim::Sim& S = *Sim;
 
 	BlameRemaining = FMath::Max(0.0, BlameRemaining - S.GetParams().Dt);
+	UpdateEyeWindows();
 	if (Driver.IsValid())
 	{
 		Driver->Tick(static_cast<float>(S.GetParams().Dt));   // StateTrees: rival, other entries, jam director
@@ -286,7 +361,7 @@ void FShiftRun::StepOnce()
 
 	if (bBotActive)
 	{
-		Bot.Update(S, Policy, bModsEnabled ? NextSweep : 1.0e30);   // the bot manages the night flag itself when it sockpuppets
+		Bot.Update(S, Policy, bModsEnabled ? NextSweep : 1.0e30, NextEyeWindowStart());   // the bot manages the night flag itself when it sockpuppets
 	}
 	else
 	{
@@ -294,19 +369,26 @@ void FShiftRun::StepOnce()
 	}
 	for (const FPendingAction& Action : Pending)
 	{
-		const ShiftSim::ActionOutcome O = Action.bRally ? S.Rally(Action.Node) : (Action.bSock ? S.Sock(Action.Node) : S.Plug(ShiftSim::kPlayerId, Action.Node, 1.0));
+		// A click on one of your own voters is a reinforcement, day or night: a sockpuppet on your own voter would only be refused.
+		const bool bSockClick = Action.bSock && !(Action.Node >= 0 && Action.Node < S.NodeCount() && S.Opinion(Action.Node) == ShiftSim::kPlayerId);
+		const ShiftSim::ActionOutcome O = Action.bRally ? S.Rally(Action.Node) : (bSockClick ? S.Sock(Action.Node) : S.Plug(ShiftSim::kPlayerId, Action.Node, 1.0));
 		FShiftEvent Event;
 		Event.Node = Action.Node;
 		Event.PrevOwner = O.prevOwner;
 		Event.NewOwner = O.newOwner;
-		Event.bSock = Action.bSock;
+		Event.bSock = bSockClick;
 		switch (O.result)
 		{
 		case ShiftSim::ActionResult::Flipped:
 			Event.Type = EShiftEventType::PlayerFlipped;
 			break;
 		case ShiftSim::ActionResult::Reinforced:
-			Event.Type = EShiftEventType::PlayerReinforced;
+			Event.Type = O.parried ? EShiftEventType::PlayerParried : EShiftEventType::PlayerReinforced;
+			if (O.parried)
+			{
+				Event.PrevOwner = O.parriedWho;
+				Event.Value = O.parriedTotal > 1.0e-9 ? static_cast<float>(O.parriedLeft / O.parriedTotal) : 0.0f;
+			}
 			break;
 		case ShiftSim::ActionResult::Weakened:
 			Event.Type = EShiftEventType::PlayerWeakened;
@@ -340,6 +422,22 @@ void FShiftRun::StepOnce()
 		Emit(Event);
 	}
 	Pending.Reset();
+
+	// The rival's final push (the last MegaDays days) is answered: the player's Posts refill faster for the same days, and the start is announced once.
+	{
+		const int32 PushDays = FMath::RoundToInt(static_cast<float>(Policy.MegaDays));
+		const bool bPush = Policy.FinalPushRegen > 1.0 + 1.0e-9 && PushDays > 0 && S.DayIndex() >= S.Jam().days - PushDays;
+		S.SetPostsRegen(S.Jam().regen * (bPush ? Policy.FinalPushRegen : 1.0));
+		if (bPush && !bFinalPushAnnounced)
+		{
+			bFinalPushAnnounced = true;
+			FShiftEvent Push;
+			Push.Type = EShiftEventType::FinalPushStart;
+			Push.Value = static_cast<float>(S.TotalSeconds() - S.Time());
+			Push.Share = static_cast<float>(Policy.FinalPushRegen - 1.0);
+			Emit(Push);
+		}
+	}
 
 	S.Step();
 	if (S.Finished() && !bAuditDone && S.GetParams().FinalAudit > 0.5)

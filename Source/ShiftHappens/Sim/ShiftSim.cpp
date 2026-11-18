@@ -114,6 +114,7 @@ namespace ShiftSim
 		Heat_ = 0.0;
 		Shadowban_ = 0.0;
 		RallyCooldown_ = 0.0;
+		EyeAway_ = 0.0;
 		Strikes_ = 0;
 		NightHeld_ = false;
 		Changes_.clear();
@@ -485,6 +486,7 @@ namespace ShiftSim
 			if (Landed.result == ActionResult::Locked)
 			{
 				++AttackStats_.blocked;
+				AttackStats_.shieldBlocked += Shield_[SimIx(A.node)] > 0.0 ? 1 : 0;
 			}
 			else
 			{
@@ -492,9 +494,10 @@ namespace ShiftSim
 				AttackStats_.flipped += Landed.flipped ? 1 : 0;
 			}
 		}
+		const bool bEyeAway = EyeAway_ > 0.0;
 		if (NightHeld_)
 		{
-			Heat_ += P_.HeatNightRate * Dt;
+			Heat_ += P_.HeatNightRate * (bEyeAway ? P_.EyeAwayHeatMult : 1.0) * Dt;
 		}
 		else
 		{
@@ -502,8 +505,9 @@ namespace ShiftSim
 		}
 		if (P_.SockHeldHeat > 0.0)
 		{
-			Heat_ += P_.SockHeldHeat * (SockBoughtWeight() / MaxOf(1.0, TotalWeight())) * Dt;
+			Heat_ += P_.SockHeldHeat * (bEyeAway ? P_.EyeAwayHeldMult : 1.0) * (SockBoughtWeight() / MaxOf(1.0, TotalWeight())) * Dt;
 		}
+		EyeAway_ = MaxOf(0.0, EyeAway_ - Dt);
 		Heat_ = ClampRange(Heat_, 0.0, P_.HeatMax);
 
 		const int Count = Graph_.NodeCount();
@@ -764,16 +768,46 @@ namespace ShiftSim
 		O.convAfter = Conv_[Ix];
 		O.lockAfter = Lock_[Ix];
 
+		// a Plug on a foreign voter costs the player PlayerPlugCost Posts (the Thumbnail lever), a reinforcement one
+		const double BaseCost = (IsPlayer && Opinion_[Ix] != Who) ? P_.PlayerPlugCost : 1.0;
 		if (IsPlayer)
 		{
 			if (Disqualified()) { O.result = ActionResult::Disqualified; return O; }
 			if (Shadowban_ > 0.0) { O.result = ActionResult::Shadowbanned; return O; }
-			if (Posts_ + kSimEps < 1.0) { O.result = ActionResult::NoPosts; return O; }
+			if (Posts_ + kSimEps < BaseCost) { O.result = ActionResult::NoPosts; return O; }
 		}
 
+		double Spend = BaseCost;
 		if (Opinion_[Ix] == Who)
 		{
-			// Reinforce (allowed even while the node is immune).
+			// Reinforce (allowed even while the node is immune). Answering an announced attack parries it: the soonest ring on this voter is cancelled.
+			if (IsPlayer && P_.ParryOnReinforce > 0.5)
+			{
+				int Soonest = -1;
+				for (size_t k = 0; k < Pending_.size(); ++k)
+				{
+					if (Pending_[k].node == Node && (Soonest < 0 || Pending_[k].timeLeft < Pending_[static_cast<size_t>(Soonest)].timeLeft))
+					{
+						Soonest = static_cast<int>(k);
+					}
+				}
+				if (Soonest >= 0)
+				{
+					Spend = MaxOf(1.0, P_.ParryCost);
+					if (Posts_ + kSimEps < Spend)
+					{
+						O.result = ActionResult::NoPosts;
+						return O;
+					}
+					const PendingAttack& A = Pending_[static_cast<size_t>(Soonest)];
+					O.parried = true;
+					O.parriedWho = A.who;
+					O.parriedLeft = A.timeLeft;
+					O.parriedTotal = A.total;
+					Pending_.erase(Pending_.begin() + Soonest);
+					++AttackStats_.parried;
+				}
+			}
 			Conv_[Ix] = MinOf(1.0, Conv_[Ix] + P_.PlugReinforce);
 			O.result = ActionResult::Reinforced;
 		}
@@ -820,8 +854,9 @@ namespace ShiftSim
 
 		if (IsPlayer)
 		{
-			Posts_ = MaxOf(0.0, Posts_ - 1.0);
-			O.postsSpent = 1.0;
+			Posts_ = MaxOf(0.0, Posts_ - Spend);
+			O.postsSpent = Spend;
+			AttackStats_.postsParry += O.parried ? Spend : 0.0;
 		}
 		O.newOwner = Opinion_[Ix];
 		O.convAfter = Conv_[Ix];
@@ -854,12 +889,13 @@ namespace ShiftSim
 		if (Opinion_[Ix] == kPlayerId) { O.result = ActionResult::AlreadyOwned; return O; }
 		if (Lock_[Ix] > 0.0) { O.result = ActionResult::Locked; return O; }
 		// A sockpuppet that would take Heat to the cap is refused and costs nothing: the player is told to let Heat cool instead of being struck at once.
-		if (P_.SockOverheatRefuse > 0.5 && Heat_ + P_.SockHeat >= P_.HeatMax - 1.0e-9) { O.result = ActionResult::Overheated; return O; }
+		const double SockHeat = P_.SockHeat * (EyeAway_ > 0.0 ? P_.EyeAwayHeatMult : 1.0);
+		if (P_.SockOverheatRefuse > 0.5 && Heat_ + SockHeat >= P_.HeatMax - 1.0e-9) { O.result = ActionResult::Overheated; return O; }
 
 		Posts_ = MaxOf(0.0, Posts_ - 1.0);
 		O.postsSpent = 1.0;
 		const double HeatBefore = Heat_;
-		Heat_ = MinOf(P_.HeatMax, Heat_ + P_.SockHeat);
+		Heat_ = MinOf(P_.HeatMax, Heat_ + SockHeat);
 		O.heatDelta = Heat_ - HeatBefore;
 
 		const double Base = (Opinion_[Ix] >= 0) ? Conv_[Ix] : 0.0;
@@ -912,6 +948,7 @@ namespace ShiftSim
 
 		Posts_ = MaxOf(0.0, Posts_ - P_.RallyCost);
 		RallyCooldown_ = P_.RallyCooldown;
+		AttackStats_.postsRally += P_.RallyCost;
 		O.postsSpent = P_.RallyCost;
 		std::vector<int> Group;
 		Group.push_back(Node);
@@ -1251,6 +1288,7 @@ namespace ShiftSim
 		SimHashMix(H, SimDoubleBits(Posts_));
 		SimHashMix(H, SimDoubleBits(Heat_));
 		SimHashMix(H, SimDoubleBits(Shadowban_));
+		SimHashMix(H, SimDoubleBits(EyeAway_));
 		SimHashMix(H, static_cast<uint64_t>(Strikes_));
 		SimHashMix(H, static_cast<uint64_t>(StepCount_));
 		SimHashMix(H, static_cast<uint64_t>(Pending_.size()));

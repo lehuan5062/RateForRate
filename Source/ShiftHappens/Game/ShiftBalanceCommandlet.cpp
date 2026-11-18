@@ -54,11 +54,48 @@ namespace
 		double RivalShare = 0.0;
 		FShiftFlipStats Flips;      // summed over the runs of the cell
 		ShiftSim::AttackCounters Threats;   // announced attacks on the player's voters, summed
+		double MegaStartShare = 0.0;        // the player's share when the rival's final push begins, and at the end, summed over the runs
+		double MegaEndShare = 0.0;
+		int32 MegaLeadAtStart = 0;          // runs in which the player led when the final push began, and still led at the end
+		int32 MegaLeadKept = 0;
 	};
 
 	bool ParseBot(const FString& Name, ShiftSim::BotKind& Out)
 	{
 		return ShiftSim::BotKindFromName(std::string(TCHAR_TO_UTF8(*Name)), &Out);
+	}
+
+	/** Named strategies that are the explorer bot with a fixed configuration: castle (the playtester's snowball: biggest voter first, Rally kept on it), parry (answers attacks by
+	 *  reinforcing only) and rallyonly (answers by Rally only). Returns false for any other name. */
+	bool BalancePreset(const FString& Name, ShiftSim::BotKind& Kind, TMap<FString, double>& Overrides)
+	{
+		TMap<FString, double> P;
+		if (Name.Equals(TEXT("castle"), ESearchCase::IgnoreCase))
+		{
+			P.Add(TEXT("XReact"), 0.0); P.Add(TEXT("XRally"), 1.0); P.Add(TEXT("XValueFirst"), 1.0); P.Add(TEXT("XKeepRally"), 1.0);
+		}
+		else if (Name.Equals(TEXT("parry"), ESearchCase::IgnoreCase))
+		{
+			P.Add(TEXT("XReact"), 1.0); P.Add(TEXT("XRally"), 0.0); P.Add(TEXT("XParry"), 1.0);
+		}
+		else if (Name.Equals(TEXT("window"), ESearchCase::IgnoreCase))
+		{
+			P.Add(TEXT("XReact"), 1.0); P.Add(TEXT("XRally"), 1.0); P.Add(TEXT("XWindow"), 1.0);
+		}
+		else if (Name.Equals(TEXT("rallyonly"), ESearchCase::IgnoreCase))
+		{
+			P.Add(TEXT("XReact"), 1.0); P.Add(TEXT("XRally"), 1.0); P.Add(TEXT("XParry"), 0.0);
+		}
+		else
+		{
+			return false;
+		}
+		Kind = ShiftSim::BotKind::Explorer;
+		for (const TPair<FString, double>& Pair : P)
+		{
+			Overrides.Add(Pair.Key, Pair.Value);
+		}
+		return true;
 	}
 }
 
@@ -127,7 +164,8 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 		for (const FString& BotName : BotNames)
 		{
 			ShiftSim::BotKind Kind = ShiftSim::BotKind::Idle;
-			if (!ParseBot(BotName, Kind))
+			TMap<FString, double> BotOverrides = Overrides;
+			if (!BalancePreset(BotName, Kind, BotOverrides) && !ParseBot(BotName, Kind))
 			{
 				UE_LOG(LogShift, Error, TEXT("Unknown bot %s"), *BotName);
 				continue;
@@ -137,7 +175,7 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 			{
 				const uint32 Seed = static_cast<uint32>(Seed0 + R * 7919);
 				FShiftRun Run;
-				Run.SetOverrides(Overrides);
+				Run.SetOverrides(BotOverrides);
 				if (!Run.Start(Jam, Seed, Build, bMods))
 				{
 					continue;
@@ -168,10 +206,22 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 					Dot.X = static_cast<float>(S.Share(E));       // starting share = fame
 					FameDots.Add(Dot);
 				}
+				const double MegaStartTime = S.TotalSeconds() - Run.GetPolicy().MegaDays * S.Jam().secPerDay;
+				bool bMegaSeen = false;
+				bool bMegaLead = false;
 				while (!Run.IsOver())
 				{
 					Run.Tick(0.25);
+					if (!bMegaSeen && S.Time() >= MegaStartTime)
+					{
+						bMegaSeen = true;
+						St.MegaStartShare += S.Share(ShiftSim::kPlayerId);
+						bMegaLead = !S.Disqualified() && S.Leader() == ShiftSim::kPlayerId;
+						St.MegaLeadAtStart += bMegaLead ? 1 : 0;
+					}
 				}
+				St.MegaEndShare += S.Share(ShiftSim::kPlayerId);
+				St.MegaLeadKept += (bMegaLead && !S.Disqualified() && S.Leader() == ShiftSim::kPlayerId) ? 1 : 0;
 				const double Total = FMath::Max(1.0, S.TotalWeight());
 				for (int32 E = 0; E < S.NumEntries(); ++E)
 				{
@@ -195,6 +245,10 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				St.Threats.flipped += Atk.flipped;
 				St.Threats.blocked += Atk.blocked;
 				St.Threats.fizzled += Atk.fizzled;
+				St.Threats.shieldBlocked += Atk.shieldBlocked;
+				St.Threats.parried += Atk.parried;
+				St.Threats.postsRally += Atk.postsRally;
+				St.Threats.postsParry += Atk.postsParry;
 				St.Flips.Gains += Flips.Gains;
 				St.Flips.SockGains += Flips.SockGains;
 				St.Flips.Losses += Flips.Losses;
@@ -218,11 +272,14 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				St.StrikeSum / N, 100.0 * St.RivalShare / N, St.R2Quality / N, St.R2Fame / N);
 			// A separate line (it does not start with "jam=", so the determinism compare in Tools/verify.ps1 ignores it): how the player's voters came and went, per run.
 			// Dwell = seconds a flipped voter stayed the player's before being lost again; the voters still held at the end are not counted.
-			UE_LOG(LogShift, Display, TEXT("Balance: flips jam=%d bot=%-8s per run: gains %.1f (sock %.1f)  lost %.1f (herd %.1f rival %.1f others %.1f)  strike-reverts %.1f  audit-purged %.1f  dwell plug %.1fs (%d)  sock %.1fs (%d)  threats %.1f (landed %.1f flipped %.1f blocked %.1f fizzled %.1f)"),
+			UE_LOG(LogShift, Display, TEXT("Balance: flips jam=%d bot=%-8s per run: gains %.1f (sock %.1f)  lost %.1f (herd %.1f rival %.1f others %.1f)  strike-reverts %.1f  audit-purged %.1f  dwell plug %.1fs (%d)  sock %.1fs (%d)  threats %.1f (landed %.1f flipped %.1f blocked %.1f fizzled %.1f shield-blocked %.1f parried %.1f)  posts: rally %.1f parry %.1f"),
 				Jam, *BotName, St.Flips.Gains / N, St.Flips.SockGains / N, St.Flips.Losses / N, St.Flips.LossHerd / N, St.Flips.LossRival / N, St.Flips.LossOthers / N, St.Flips.StrikeReverts / N, St.Flips.AuditPurges / N,
 				St.Flips.PlugDwellCount > 0 ? St.Flips.PlugDwellSum / St.Flips.PlugDwellCount : 0.0, St.Flips.PlugDwellCount,
 				St.Flips.SockDwellCount > 0 ? St.Flips.SockDwellSum / St.Flips.SockDwellCount : 0.0, St.Flips.SockDwellCount,
-				St.Threats.queued / N, St.Threats.landed / N, St.Threats.flipped / N, St.Threats.blocked / N, St.Threats.fizzled / N);
+				St.Threats.queued / N, St.Threats.landed / N, St.Threats.flipped / N, St.Threats.blocked / N, St.Threats.fizzled / N, St.Threats.shieldBlocked / N, St.Threats.parried / N, St.Threats.postsRally / N, St.Threats.postsParry / N);
+			// The rival's final push (the last MegaDays days): the player's share when it starts and when the run ends, and how often a lead at the start survives.
+			UE_LOG(LogShift, Display, TEXT("Balance: mega jam=%d bot=%-8s share at start %.1f%% at end %.1f%% swing %+.1f  led at start %d, kept %d"),
+				Jam, *BotName, 100.0 * St.MegaStartShare / N, 100.0 * St.MegaEndShare / N, 100.0 * (St.MegaEndShare - St.MegaStartShare) / N, St.MegaLeadAtStart, St.MegaLeadKept);
 			Csv += FString::Printf(TEXT("%d,%s,%d,%.2f,%.2f,%.3f,%.2f,%.2f,%.3f,%.2f,%.3f,%.3f\n"), Jam, *BotName, St.Runs, 100.0 * St.Wins / N, 100.0 * St.Dq / N,
 				St.RankSum / N, 100.0 * St.ShareSum / N, 100.0 * St.SockSum / N, St.StrikeSum / N, 100.0 * St.RivalShare / N, St.R2Quality / N, St.R2Fame / N);
 		}

@@ -450,9 +450,9 @@ void SShiftHud::PaintBuild(FShiftPainter& P, const FPal& C) const
 	};
 	static const FSliderInfo Infos[3] =
 	{
-		{ TEXT("Quality"), TEXT("Polish the game itself. It only nudges how voters rate it, because nobody plays all the entries.") },
-		{ TEXT("Thumbnail and title"), TEXT("Cover art and a catchy name decide how many voters even look at your page.") },
-		{ TEXT("Network"), TEXT("Discord pals and rate-for-rate rings: more followers on day one, and Posts refill faster.") },
+		{ TEXT("Quality"), TEXT("Polish the game. A better game keeps the voters it wins, but nobody plays all the entries.") },
+		{ TEXT("Thumbnail and title"), TEXT("Cover art and a catchy name: how many voters look at your page, and how far each Post goes.") },
+		{ TEXT("Network"), TEXT("Discord pals and rate-for-rate rings: followers on day one, and a bigger, faster Post bank.") },
 	};
 
 	for (int32 i = 0; i < 3; ++i)
@@ -461,7 +461,8 @@ void SShiftHud::PaintBuild(FShiftPainter& P, const FPal& C) const
 		P.Rect(60.0f, Y, 580.0f, 114.0f, C.PanelSolid, 14.0f);
 		P.Text(Infos[i].Label, 84.0f, Y + 14.0f, 20.0f, C.Ink, EShiftAlign::Left, true);
 		P.Text(FString::Printf(TEXT("%d h"), B.Hours[i]), 616.0f, Y + 12.0f, 26.0f, C.Teal, EShiftAlign::Right, true);
-		P.TextBlock(Infos[i].Text, 84.0f, Y + 46.0f, 530.0f, 13.0f, 17.0f, C.InkDim);
+		P.TextBlock(Infos[i].Text, 84.0f, Y + 42.0f, 530.0f, 12.0f, 15.0f, C.InkDim);
+		P.Text(P.Fit(B.Effects[i], 530.0f, 14.0f, true), 84.0f, Y + 68.0f, 14.0f, C.Teal, EShiftAlign::Left, true);
 
 		const float X0 = 90.0f;
 		const float X1 = 610.0f;
@@ -517,7 +518,7 @@ void SShiftHud::PaintBuild(FShiftPainter& P, const FPal& C) const
 	P.Rect(680.0f, 484.0f, 540.0f, 92.0f, C.PanelSolid, 14.0f);
 	P.Text(FString::Printf(TEXT("Your game: %s on quality  ->  %s on votes"), *HudOrdinal(B.QualityRank), *HudOrdinal(B.ForecastRank)), 700.0f, 498.0f, 20.0f,
 		B.ForecastRank > B.QualityRank ? C.Red : C.Teal, EShiftAlign::Left, true);
-	P.TextBlock(FString::Printf(TEXT("Forecast for a casual player, a Plug every couple of seconds. The rival has %s followers; you have a few. Beat that with sharper clicks, and with the night shift."),
+	P.TextBlock(FString::Printf(TEXT("Forecast for a steady player, a Plug about every second. The rival has %s followers; you have a few. Beat that with sharper clicks, and with the night shift."),
 		*B.RivalFollowers), 700.0f, 530.0f, 500.0f, 13.0f, 17.0f, C.InkDim);
 
 	Button(P, C, EShiftUi::Upload, 840.0f, 610.0f, 380.0f, 58.0f, TEXT("UPLOAD AND START VOTING"), true, 20.0f);
@@ -535,19 +536,9 @@ void SShiftHud::PaintTooltip(FShiftPainter& P, const FPal& C) const
 	const FShiftHudTooltip& T = Model.Tooltip;
 	const float CardW = 292.0f;
 	const float CardH = 118.0f;
-	// The leaderboard panel as drawn right now: its left edge and bottom, so a card never covers it.
-	float LeaderboardX = DesignW;
-	float LeaderboardBottom = 0.0f;
-	if (Model.LeaderboardMode == 1)
-	{
-		LeaderboardX = 996.0f;
-		LeaderboardBottom = 52.0f + 38.0f + RowHeight * static_cast<float>(FMath::Max(1, Model.Rows.Num()));
-	}
-	else if (Model.LeaderboardMode == 0)
-	{
-		LeaderboardX = DesignW - 10.0f - CompactLeaderboardW;
-		LeaderboardBottom = 48.0f + 20.0f + CompactRowH * static_cast<float>(FMath::Max(1, Model.Rows.Num())) + 4.0f;
-	}
+	// The right gutter (leaderboard, states, feed) is never covered: the card flips to the left of the voter when it would reach it.
+	const float LeaderboardX = FMath::Min(DesignW - 10.0f - CompactLeaderboardW, Model.LeaderboardMode == 1 ? 996.0f : DesignW);
+	const float LeaderboardBottom = 668.0f;
 	float X = T.Anchor.X + T.AnchorRadius + 14.0f;
 	float Y = T.Anchor.Y + 12.0f;
 	if (X + CardW > LeaderboardX - 8.0f && Y < LeaderboardBottom)
@@ -583,37 +574,25 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	P.Rect(510, 33, 260.0f * FMath::Clamp(Model.RunProgress, 0.0f, 1.0f), 3, C.Teal, 1.5f);
 	P.Text(Model.DeadlineLabel, 1224, 12, 13, C.InkDim, EShiftAlign::Right);
 	MuteButton(P, C, 1250.0f, 20.0f);
-	if (Model.FakeShare > 0.004f)
-	{
-		// Sockpuppet votes you hold right now, backed or not: what a strike would take from you. Holding them heats you up, so above the limit Heat climbs.
-		const bool bOver = Model.FakeLimit > 0.0f && Model.FakeShare > Model.FakeLimit;
-		P.Rect(786, 9, 104, 22, WithAlpha(bOver ? C.Red : Hex(0x7B5CF0), 0.88f), 11);
-		P.Text(Model.FakeLimit > 0.0f ? FString::Printf(TEXT("FAKE %.0f/%.0f%%"), Model.FakeShare * 100.0f, Model.FakeLimit * 100.0f) : FString::Printf(TEXT("FAKE %.0f%%"), Model.FakeShare * 100.0f),
-			838, 13, 12, FLinearColor::White, EShiftAlign::Center, true);
-	}
 	if (Model.bModsEnabled && Model.NextSweepIn >= 0.0f)
 	{
-		const bool bSoon = Model.NextSweepIn < 3.0f;
-		const FLinearColor EyeColor = bSoon ? C.Red : C.InkDim;
+		const bool bAway = Model.EyeAwayLeft > 0.0f;
+		const bool bSoon = !bAway && Model.NextSweepIn < 3.0f;
+		const FLinearColor EyeColor = bAway ? Hex(0x7B5CF0) : (bSoon ? C.Red : C.InkDim);
 		const float Pulse = bSoon ? 0.5f + 0.5f * FMath::Sin(AnimTime * 14.0f) : 0.0f;
 		P.Disc(900, 20, 9.5f, EyeColor);
 		P.Disc(900, 20, 7.0f, C.Panel);
-		P.Disc(900, 20, 3.0f + 1.5f * Pulse, EyeColor);
-		P.Text(FString::Printf(TEXT("MODS %.0fs"), Model.NextSweepIn), 916, 13, 12, EyeColor, EShiftAlign::Left, bSoon);
-	}
-
-	// ------------------------------------------------------------------ news ticker
-	if (Model.HeadlineAlpha > 0.01f && !Model.Headline.IsEmpty())
-	{
-		const FString Line = P.Fit(Model.Headline, 880.0f, 13.0f);
-		const float StripW = 60.0f + P.Measure(Line, 13.0f).X + 14.0f;
-		P.Rect(8.0f, 46.0f, StripW, 24.0f, WithAlpha(C.PanelSolid, 0.90f * Model.HeadlineAlpha), 12.0f);
-		P.Rect(14.0f, 49.0f, 44.0f, 18.0f, WithAlpha(C.Amber, 0.85f * Model.HeadlineAlpha), 9.0f);
-		P.Text(TEXT("NEWS"), 36.0f, 51.0f, 10.0f, WithAlpha(Hex(0x4A3000), Model.HeadlineAlpha), EShiftAlign::Center, true);
-		P.Text(Line, 66.0f, 50.0f, 13.0f, WithAlpha(C.Ink, Model.HeadlineAlpha));
+		if (!bAway)
+		{
+			P.Disc(900, 20, 3.0f + 1.5f * Pulse, EyeColor);   // the Eye looks away: no pupil
+		}
+		P.Text(bAway ? FString::Printf(TEXT("MODS AWAY %.0fs"), Model.EyeAwayLeft) : FString::Printf(TEXT("MODS %.0fs"), Model.NextSweepIn), 916, 13, 12, EyeColor, EShiftAlign::Left, bSoon || bAway);
 	}
 
 	// ------------------------------------------------------------------ leaderboard
+	const int32 LeaderRows = FMath::Max(1, Model.Rows.Num());
+	const float LeaderBottom = Model.LeaderboardMode == 1 ? 52.0f + 38.0f + RowHeight * static_cast<float>(LeaderRows)
+		: (Model.LeaderboardMode == 0 ? 48.0f + 20.0f + CompactRowH * static_cast<float>(LeaderRows) + 4.0f : 48.0f + 22.0f);
 	// Compact by default (the top three and the player, on a see-through panel) so the right side of the board stays in view; L cycles compact / full / hidden.
 	if (Model.LeaderboardMode == 1)
 	{
@@ -686,16 +665,17 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	P.Rect(0, 676, DesignW, 1, C.Stroke);
 	P.Text(TEXT("POSTS"), 20, 690, 11, C.InkDim, EShiftAlign::Left, true);
 	const int32 PipCount = FMath::Max(1, FMath::RoundToInt(Model.PostsMax));
+	const float PipStep = PipCount >= 6 ? 20.0f : 26.0f;
 	for (int32 i = 0; i < PipCount; ++i)
 	{
 		const float Fill = FMath::Clamp(Model.Posts - static_cast<float>(i), 0.0f, 1.0f);
-		P.Disc(86.0f + 26.0f * static_cast<float>(i), 698, 9.5f, C.Track);
+		P.Disc(86.0f + PipStep * static_cast<float>(i), 698, 9.5f, C.Track);
 		if (Fill > 0.02f)
 		{
-			P.Disc(86.0f + 26.0f * static_cast<float>(i), 698, 4.0f + 5.5f * Fill, Mix(WithAlpha(C.Teal, 0.55f), C.Teal, Fill));
+			P.Disc(86.0f + PipStep * static_cast<float>(i), 698, 4.0f + 5.5f * Fill, Mix(WithAlpha(C.Teal, 0.55f), C.Teal, Fill));
 		}
 	}
-	P.Text(FString::Printf(TEXT("%.1f"), Model.Posts), 86.0f + 26.0f * static_cast<float>(PipCount) + 2.0f, 690, 13, C.Ink, EShiftAlign::Left, true);
+	P.Text(FString::Printf(TEXT("%.1f"), Model.Posts), 86.0f + PipStep * static_cast<float>(PipCount) + 2.0f, 690, 13, C.Ink, EShiftAlign::Left, true);
 
 	// Rally (right-click on a voter you hold): ready, or counting down.
 	{
@@ -708,7 +688,11 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	const bool bNight = Model.bNightActive;
 	P.Rect(500, 683, 150, 28, bNight ? Hex(0x2A2250) : WithAlpha(C.Amber, 0.28f), 14);
 	P.Text(bNight ? TEXT("NIGHT SHIFT") : TEXT("DAY SHIFT"), 575, 688, 14, bNight ? Hex(0xCBB8FF) : Hex(0x7A5400), EShiftAlign::Center, true);
-	P.Text(bNight ? TEXT("click = sockpuppet") : TEXT("hold SHIFT to cheat"), 664, 691, 11, C.InkDim);
+	{
+		const bool bFree = Model.EyeAwayLeft > 0.0f;
+		const FString Hint = !Model.NightHint.IsEmpty() ? Model.NightHint : (bNight ? FString(TEXT("click = sockpuppet")) : FString(TEXT("hold SHIFT to cheat")));
+		P.Text(P.Fit(Hint, 130.0f, 11.0f, bFree), 664, 691, 11, bFree ? Hex(0x7B5CF0) : (Model.NightHint.IsEmpty() ? C.InkDim : C.Ink), EShiftAlign::Left, bFree);
+	}
 
 	if (Model.bShowHeat)
 	{
@@ -736,59 +720,143 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	}
 	P.Text(TEXT("SPACE pause   ESC menu"), 1262, 693, 11, C.InkDim, EShiftAlign::Right);
 
-	if (Model.ShadowbanSeconds > 0.0f)
+	// ------------------------------------------------------------------ the right gutter
+	// Everything that is not the board lives in the strip right of the voters (the layout keeps them left of x = 1084): under the leaderboard the states you are in, then the
+	// notification feed; at the bottom the coach card and the Blame button. Nothing here floats over the board.
 	{
-		P.Rect(470, 56, 340, 34, Hex(0xFF4D5A, 0.92f), 17);
-		P.Text(FString::Printf(TEXT("SHADOWBANNED  %.1fs"), Model.ShadowbanSeconds), 640, 63, 16, FLinearColor::White, EShiftAlign::Center, true);
-	}
-	if (Model.FinalAuditIn >= 0.0f)
-	{
-		// The last seconds of the jam: the mods purge every sockpuppet vote that is still fake, and every one bought from now on.
-		const float Pulse = 0.5f + 0.5f * FMath::Sin(AnimTime * 10.0f);
-		P.Rect(430, 96, 420, 30, WithAlpha(C.Red, 0.80f + 0.15f * Pulse), 15);
-		P.Text(FString::Printf(TEXT("FINAL AUDIT in %.0fs: new sockpuppet votes are purged"), FMath::CeilToFloat(Model.FinalAuditIn)), 640, 102, 14, FLinearColor::White, EShiftAlign::Center, true);
-	}
+		const float GX = DesignW - 10.0f - CompactLeaderboardW;
+		const float GW = CompactLeaderboardW;
+		float BottomY = 668.0f;
 
-	// ------------------------------------------------------------------ coach card (tutorial)
-	if (Model.CoachAlpha > 0.01f && !Model.CoachText.IsEmpty())
-	{
-		const float CardW = 400.0f;
-		const TArray<FString> Lines = P.Wrap(Model.CoachText, CardW - 44.0f, 14.0f, false);
-		const float CardH = 30.0f + 19.0f * static_cast<float>(Lines.Num());
-		const float X = 16.0f;
-		const float Y = 668.0f - CardH;
-		const bool bHover = AddHit(X, Y, CardW, CardH, EShiftUi::CoachDismiss);
-		P.Rect(X, Y, CardW, CardH, WithAlpha(C.PanelSolid, 0.97f * Model.CoachAlpha), 12.0f);
-		P.Rect(X, Y, 5.0f, CardH, WithAlpha(C.Teal, Model.CoachAlpha), 2.5f);
-		float Ty = Y + 12.0f;
-		for (const FString& Line : Lines)
+		// the bottom stack: the Blame button (rare, urgent) at the very bottom, the coach card above it
+		if (Model.bBlameOffer)
 		{
-			P.Text(Line, X + 20.0f, Ty, 14.0f, WithAlpha(C.Ink, Model.CoachAlpha));
-			Ty += 19.0f;
+			const float Frac = FMath::Clamp(Model.BlameSeconds / FMath::Max(0.1f, Model.BlameWindow), 0.0f, 1.0f);
+			const float H = 58.0f;
+			const float Y = BottomY - H;
+			const bool bHover = AddHit(GX, Y, GW, H, EShiftUi::Blame);
+			P.Rect(GX, Y + 3.0f, GW, H, Hex(0x000000, 0.2f), 14.0f);
+			P.Rect(GX, Y, GW, H, bHover ? Mix(C.Red, FLinearColor::White, 0.18f) : C.Red, 14.0f);
+			P.Text(TEXT("SHIFT THE BLAME  (B)"), GX + GW * 0.5f, Y + 8.0f, 14.0f, FLinearColor::White, EShiftAlign::Center, true);
+			P.Text(TEXT("hand this strike to the rival"), GX + GW * 0.5f, Y + 28.0f, 10.0f, WithAlpha(FLinearColor::White, 0.9f), EShiftAlign::Center);
+			P.Rect(GX + 14.0f, Y + 46.0f, (GW - 28.0f) * Frac, 3.0f, WithAlpha(FLinearColor::White, 0.85f), 1.5f);
+			BottomY = Y - 8.0f;
 		}
-		P.Text(bHover ? TEXT("click to dismiss") : TEXT("tip"), X + CardW - 12.0f, Y + 5.0f, 10.0f, WithAlpha(C.InkDim, Model.CoachAlpha), EShiftAlign::Right, true);
-	}
+		if (Model.CoachAlpha > 0.01f && !Model.CoachText.IsEmpty())
+		{
+			const TArray<FString> Lines = P.Wrap(Model.CoachText, GW - 36.0f, 12.0f, false);
+			const float H = 30.0f + 15.0f * static_cast<float>(Lines.Num());
+			const float Y = BottomY - H;
+			const bool bHover = AddHit(GX, Y, GW, H, EShiftUi::CoachDismiss);
+			P.Rect(GX, Y, GW, H, WithAlpha(C.PanelSolid, 0.97f * Model.CoachAlpha), 10.0f);
+			P.Rect(GX, Y, 4.0f, H, WithAlpha(C.Teal, Model.CoachAlpha), 2.0f);
+			float Ty = Y + 18.0f;
+			for (const FString& Line : Lines)
+			{
+				P.Text(Line, GX + 14.0f, Ty, 12.0f, WithAlpha(C.Ink, Model.CoachAlpha));
+				Ty += 15.0f;
+			}
+			P.Text(bHover ? TEXT("click to dismiss") : TEXT("tip"), GX + GW - 10.0f, Y + 5.0f, 9.0f, WithAlpha(C.InkDim, Model.CoachAlpha), EShiftAlign::Right, true);
+			BottomY = Y - 8.0f;
+		}
 
-	// ------------------------------------------------------------------ shift the blame
-	if (Model.bBlameOffer)
-	{
-		const float Frac = FMath::Clamp(Model.BlameSeconds / FMath::Max(0.1f, Model.BlameWindow), 0.0f, 1.0f);
-		const float X = 470.0f;
-		const float Y = 560.0f;
-		const bool bHover = AddHit(X, Y, 340.0f, 50.0f, EShiftUi::Blame);
-		P.Rect(X, Y + 4.0f, 340.0f, 50.0f, Hex(0x000000, 0.2f), 25.0f);
-		P.Rect(X, Y, 340.0f, 50.0f, bHover ? Mix(C.Red, FLinearColor::White, 0.18f) : C.Red, 25.0f);
-		P.Text(TEXT("SHIFT THE BLAME  (B)"), X + 170.0f, Y + 6.0f, 19.0f, FLinearColor::White, EShiftAlign::Center, true);
-		P.Text(TEXT("hand this strike to the rival"), X + 170.0f, Y + 29.0f, 11.0f, WithAlpha(FLinearColor::White, 0.9f), EShiftAlign::Center);
-		P.Rect(X + 24.0f, Y + 44.0f, 292.0f * Frac, 3.0f, WithAlpha(FLinearColor::White, 0.85f), 1.5f);
-	}
+		// the states you are in, pinned under the leaderboard: one chip each, a title and a line of detail
+		float Y = LeaderBottom + 8.0f;
+		const auto Pin = [&](const FString& Title, const FString& Detail, const FLinearColor& Fill) -> float
+		{
+			const float H = Detail.IsEmpty() ? 24.0f : 38.0f;
+			const float Top = Y;
+			P.Rect(GX, Top, GW, H, Fill, 9.0f);
+			P.Text(P.Fit(Title, GW - 16.0f, 12.0f, true), GX + 8.0f, Top + 5.0f, 12.0f, FLinearColor::White, EShiftAlign::Left, true);
+			if (!Detail.IsEmpty())
+			{
+				P.Text(P.Fit(Detail, GW - 16.0f, 10.0f), GX + 8.0f, Top + 21.0f, 10.0f, WithAlpha(FLinearColor::White, 0.92f));
+			}
+			Y += H + 5.0f;
+			return Top;
+		};
+		const FLinearColor Purple = Hex(0x7B5CF0);
+		if (Model.ShadowbanSeconds > 0.0f)
+		{
+			Pin(FString::Printf(TEXT("SHADOWBANNED  %.1fs"), Model.ShadowbanSeconds), TEXT("your clicks are refused until it ends"), Hex(0xFF4D5A, 0.92f));
+		}
+		if (Model.EyeAwayLeft > 0.0f)
+		{
+			Pin(FString::Printf(TEXT("MOD EYE LOOKS AWAY  %.0fs"), Model.EyeAwayLeft), TEXT("night shift is free: hold SHIFT"), WithAlpha(Purple, 0.92f));
+		}
+		else if (Model.EyeAwayWarnIn >= 0.0f)
+		{
+			Pin(FString::Printf(TEXT("MOD EYE AWAY IN %.0fs"), Model.EyeAwayWarnIn), TEXT("bank Posts, then hold SHIFT"), WithAlpha(Purple, 0.70f));
+		}
+		if (Model.FinalPushLeft > 0.0f)
+		{
+			Pin(FString::Printf(TEXT("FINAL PUSH  %.0fs"), Model.FinalPushLeft), FString::Printf(TEXT("rival x2 attacks, your Posts +%.0f%%"), Model.FinalPushBonus * 100.0f), WithAlpha(C.Red, 0.92f));
+		}
+		else if (Model.FinalPushIn >= 0.0f)
+		{
+			Pin(FString::Printf(TEXT("FINAL PUSH IN %.0fs"), Model.FinalPushIn), TEXT("the rival goes all-in: bank Posts"), WithAlpha(Mix(C.Red, C.Amber, 0.5f), 0.92f));
+		}
+		if (Model.FinalAuditIn >= 0.0f)
+		{
+			const float Pulse = 0.5f + 0.5f * FMath::Sin(AnimTime * 10.0f);
+			Pin(FString::Printf(TEXT("FINAL AUDIT  %.0fs"), FMath::CeilToFloat(Model.FinalAuditIn)), TEXT("new sockpuppet votes are purged"), WithAlpha(C.Red, 0.80f + 0.15f * Pulse));
+		}
+		bool bFakeHover = false;
+		float FakeY = 0.0f;
+		if (Model.FakeShare > 0.004f)
+		{
+			// Sockpuppet votes you hold right now, backed or not: what a strike takes. Holding them heats you up, so above the limit Heat climbs.
+			const bool bOver = Model.FakeLimit > 0.0f && Model.FakeShare > Model.FakeLimit;
+			FakeY = Pin(FString::Printf(TEXT("SOCKPUPPET VOTES  %.0f%%"), Model.FakeShare * 100.0f),
+				Model.FakeLimit > 0.0f ? FString::Printf(TEXT("+%.1f Heat/s, safe up to %.0f%%"), Model.FakeHeatRate, Model.FakeLimit * 100.0f) : FString::Printf(TEXT("+%.1f Heat/s"), Model.FakeHeatRate),
+				WithAlpha(bOver ? C.Red : Purple, 0.90f));
+			bFakeHover = AddHit(GX, FakeY, GW, 38.0f, EShiftUi::FakeInfo);
+		}
 
-	// ------------------------------------------------------------------ toast
-	if (Model.ToastAlpha > 0.01f && !Model.Toast.IsEmpty())
-	{
-		const float Width = FMath::Min(700.0f, P.Measure(Model.Toast, 14, true).X + 36.0f);
-		P.Rect(640.0f - Width * 0.5f, 624, Width, 30, WithAlpha(C.PanelSolid, 0.96f * Model.ToastAlpha), 15);
-		P.Text(P.Fit(Model.Toast, 680.0f, 14, true), 640, 630, 14, WithAlpha(Model.ToastColor, Model.ToastAlpha), EShiftAlign::Center, true);
+		// the notification feed: toasts and news, newest first, as cards that only take the room the pinned states leave
+		for (const FShiftHudFeedItem& Item : Model.Feed)
+		{
+			const TArray<FString> Lines = P.Wrap(Item.Text, GW - 24.0f, 11.0f, !Item.bNews);
+			const int32 LineCount = FMath::Min(Lines.Num(), 5);
+			const float H = 12.0f + 14.0f * static_cast<float>(LineCount) + (Item.bNews ? 12.0f : 0.0f);
+			if (Y + H > BottomY)
+			{
+				break;
+			}
+			P.Rect(GX, Y, GW, H, WithAlpha(C.PanelSolid, 0.94f * Item.Alpha), 9.0f);
+			P.Rect(GX, Y, 4.0f, H, WithAlpha(Item.bNews ? C.Amber : Item.Color, Item.Alpha), 2.0f);
+			float Ty = Y + 6.0f;
+			if (Item.bNews)
+			{
+				P.Text(TEXT("NEWS"), GX + 12.0f, Ty, 9.0f, WithAlpha(C.Amber, Item.Alpha), EShiftAlign::Left, true);
+				Ty += 12.0f;
+			}
+			for (int32 L = 0; L < LineCount; ++L)
+			{
+				P.Text(Lines[L], GX + 12.0f, Ty, 11.0f, WithAlpha(Item.bNews ? C.Ink : Item.Color, Item.Alpha), EShiftAlign::Left, !Item.bNews);
+				Ty += 14.0f;
+			}
+			Y += H + 5.0f;
+		}
+
+		// hovering the sockpuppet-votes chip explains it, in words, to the left of the gutter
+		if (bFakeHover && !Model.FakeInfo.IsEmpty())
+		{
+			const float CW = 300.0f;
+			const TArray<FString> Lines = P.Wrap(Model.FakeInfo, CW - 28.0f, 12.0f, false);
+			const float CH = 38.0f + 16.0f * static_cast<float>(Lines.Num());
+			const float CX = GX - 10.0f - CW;
+			const float CY = FMath::Clamp(FakeY, 48.0f, 668.0f - CH);
+			P.Rect(CX, CY, CW, CH, WithAlpha(C.PanelSolid, 0.98f), 10.0f);
+			P.Rect(CX, CY, 4.0f, CH, Purple, 2.0f);
+			P.Text(TEXT("SOCKPUPPET VOTES"), CX + 14.0f, CY + 9.0f, 12.0f, Purple, EShiftAlign::Left, true);
+			float Ty = CY + 30.0f;
+			for (const FString& Line : Lines)
+			{
+				P.Text(Line, CX + 14.0f, Ty, 12.0f, C.Ink);
+				Ty += 16.0f;
+			}
+		}
 	}
 
 	// ------------------------------------------------------------------ tooltip
@@ -933,6 +1001,17 @@ void SShiftHud::PaintPause(FShiftPainter& P, const FPal& C) const
 	Button(P, C, EShiftUi::Resume, 520.0f, 340.0f, 240.0f, 50.0f, TEXT("Resume  (SPACE)"), true, 18.0f);
 	Button(P, C, EShiftUi::Retry, 520.0f, 404.0f, 240.0f, 46.0f, TEXT("Restart  (R)"), false, 17.0f);
 	Button(P, C, EShiftUi::Menu, 520.0f, 464.0f, 240.0f, 46.0f, TEXT("Quit to menu"), false, 17.0f);
+
+	// what the build the player uploaded comes to, in numbers
+	P.Rect(400.0f, 530.0f, 480.0f, 104.0f, WithAlpha(C.PanelSolid, 0.92f), 12.0f);
+	P.Text(TEXT("YOUR BUILD"), 420.0f, 540.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
+	static const TCHAR* const Labels[3] = { TEXT("Quality"), TEXT("Thumbnail"), TEXT("Network") };
+	for (int32 i = 0; i < 3; ++i)
+	{
+		const float Ly = 560.0f + 22.0f * static_cast<float>(i);
+		P.Text(FString::Printf(TEXT("%s %d h"), Labels[i], Model.Build.Hours[i]), 420.0f, Ly, 13.0f, C.Ink, EShiftAlign::Left, true);
+		P.Text(P.Fit(Model.Build.Effects[i], 300.0f, 12.0f), 560.0f, Ly + 1.0f, 12.0f, C.InkDim);
+	}
 	MuteButton(P, C, 1250.0f, 20.0f);
 }
 

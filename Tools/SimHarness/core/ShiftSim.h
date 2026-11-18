@@ -61,6 +61,10 @@ namespace ShiftSim
 		double gateProgress = 0.0;      // filled when result == Gated
 		double gateNeeded = 0.0;
 		int touched = 0;                // Rally: how many voters got the conviction boost
+		bool parried = false;           // Reinforced: the reinforcement cancelled an announced attack (Params::ParryOnReinforce) ...
+		int parriedWho = -1;            // ... by this entry
+		double parriedLeft = 0.0;       // ... with this much of the ring still to go, of
+		double parriedTotal = 0.0;      // ... this long
 
 		// True when the action was accepted (cost charged, node touched).
 		bool Accepted() const
@@ -96,6 +100,10 @@ namespace ShiftSim
 		int flipped = 0;      // ... and took it
 		int blocked = 0;      // the voter was immune (Rally, a fresh flip) when it landed
 		int fizzled = 0;      // the voter was no longer the player's
+		int shieldBlocked = 0;   // ... of the blocked ones: behind a Rally shield (the rest were fresh flips)
+		int parried = 0;      // cancelled by the player answering the ring (Params::ParryOnReinforce)
+		double postsRally = 0.0;   // Posts the player spent on Rallies
+		double postsParry = 0.0;   // Posts the player spent on reinforcements that parried an attack
 	};
 
 	struct StrikeOutcome
@@ -186,6 +194,10 @@ namespace ShiftSim
 		// Shift the Blame: takes back the last strike and its shadowban (the reverted sockpuppets stay reverted).
 		void ForgiveStrike() { if (Strikes_ > 0) { --Strikes_; } Shadowban_ = 0.0; }
 		void SetNightHeld(bool Held) { NightHeld_ = Held; }
+		// The Mod Eye looks away for this many seconds: night shift and sockpuppet clicks add no Heat (Params::EyeAwayHeatMult), held sockpuppet votes add
+		// Params::EyeAwayHeldMult of theirs, and a sweep that passes finds nobody suspicious. Scheduled by FShiftRun; the sim only counts it down.
+		void SetEyeAway(double Seconds) { EyeAway_ = Seconds > 0.0 ? Seconds : 0.0; }
+		double EyeAwayRemaining() const { return EyeAway_; }
 
 		// ---- behaviour-layer hooks (no costs, no checks) ----------------------------------
 		// Adds Delta conviction to every node owned by Who (clamped to 0..1). Returns node count.
@@ -259,7 +271,7 @@ namespace ShiftSim
 		double SockBoughtWeight() const;                                                // V of the sockpuppet votes the player holds, flagged or backed (what a strike takes)
 		// The Mod Eye strikes when this is true as it passes: Heat above the red zone, or more than Params::SockTolerance of all vote weight bought with sockpuppets.
 		bool OverTolerance() const;
-		bool Suspicious() const { return InRedZone() || OverTolerance(); }
+		bool Suspicious() const { return EyeAway_ <= 0.0 && (InRedZone() || OverTolerance()); }
 		double AuditWeight() const;                                                     // V of the sockpuppet votes the final audit will purge (flagged, or bought in the last SockReview seconds)
 
 		// ---- gates ---------------------------------------------------------------------
@@ -330,6 +342,7 @@ namespace ShiftSim
 		double Heat_ = 0.0;
 		double Shadowban_ = 0.0;
 		double RallyCooldown_ = 0.0;
+		double EyeAway_ = 0.0;
 		int Strikes_ = 0;
 		bool NightHeld_ = false;
 

@@ -76,6 +76,13 @@ namespace
 		{ TEXT("XIdle"), 0.0, 1.0, true, false },
 		{ TEXT("XReinforceBelow"), 2.0, 12.0, false, true },
 		{ TEXT("XPlugMinV"), 10.0, 60.0, false, true },
+		{ TEXT("XParry"), 0.0, 1.0, true, false },
+		{ TEXT("XValueFirst"), 0.0, 1.0, true, false },
+		{ TEXT("XKeepRally"), 0.0, 1.0, true, false },
+		{ TEXT("XWindow"), 0.0, 1.0, true, false },
+		{ TEXT("XWindowBank"), 4.0, 12.0, false, false },
+		{ TEXT("ReactRallyThreats"), 1.0, 3.0, false, false },
+		{ TEXT("ReactRallyValue"), 100.0, 600.0, false, false },
 		{ TEXT("XSockMinV"), 20.0, 300.0, false, true },
 		{ TEXT("XSockShare"), 0.01, 0.12, false, true },
 		{ TEXT("ReactDelay"), 0.3, 1.0, false, false },
@@ -295,6 +302,17 @@ int32 UShiftExploreCommandlet::Main(const FString& Params)
 		Consider(TEXT("preset:finisher"), ExplorePreset(false, false, false, true, false));
 		Consider(TEXT("preset:late"), ExplorePreset(false, false, false, true, true));
 		Consider(TEXT("preset:everything"), ExplorePreset(true, true, true, true, false));
+		{
+			FExploreConfig Castle = ExplorePreset(false, true, false, false, false);
+			Castle.Add(TEXT("XValueFirst"), 1.0);
+			Castle.Add(TEXT("XKeepRally"), 1.0);
+			Consider(TEXT("preset:castle"), Castle);
+			FExploreConfig ParryOnly = ExplorePreset(true, false, false, false, false);
+			Consider(TEXT("preset:parry-only"), ParryOnly);
+			FExploreConfig RallyOnly = ExplorePreset(true, true, false, false, false);
+			RallyOnly.Add(TEXT("XParry"), 0.0);
+			Consider(TEXT("preset:rally-only"), RallyOnly);
+		}
 		for (int32 I = 0; I < Samples; ++I)
 		{
 			Consider(TEXT("random"), ExploreRandomConfig(Rng));

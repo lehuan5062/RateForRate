@@ -25,6 +25,11 @@ namespace ShiftSim
 		double RivalBandThreshold = 0.15;
 		double MegaDays = 3.0;               // last N days: Mega Campaign
 		double MegaConvBoost = 0.3;          // +conviction on all rival nodes at Mega start
+		double EyeAwayCount = 0.0;           // scheduled "the Mod Eye looks away" windows per run (0 = none)
+		double EyeAwaySeconds = 9.0;         // length of one window
+		double EyeAwayEndMargin = 25.0;      // the last window ends at least this long before the jam does (past SockReview, so a burst cannot hide in it)
+		double EyeAwayWarn = 5.0;            // seconds of notice before a window starts
+		double FinalPushRegen = 1.25;        // the player's Post refill multiplier in the rival's final push (the last MegaDays days), 1 = off
 		double MegaAttackMult = 2.0;         // actions per rival tick during Mega
 		// stand-in others
 		double OthersInterval = 10.0;        // each other entry acts this often
@@ -38,7 +43,9 @@ namespace ShiftSim
 		double SockWindup = 0.5;             // seconds the bot holds night before the sock click
 		double ReactDelay = 0.6;             // reactor / explorer: seconds a human needs to notice an announced attack before answering it
 		double ReactReserve = 1.0;           // reactor / explorer: Posts held back for answering attacks (a human keeps one spare); plugs only start above 1 + this
-		double ReactMinValue = 400.0;        // ... and the least vote weight (the voter plus half its player-held neighbours') worth answering: hubs and celebrities
+		double ReactMinValue = 100.0;        // ... and the least vote weight (the voter plus half its player-held neighbours') worth answering at all
+		double ReactRallyThreats = 2.0;      // ... a Rally is worth its Posts when this many rings close in on the cluster ...
+		double ReactRallyValue = 400.0;      // ... or when the cluster is worth this much (hubs and celebrities)
 		double XReact = 1.0;                 // explorer: answer announced attacks (reinforce, or Rally)
 		double XRally = 1.0;                 // explorer: a Rally is an allowed answer
 		double XSock = 0.0;                  // explorer: sockpuppets on gated hubs while Heat <= SockMaxHeat (the greedy+sock habit)
@@ -47,7 +54,12 @@ namespace ShiftSim
 		double XReinforceBelow = 0.0;        // explorer: reinforce own voters that would flip back within this many seconds (0 = never)
 		double XSockMinV = 0.0;              // explorer: only sockpuppet voters worth at least this much vote weight
 		double XSockShare = 1.0;             // explorer: a share of all vote weight the explorer keeps its sockpuppet votes under (on top of the Mod Eye's tolerance)
-		double XPlugMinV = 0.0;              // explorer: only plug voters worth at least this much
+		double XPlugMinV = 0.0;
+		double XWindow = 0.0;                // explorer: sockpuppet the heaviest voter while the Mod Eye looks away (and only then)
+		double XWindowBank = 8.0;            // ... and keep the Posts for it: no plugs when a window starts within this many seconds
+		double XParry = 1.0;                 // explorer: reinforcing is an allowed answer to an announced attack (0 = Rally only)
+		double XValueFirst = 0.0;            // explorer: plug the most valuable reachable voter first instead of the best value per Plug (the tester's snowball)
+		double XKeepRally = 0.0;             // explorer: keep the player's biggest voter under a Rally shield (recast when it runs under 1.5 s)              // explorer: only plug voters worth at least this much
 		double RallyMinRisk = 400.0;         // rally bot: a Rally is worth it when this much vote weight in the cluster is about to flip back
 		double LateSeconds = 12.0;           // finisher / late bots: length of the final sockpuppet burst, in seconds before the end
 	};
@@ -356,7 +368,7 @@ namespace ShiftSim
 		BotKind Kind() const { return Kind_; }
 
 		// NextSweep: sim time of the next Mod Eye sweep. The Eye's countdown is on the HUD, so a human player knows it too; 1e30 when there is none.
-		void Update(Sim& S, const PolicyParams& PP, double NextSweep = 1.0e30)
+		void Update(Sim& S, const PolicyParams& PP, double NextSweep = 1.0e30, double NextWindow = 1.0e30)
 		{
 			if (Kind_ == BotKind::Idle)
 			{
@@ -369,7 +381,7 @@ namespace ShiftSim
 			}
 			if (Kind_ == BotKind::Reactor || Kind_ == BotKind::Explorer)
 			{
-				UpdateAdvanced(S, PP, NextSweep);
+				UpdateAdvanced(S, PP, NextSweep, NextWindow);
 				return;
 			}
 			const double Now = S.Time();
@@ -499,6 +511,11 @@ namespace ShiftSim
 			double ReinforceBelow = 0.0;
 			double SockMinV = 0.0;
 			double SockShare = 1.0;
+			bool Parry = true;
+			bool Window = false;
+			double WindowBank = 8.0;
+			bool ValueFirst = false;
+			bool KeepRally = false;
 		};
 
 		static BotStyle StyleFor(BotKind K, const PolicyParams& PP)
@@ -519,12 +536,17 @@ namespace ShiftSim
 				B.ReinforceBelow = PP.XReinforceBelow;
 				B.SockMinV = PP.XSockMinV;
 				B.SockShare = PP.XSockShare;
+				B.Parry = PP.XParry > 0.5;
+				B.Window = PP.XWindow > 0.5;
+				B.WindowBank = PP.XWindowBank;
+				B.ValueFirst = PP.XValueFirst > 0.5;
+				B.KeepRally = PP.XKeepRally > 0.5;
 			}
 			return B;
 		}
 
 		// The reactor and the explorer: the other bots' habits as switches, plus answers to announced attacks.
-		void UpdateAdvanced(Sim& S, const PolicyParams& PP, double NextSweep)
+		void UpdateAdvanced(Sim& S, const PolicyParams& PP, double NextSweep, double NextWindow)
 		{
 			const BotStyle B = StyleFor(Kind_, PP);
 			const double Now = S.Time();
@@ -545,7 +567,7 @@ namespace ShiftSim
 				if (Now + 1.0e-9 >= WindupEnd_)
 				{
 					int Node = -1;
-					if (bFinale ? FindBurstTarget(S, &Node, B.SockShare) : FindGatedHub(S, &Node, B.SockMinV, B.SockShare))
+					if ((bFinale || bWindowSock_) ? FindBurstTarget(S, &Node, B.SockShare) : FindGatedHub(S, &Node, B.SockMinV, B.SockShare))
 					{
 						LastOutcome = S.Sock(Node);
 						++Actions;
@@ -586,6 +608,31 @@ namespace ShiftSim
 			}
 			Next_ = Now + PP.BotInterval;
 
+			if (B.Window)
+			{
+				const Params& P = S.GetParams();
+				// The Mod Eye looks away: sockpuppet the heaviest voter while it does, and save the Posts for it beforehand.
+				if (S.EyeAwayRemaining() > 0.0)
+				{
+					int Target = -1;
+					if (S.Posts() >= 1.0 + (P.SockLaunderConv <= 1.0 ? ReinforcesToLaunder(P) : 0) && FindBurstTarget(S, &Target, B.SockShare))
+					{
+						Winding_ = true;
+						bWindowSock_ = true;
+						WindupEnd_ = Now + PP.SockWindup;
+						S.SetNightHeld(true);
+						return;
+					}
+				}
+				else if (NextWindow - Now > 0.0 && NextWindow - Now <= B.WindowBank && S.Posts() < P.PostsMax - 1.0e-9)
+				{
+					return;
+				}
+			}
+			if (B.KeepRally && KeepRally(S))
+			{
+				return;
+			}
 			if (B.React && React(S, PP, B))
 			{
 				return;
@@ -605,6 +652,7 @@ namespace ShiftSim
 				if (FindGatedHub(S, &Node, B.SockMinV, B.SockShare))
 				{
 					Winding_ = true;
+					bWindowSock_ = false;
 					WindupEnd_ = Now + PP.SockWindup;
 					S.SetNightHeld(true);
 					return;
@@ -617,15 +665,61 @@ namespace ShiftSim
 			TargetFilter F;
 			F.minV = PP.XPlugMinV;
 			Target Tgt;
-			if (S.BestTarget(kPlayerId, F, &Tgt))
+			bool bHave = false;
+			if (B.ValueFirst)
+			{
+				std::vector<Target> All;
+				S.CollectTargets(kPlayerId, F, &All);
+				for (const Target& C : All)
+				{
+					if (!bHave || C.value > Tgt.value)
+					{
+						Tgt = C;
+						bHave = true;
+					}
+				}
+			}
+			else
+			{
+				bHave = S.BestTarget(kPlayerId, F, &Tgt);
+			}
+			if (bHave)
 			{
 				LastOutcome = S.Plug(kPlayerId, Tgt.node, 1.0);
 				++Actions;
 			}
 		}
 
-		// Answer the most valuable announced attack that has been on screen for ReactDelay: a Rally when it is ready and affordable, else a reinforcement if that makes
-		// the plug fail. Returns true when it acted (or when the Posts must be kept for the Rally).
+		// The castle: keep the heaviest voter of the player's under a Rally shield, recasting as soon as the shield runs low.
+		bool KeepRally(Sim& S)
+		{
+			if (S.RallyCooldownRemaining() > 0.0 || S.Posts() < S.GetParams().RallyCost)
+			{
+				return false;
+			}
+			int Best = -1;
+			double BestWeight = 0.0;
+			for (int I = 0; I < S.NodeCount(); ++I)
+			{
+				const double W = S.GetGraph().nodes[static_cast<size_t>(I)].weight;
+				if (S.Opinion(I) == kPlayerId && (Best < 0 || W > BestWeight))
+				{
+					Best = I;
+					BestWeight = W;
+				}
+			}
+			if (Best < 0 || S.ShieldRemaining(Best) >= 1.5)
+			{
+				return false;
+			}
+			LastOutcome = S.Rally(Best);
+			++Actions;
+			return true;
+		}
+
+		// Answer the most valuable announced attack that has been on screen for ReactDelay and would flip its voter. A Rally when it is ready, affordable and worth it
+		// (ReactRallyThreats or more rings on the cluster, or a cluster worth ReactRallyValue; always when there is no other answer), else a parry: reinforcing the ringed voter.
+		// Returns true when it acted.
 		bool React(Sim& S, const PolicyParams& PP, const BotStyle& B)
 		{
 			const Params& P = S.GetParams();
@@ -667,22 +761,28 @@ namespace ShiftSim
 			{
 				return false;   // it only dents the voter: not worth a Post
 			}
+			// the rings on the same cluster: the ringed voter and the player's voters one hop away
+			int Rings = 0;
+			const GraphNode& H = S.GetGraph().nodes[static_cast<size_t>(Best->node)];
+			for (const PendingAttack& A : S.PendingAttacks())
+			{
+				bool bSame = A.node == Best->node;
+				for (size_t K = 0; K < H.follows.size() && !bSame; ++K) { bSame = H.follows[K] == A.node; }
+				for (size_t K = 0; K < H.followers.size() && !bSame; ++K) { bSame = H.followers[K] == A.node; }
+				Rings += (bSame && S.Opinion(A.node) == kPlayerId) ? 1 : 0;
+			}
+			const bool bRallyWorth = B.Rally && (!B.Parry || Rings >= static_cast<int>(PP.ReactRallyThreats + 0.5) || BestValue >= PP.ReactRallyValue);
+			if (bRallyWorth && S.RallyCooldownRemaining() <= 0.0 && S.Posts() >= P.RallyCost)
+			{
+				LastOutcome = S.Rally(Best->node);
+				++Actions;
+				return true;
+			}
+			const bool bParry = P.ParryOnReinforce > 0.5;
 			const double Reinforced = Conv + P.PlugReinforce > 1.0 ? 1.0 : Conv + P.PlugReinforce;
 			const bool bReinforceSaves = Reinforced - Drain > P.PlugFlipThreshold + 1.0e-9;
-			if (B.Rally && S.RallyCooldownRemaining() <= 0.0)
-			{
-				if (S.Posts() >= P.RallyCost)
-				{
-					LastOutcome = S.Rally(Best->node);
-					++Actions;
-					return true;
-				}
-				if (!bReinforceSaves)
-				{
-					return true;   // only a Rally saves it: keep the Posts
-				}
-			}
-			if (bReinforceSaves && S.Posts() >= 1.0)
+			const double Cost = bParry && P.ParryCost > 1.0 ? P.ParryCost : 1.0;
+			if (B.Parry && (bParry || bReinforceSaves) && S.Posts() >= Cost)
 			{
 				LastOutcome = S.Plug(kPlayerId, Best->node, 1.0);
 				++Actions;
@@ -866,6 +966,7 @@ namespace ShiftSim
 		Rng R_;
 		double Next_ = 0.0;
 		bool Winding_ = false;
+		bool bWindowSock_ = false;   // the sockpuppet being wound up is for a Mod Eye window (any heaviest voter, not only a gated hub)
 		double WindupEnd_ = 0.0;
 		int ReinforceNode_ = -1;    // a fresh sockpuppet flip that is being reinforced until it launders (only when SockLaunderConv <= 1)
 		int ReinforceLeft_ = 0;
@@ -887,9 +988,9 @@ namespace ShiftSim
 			static const Field kFields[] = {
 				SHIFT_PP(RivalDefendBelow), SHIFT_PP(RivalPlayerMult), SHIFT_PP(RivalCapShare), SHIFT_PP(RivalBandBase),
 				SHIFT_PP(RivalBandSlope), SHIFT_PP(RivalBandThreshold), SHIFT_PP(MegaDays), SHIFT_PP(MegaConvBoost),
-				SHIFT_PP(MegaAttackMult), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV), SHIFT_PP(OthersTargetsPlayer),
-				SHIFT_PP(ModFirstSweepMin), SHIFT_PP(BotInterval), SHIFT_PP(SockMaxHeat), SHIFT_PP(SockWindup), SHIFT_PP(LateSeconds), SHIFT_PP(RallyMinRisk), SHIFT_PP(ReactDelay), SHIFT_PP(ReactReserve), SHIFT_PP(ReactMinValue), SHIFT_PP(XReact), SHIFT_PP(XRally), SHIFT_PP(XSock), SHIFT_PP(XBurst),
-				SHIFT_PP(XIdle), SHIFT_PP(XReinforceBelow), SHIFT_PP(XPlugMinV), SHIFT_PP(XSockMinV), SHIFT_PP(XSockShare),
+				SHIFT_PP(MegaAttackMult), SHIFT_PP(FinalPushRegen), SHIFT_PP(EyeAwayCount), SHIFT_PP(EyeAwaySeconds), SHIFT_PP(EyeAwayEndMargin), SHIFT_PP(EyeAwayWarn), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV), SHIFT_PP(OthersTargetsPlayer),
+				SHIFT_PP(ModFirstSweepMin), SHIFT_PP(BotInterval), SHIFT_PP(SockMaxHeat), SHIFT_PP(SockWindup), SHIFT_PP(LateSeconds), SHIFT_PP(RallyMinRisk), SHIFT_PP(ReactDelay), SHIFT_PP(ReactReserve), SHIFT_PP(ReactMinValue), SHIFT_PP(ReactRallyThreats), SHIFT_PP(ReactRallyValue), SHIFT_PP(XReact), SHIFT_PP(XRally), SHIFT_PP(XSock), SHIFT_PP(XBurst),
+				SHIFT_PP(XIdle), SHIFT_PP(XReinforceBelow), SHIFT_PP(XPlugMinV), SHIFT_PP(XSockMinV), SHIFT_PP(XSockShare), SHIFT_PP(XParry), SHIFT_PP(XWindow), SHIFT_PP(XWindowBank), SHIFT_PP(XValueFirst), SHIFT_PP(XKeepRally),
 			};
 			*Count = static_cast<int>(sizeof(kFields) / sizeof(kFields[0]));
 			return kFields;

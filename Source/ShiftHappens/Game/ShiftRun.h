@@ -38,6 +38,12 @@ enum class EShiftEventType : uint8
 	PlayerLostVoter,     // a voter the player held went to someone else (not a strike revert): Node, NewOwner, Value = cause (0 opinion pressure, 1 the rival, 2 another entry)
 	FinalAudit,          // the end-of-jam audit purged sockpuppet votes: Count = how many, Value = their share of all vote weight
 	Finished,
+	// appended in round 4 so the numbering of the earlier events stays
+	FinalPushStart,      // the rival's final push begins: Value = seconds left, Share = the player's extra Post refill (0..1)
+	PlayerParried,       // the player answered an announced attack: Node, PrevOwner = the attacker, Value = the share of the ring that was left (0..1)
+	EyeAwayWarn,         // a Mod Eye window is coming: Value = seconds until it starts
+	EyeAwayStart,        // the Mod Eye looks away: Value = how long
+	EyeAwayEnd,          // the Mod Eye is back
 };
 
 struct FShiftEvent
@@ -146,11 +152,16 @@ public:
 	bool ModsEnabled() const { return bModsEnabled; }
 	/** Sim time of the next Mod Eye sweep (seconds). */
 	double NextModSweep() const { return NextSweep; }
+	/** Sim time the next Mod Eye window starts (1e30 while one is on or none is left). */
+	double NextEyeWindowStart() const { return (bEyeActive || !EyeWindowStart.IsValidIndex(EyeWindowNext)) ? 1.0e30 : EyeWindowStart[EyeWindowNext]; }
+	/** True from the notice (EyeAwayWarn seconds ahead) until the window is over. */
+	bool EyeWindowAnnounced() const { return bEyeWarned || bEyeActive; }
 
 	const FShiftFlipStats& GetFlipStats() const { return FlipStats; }
 
 private:
 	void StepOnce();
+	void UpdateEyeWindows();
 	void TrackOwnership();
 	void ModUpdate();
 	void ApplyModStrike();
@@ -199,4 +210,12 @@ private:
 	TArray<int32> RevertedNow;      // nodes a strike reverted during the current step
 	TArray<int32> PurgedNow;        // nodes the final audit purged during the current step
 	bool bAuditDone = false;
+	bool bFinalPushAnnounced = false;
+
+	// the Mod Eye looks away (round 4): windows scheduled at Start with their own RNG, announced ahead
+	TArray<double> EyeWindowStart;
+	int32 EyeWindowNext = 0;
+	bool bEyeWarned = false;
+	bool bEyeActive = false;
+	double EyeWindowEnd = 0.0;
 };

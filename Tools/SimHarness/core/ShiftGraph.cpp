@@ -86,7 +86,7 @@ namespace ShiftSim
 			Rng R(Rng::Derive(Seed, 3u));
 			const double W = P.LayoutWidth;
 			const double H = P.LayoutHeight;
-			const double Cx = W * 0.5;
+			const double Cx = 0.5 * (P.LayoutMargin + (W - P.LayoutMarginRight));   // the middle of the part of the board the HUD leaves free
 			const double Cy = H * 0.5;
 			const double Pi = 3.14159265358979323846;
 			const int Count = static_cast<int>(G.communityNodes.size());
@@ -225,7 +225,7 @@ namespace ShiftSim
 				}
 				for (size_t a = 0; a < Total; ++a)
 				{
-					Px[a] = ClampRange(Px[a], P.LayoutMargin, W - P.LayoutMargin);
+					Px[a] = ClampRange(Px[a], P.LayoutMargin, W - P.LayoutMarginRight);
 					Py[a] = ClampRange(Py[a], P.LayoutMargin, H - P.LayoutMargin);
 				}
 			}

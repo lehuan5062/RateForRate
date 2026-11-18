@@ -331,8 +331,8 @@ summary.append(("Achievements.csv", len(A)))
 # ----------------------------------------------------------------------------- Tutorial
 T = load("Tutorial.csv", ["Id", "Step", "Trigger", "Text"])
 check_len("Tutorial.csv", T, "Text", 140)
-if not 12 <= len(T) <= 24:
-    err(f"Tutorial.csv: {len(T)} rows (expected about 18)")
+if not 12 <= len(T) <= 30:
+    err(f"Tutorial.csv: {len(T)} rows (expected about 22)")
 steps = []
 for d in T:
     if not d["Step"].isdigit():
@@ -352,7 +352,7 @@ for kw in ["hover", "plug", "gate", "posts", "conviction", "heat", "hold shift",
     if kw not in alltext:
         err(f"Tutorial.csv: no line mentions {kw!r}")
 # numbers that come from the sim tuning (expanded by AShiftPlayerController::ExpandTutorialText when a card is shown)
-TUT_ALLOWED = {"sockheat", "heatrate", "redzone", "strikes", "ban", "launder", "rallycost", "rallyboost", "rallycd", "rallylock", "review"}
+TUT_ALLOWED = {"sockheat", "heatrate", "redzone", "strikes", "ban", "launder", "rallycost", "rallyboost", "rallycd", "rallylock", "review", "eyeaway", "fakelimit", "pushpct"}
 check_placeholders("Tutorial.csv", T, "Text", lambda d: TUT_ALLOWED)
 check_dups("Tutorial.csv", T, "Text")
 summary.append(("Tutorial.csv", len(T)))

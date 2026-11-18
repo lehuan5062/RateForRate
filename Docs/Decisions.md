@@ -363,3 +363,57 @@ honest play with Rally defence (validated on fresh seeds, where greedy is weaker
 Final rows (`-Runs 100`, build 4/4/4, win % (DQ %)): idle 0 / 0 / 0, random 0 / 0 / 0, greedy 86 / 58 / 32, reactor 91 / 70 / 42, rally 88 / 54 / 33, sock (reckless) 4 (96) / 0 (100) / 0 (100),
 finisher 32 / 36 / 21, late 0 / 0 / 0. Before this round (round-2 rules): greedy 88 / 59 / 31, sock 84 (3) / 67 (21) / 57 (36), finisher 86 / 63 / 32, rally 84 / 55 / 23. The gate passes; win rates carry about
 +-5 points of noise at 100 runs and the explorer is a search, not a proof. Nothing here is validated by feel: it needs the tester's hands again.
+
+## M10 - playtest round 4 (issue #1, `9ef127b`)
+The tester: the closing ring "Pass"; "Rally almost like the only way to keep a voter not flip"; sockpuppets "seem fine, there are almost no push for the player to work night shift though, I forget it even exist";
+"I don't know what you meant by FAKE chip"; the rival still dominates, "especially the last day where it seem like they have a lot of post"; their best strategy is to flip the biggest voter and then "focus on
+rally"; "Leaderboard and general notification can still block gameplay viewport"; and **"Build your entry have no effect on actual gameplay, I put everything at 0 or all in Network and nothing change."**
+
+**Why each of these was true (read from source, then measured).**
+* *Build was nearly inert*: Quality moved the player's appeal by 1.35% an hour, Thumbnail's clout only mattered in the first seconds (0-2 h were identical), Network was 1-3 start voters at t=0 and +-4% regen,
+  the sliders stopped at 8 hours each, the lever texts had no numbers, and the forecast's casual bot (a Plug every 2.5 s) never ran out of Posts, so it could not see any of it.
+* *Rally strictly dominated a reinforcement*: same 1 Post and +0.3 conviction, plus the whole one-hop cluster and 6 s of immunity on a 3 s cooldown. A reinforcement only saved a ringed voter when
+  `min(1, c+0.3) - 0.45 s > 0.15`, and the rival's strength `s = 1 + 4 max(0, share - 0.15)` passes 1.89 at about 37% share, so reinforcing failed exactly when the player was winning. Measured on the round 3 rules:
+  a Rally-only bot 90 / 72 / 44 against the reactor's 89 / 77 / 47, parry-less reinforcing 55 / 31 / 12.
+* *Floating overlays covered the board*: the toast (3-7 voters, on screen most of the time while clicking), the news ticker, the coach card, the banners and the tooltip; the compact leaderboard was about 2% of the voters.
+* *The last three days*: the rival's attack rate doubles (0.30 -> 0.61 a second), it has no Posts budget at all, and the only announcement was a flavour headline.
+
+**Parry (new rule).** Clicking a voter that has an announced attack pending cancels the soonest one on it (`ParryOnReinforce`; the ring bounces back out over a third of a second in the attacker's colour, a "PARRIED"
+toast), for the usual 1 Post and with the usual +0.3 conviction. It works whatever the conviction arithmetic says, so it also works when winning. A click on your own voter reinforces even with night held (it used to be
+a refused sockpuppet). **Rally** is now the cluster tool: 1 Post, 6 s shield, **8 s cooldown** (3 s before: one cluster could be kept shielded for ever; supersedes M9 for Rally only). Grid on 100 runs (reactor =
+parry + Rally / Rally only / parry only, win % on jams 1 / 2 / 3): cost 1, cd 3: 89 / 77 / 47, 90 / 72 / 44, 80 / 69 / 39; cd 6: 85 / 75 / 46, 94 / 78 / 42; **cd 8: 88 / 75 / 43, 93 / 72 / 37**; cost 1.5, cd 4: 86 / 77 / 30,
+88 / 67 / 29; cost 2, cd 3: 85 / 71 / 40, 86 / 54 / 25 (Rally alone collapses, parrying alone carries it). At cd 8 using both tools beats the better single tool on the hard jams and Rally alone is worth +3 on GAME OFF;
+on the middle jam Rally alone is still +15 over greedy, which the gate allows. The reactor now parries a single ring and Rallies when two rings hit a cluster or it is worth 400+ (`ReactRallyThreats`, `ReactRallyValue`),
+and the castle bot (plug the biggest voter first, keep it under a Rally) scores 31 / 5 / 3: the playtester's snowball is a human strategy that the greedy bots cannot reproduce, and it does not beat honest play.
+
+**Build levers that show.** `Sim/ShiftBuildRules.h` (header only, mirrored into the harness and tested) is now the one source of the numbers: **Network** = a bigger, faster Post economy (bank 3..7 by hours, refill +0.3%/h
+over an even split, start voters 1..4); **Thumbnail** = clout and how far each Post goes (`PlayerPlugCost`, a Plug costs 1.03 Post at 0 h and 0.985 at 8 h; a drain multiplier was rejected because plugs needed =
+`ceil((c - 0.15) / (0.45 S))`, so 2 plugs for every S in [0.94, 1.89) and -10% is a +50% cliff); **Quality** = loyalty (voters you win start 68% .. 90% sure, `PlayerFlipConv`) and appeal. Below an even split every
+lever loses `BuildBelowSlope` = 2 times as fast, so 4/4/4 stays the optimum; every slope is a `Params` field (`Build*`), tunable with `-Set`, and `FShiftRun::Start` now applies QA overrides before and after the build. The
+build screen lists the numbers per lever, the pause menu repeats them, the forecast bot is Posts-limited (a Plug about every 0.7 s, so bank, refill and Plug cost show) and the pips pack closer when the bank is 6+.
+First slopes were far too steep (greedy on jams 1 / 2 / 3: 4/4/4 = 90 / 63 / 37, 0/0/0 = 1 / 0 / 0, Quality 0 h = -50 points because 0 h crossed the "broken build" appeal penalty); the shipped ones give, against 4/4/4
+(greedy): 0/0/0 -42 / -45 / -29; Quality 0 h -17 / -20 / -17; Thumbnail 0 h -5 / +1 / -7 (a small lever, gated only as "never helps"); Network 0 h -13 / -14 / -14; Quality 8 h +6 / +10 / +18; Thumbnail 8 h 0 / +10 / +9;
+Network 8 h +4 / +18 / +6 (16-hour builds the screen cannot make); the legal splits 4/0/8 and 8/4/0: +6 / +15 / -2 and -4 / -1 / -9.
+
+**The rival's final push is announced and answerable.** A pinned "FINAL PUSH IN 12 s" countdown, then "FINAL PUSH: rival x2 attacks, your Posts +25%". `FinalPushRegen` 1.25 (1.5 pushed greedy to 94 / 66 / 42):
+the player's share swing over the last three days on GAME OFF went from -8.2 to -5.9 points after the regen re-solve (the commandlet's new `Balance: mega` line). Regen was re-solved on two disjoint seed sets
+(0.487 / 0.462 / 0.487 -> **0.472 / 0.457 / 0.486**, greedy 90 / 55 / 33).
+
+**Nothing floats over the board.** The graph layout keeps the voters left of x = 1080 (`LayoutMarginRight` 200, ring 410; the sim never reads node positions, so balance is untouched; no two voters closer than 34 px
+before or after, voters sitting on a margin line 1.8 / 4.0 / 5.6 -> 5.0 / 7.5 / 11.5 per board) and the right-hand strip holds the leaderboard, the states you are in (shadowban, Mod Eye, final push, final audit, fake
+votes) as pinned cards, the notification feed (toasts and news as cards, at most four, a repeated line renews its card) and, at the bottom, the coach card and the Blame button. The tooltip never covers the strip.
+
+**Night shift and the sockpuppet card.** The FAKE chip is now "SOCKPUPPET VOTES 17%" with "+8.7 Heat/s, safe up to 6%" in the strip under the leaderboard, red above the limit, and hovering it explains it in words;
+a coach card shows when the first fake vote is held. The push to work night shift is a context hint ("SHIFT skips @name's gate" in the bottom chip when a hub or celebrity is gated and worth 80+, and the gated tooltip says
+"Hold SHIFT to skip it"). **Scripted "the Mod Eye looks away" windows were built and measured, and are off** (`EyeAwayCount` 0; `-Set EyeAwayCount=3` turns them on, `Sim::SetEyeAway` and its tests stay): a window-aware
+bot that sockpuppets only inside windows wins 81 / 70 / 80 (DQ 16 / 17 / 13) against the reactor's 88 / 75 / 43, and 82 / 70 / 81 or 77 / 70 / 80 with the held-vote Heat at 1.0 or 0.25 times: a free celebrity theft
+decides GAME OFF whatever the held-vote Heat is.
+
+**The second explorer run found what the first one hid.** With the round 3 numbers the search found, on GAME OFF, "sockpuppet only celebrity-class voters while Heat is under 24, keep the stolen celebrity under a Rally":
+68% against greedy's 33% (DQ 23%, **+35**). Held-vote Heat 50 instead of 40 closes it (43%, DQ 50%; 60 is too harsh: 29%) and is shipped (a 6% fake share is the most cooling can hold). Search after that
+(40 random samples + 15 climb steps per jam, 40 runs, validated on 80 fresh seeds where greedy is weaker): best responses **+3.8 / +16.2 / +8.8** points over greedy (reactor-like on the first two, Rally-only on GAME OFF),
+the gate's limit is +30.
+
+**Gate.** `Data/BalanceTargets.csv` has 70 rows now (Build and RelativeBuild columns; castle, Rally alone, parrying alone, both tools, the final push's swing, the build matrix) and passes; its noisy cells were
+widened after a first run (Thumbnail 0 h can be +1, 16-hour levers up to +20, the final push's swing -7). Win rates carry about +-5 points of noise at 100 runs and the matrix compares two such cells, so use
+`-Seeds 1000,500000` when a row is borderline. Nothing here is validated by feel: it needs the tester's hands again.

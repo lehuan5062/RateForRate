@@ -126,6 +126,9 @@ void AShiftBoard::Build(const ShiftSim::Sim& Sim)
 	Flash_.Init(0.0f, N);
 	Hover_.Init(0.0f, N);
 	Pressure_.Init(0.0f, N);
+	Bounce_.Init(0.0f, N);
+	BounceFrom_.Init(0.0f, N);
+	BounceWho_.Init(-1, N);
 	PrevOwner_.SetNum(N);
 	for (int32 i = 0; i < N; ++i)
 	{
@@ -164,6 +167,16 @@ void AShiftBoard::Build(const ShiftSim::Sim& Sim)
 		}
 	}
 	UE_LOG(LogShift, Log, TEXT("Board built: %d nodes, %d edges."), N, Edges_.Num());
+}
+
+void AShiftBoard::BounceNode(int32 Node, int32 Who, float FromFrac)
+{
+	if (Bounce_.IsValidIndex(Node))
+	{
+		Bounce_[Node] = 1.0f;
+		BounceFrom_[Node] = FMath::Clamp(FromFrac, 0.05f, 1.0f);
+		BounceWho_[Node] = Who;
+	}
 }
 
 void AShiftBoard::FlashNode(int32 Node)
@@ -271,6 +284,16 @@ void AShiftBoard::Update(const ShiftSim::Sim& Sim, const FShiftBoardView& View, 
 		else if (Pressure_[i] > 0.05f && Sim.Challenger(i) >= 0)
 		{
 			PushCol = ColorOfOwner(Sim.Challenger(i));
+		}
+		if (Bounce_[i] > 0.0f)
+		{
+			// a parried ring: flung back out to full radius over a third of a second, in the attacker's colour
+			Bounce_[i] = FMath::Max(0.0f, Bounce_[i] - DeltaTime / 0.35f);
+			if (ThreatFrac <= 0.0f)
+			{
+				ThreatFrac = FMath::Lerp(BounceFrom_[i], 1.0f, 1.0f - Bounce_[i]);
+				PushCol = ColorOfOwner(BounceWho_[i]);
+			}
 		}
 		const float Shield01 = static_cast<float>(FMath::Clamp(Sim.ShieldRemaining(i) / FMath::Max(0.1, Sim.GetParams().RallyLock), 0.0, 1.0));
 

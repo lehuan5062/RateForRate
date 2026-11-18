@@ -12,6 +12,7 @@
 #include "runner.h"
 #include "ShiftDetMath.h"
 #include "ShiftSim.h"
+#include "ShiftBuildRules.h"
 
 namespace ShiftSim
 {
@@ -162,7 +163,7 @@ inline void TestGraph(const Config& Cfg)
                     for (size_t Q = K + 1; Q < N.follows.size(); ++Q) { if (N.follows[Q] == T) { NoDup = false; } }
                     for (size_t Q = 0; Q < Tn.follows.size(); ++Q) { if (Tn.follows[Q] == I) { ++Recip; } }
                 }
-                if (N.x < static_cast<float>(Cfg.params.LayoutMargin) - 0.01f || N.x > static_cast<float>(Cfg.params.LayoutWidth - Cfg.params.LayoutMargin) + 0.01f ||
+                if (N.x < static_cast<float>(Cfg.params.LayoutMargin) - 0.01f || N.x > static_cast<float>(Cfg.params.LayoutWidth - Cfg.params.LayoutMarginRight) + 0.01f ||
                     N.y < static_cast<float>(Cfg.params.LayoutMargin) - 0.01f || N.y > static_cast<float>(Cfg.params.LayoutHeight - Cfg.params.LayoutMargin) + 0.01f)
                 {
                     InBox = false;
@@ -971,8 +972,9 @@ inline void TestTelegraph(const Config& Cfg)
         T_CHECK(S.LastFlipper(M) == S.RivalId());
         T_CHECK(S.Attacks().queued == 1 && S.Attacks().landed == 1 && S.Attacks().flipped == 1);
     }
-    // Reinforcing in between changes the outcome: the plug lands but does not flip.
+    // With ParryOnReinforce = 0 (the round 3 rule) reinforcing in between changes the outcome by arithmetic only: the plug lands but does not flip.
     {
+        P.ParryOnReinforce = 0.0;
         Sim S;
         int M = -1;
         MakeSim(S, 602, &M);
@@ -981,7 +983,8 @@ inline void TestTelegraph(const Config& Cfg)
         T_CHECK(S.Plug(kPlayerId, M, 1.0).result == ActionResult::Reinforced);
         for (int I = 0; I < 34; ++I) { S.Step(); }
         T_CHECK(S.Opinion(M) == kPlayerId);
-        T_CHECK(S.Attacks().landed == 1 && S.Attacks().flipped == 0);
+        T_CHECK(S.Attacks().landed == 1 && S.Attacks().flipped == 0 && S.Attacks().parried == 0);
+        P.ParryOnReinforce = 1.0;
     }
     // A Rally makes the voter immune: the attack is blocked.
     {
@@ -1039,6 +1042,324 @@ inline void TestTelegraph(const Config& Cfg)
         T_CHECK(S.LockRemaining(Hub) <= 0.0);
         const ActionResult R = S.Plug(S.RivalId(), Hub, 1.0).result;
         T_CHECK(R != ActionResult::Telegraphed && S.PendingAttacks().empty());
+    }
+}
+
+// ------------------------------------------------------------------------------------------
+inline void TestParry(const Config& Cfg)
+{
+    std::printf("[parry]\n");
+    Params P = Cfg.params;
+    P.AttackTelegraph = 1.5;
+    P.ParryOnReinforce = 1.0;
+    P.ParryCost = 1.0;
+    auto MakeSim = [&](Sim& S, const Params& Pr, uint32_t Seed, int* Out)
+    {
+        S.Init(Cfg.jams[1], Pr, Seed);
+        *Out = FindNode(S, NodeRole::Member);
+        S.SetNodeState(*Out, kPlayerId, 0.5, 0.0);
+        S.SetPosts(5.0);
+    };
+    // A reinforcement cancels the soonest ring on that voter, costs the usual Post, adds the usual conviction and counts as parried.
+    {
+        Sim S;
+        int M = -1;
+        MakeSim(S, P, 611, &M);
+        T_CHECK(S.Plug(S.RivalId(), M, 1.0).result == ActionResult::Telegraphed);
+        for (int I = 0; I < 10; ++I) { S.Step(); }
+        T_CHECK(S.Plug(S.RivalId(), M, 1.0).result == ActionResult::Telegraphed);       // a second ring, announced later
+        const double PostsBefore = S.Posts();
+        const ActionOutcome O = S.Plug(kPlayerId, M, 1.0);
+        T_CHECK(O.result == ActionResult::Reinforced && O.parried && O.parriedWho == S.RivalId());
+        T_CHECK(O.parriedLeft > 0.0 && O.parriedLeft < O.parriedTotal);                  // the older ring: it had run down
+        T_CHECK(S.PendingAttacks().size() == 1);                                         // the soonest one only
+        T_CHECK(Near(S.Posts(), PostsBefore - 1.0) && Near(O.postsSpent, 1.0));
+        T_CHECK(S.Conviction(M) > 0.75);
+        T_CHECK(S.Attacks().parried == 1 && Near(S.Attacks().postsParry, 1.0));
+        for (int I = 0; I < 40; ++I) { S.Step(); }                                      // the second ring still lands later: 0.8 - 0.45 > 0.15, it only dents
+        T_CHECK(S.Opinion(M) == kPlayerId);
+        const AttackCounters& A = S.Attacks();
+        T_CHECK(A.queued == 2 && A.parried == 1 && A.landed == 1);
+        T_CHECK(A.queued == A.landed + A.fizzled + A.blocked + A.parried + static_cast<int>(S.PendingAttacks().size()));
+    }
+    // It works against a strong attack too (the arithmetic alone could not save the voter), and a reinforcement with no ring is plain.
+    {
+        Sim S;
+        int M = -1;
+        MakeSim(S, P, 612, &M);
+        T_CHECK(S.Plug(S.RivalId(), M, 2.8).result == ActionResult::Telegraphed);       // 0.5 - 0.45 * 2.8 flips the voter, and so would 0.8 - 1.26
+        const ActionOutcome O = S.Plug(kPlayerId, M, 1.0);
+        T_CHECK(O.parried);
+        for (int I = 0; I < 40; ++I) { S.Step(); }
+        T_CHECK(S.Opinion(M) == kPlayerId && S.Attacks().flipped == 0);
+        const ActionOutcome Plain = S.Plug(kPlayerId, M, 1.0);
+        T_CHECK(Plain.result == ActionResult::Reinforced && !Plain.parried);
+    }
+    // ParryCost 2: a parrying reinforcement needs two Posts and is refused (free, the ring stays) with less.
+    {
+        Params C = P;
+        C.ParryCost = 2.0;
+        Sim S;
+        int M = -1;
+        MakeSim(S, C, 613, &M);
+        S.SetPosts(1.5);
+        T_CHECK(S.Plug(S.RivalId(), M, 1.0).result == ActionResult::Telegraphed);
+        const ActionOutcome Refused = S.Plug(kPlayerId, M, 1.0);
+        T_CHECK(Refused.result == ActionResult::NoPosts && !Refused.parried);
+        T_CHECK(S.PendingAttacks().size() == 1 && Near(S.Posts(), 1.5) && S.Attacks().parried == 0);
+        S.SetPosts(2.0);
+        const ActionOutcome Done = S.Plug(kPlayerId, M, 1.0);
+        T_CHECK(Done.parried && Near(Done.postsSpent, 2.0) && Near(S.Posts(), 0.0) && Near(S.Attacks().postsParry, 2.0));
+    }
+    // Only the player parries: another entry's own reinforcement of its voter never touches a ring.
+    {
+        Sim S;
+        int M = -1;
+        MakeSim(S, P, 614, &M);
+        T_CHECK(S.Plug(S.RivalId(), M, 1.0).result == ActionResult::Telegraphed);
+        const int Other = FindNode(S, NodeRole::Member, 1) == M ? M + 1 : FindNode(S, NodeRole::Member, 1);
+        S.SetNodeState(Other, S.RivalId(), 0.5, 0.0);
+        T_CHECK(S.Plug(S.RivalId(), Other, 1.0).result == ActionResult::Reinforced);
+        T_CHECK(S.PendingAttacks().size() == 1 && S.Attacks().parried == 0);
+    }
+    // The state hash covers the pending list, so a parry changes it and a replay reproduces it.
+    {
+        Sim A, B;
+        int Ma = -1, Mb = -1;
+        MakeSim(A, P, 615, &Ma);
+        MakeSim(B, P, 615, &Mb);
+        A.Plug(A.RivalId(), Ma, 1.0);
+        B.Plug(B.RivalId(), Mb, 1.0);
+        T_CHECK(A.StateHash() == B.StateHash());
+        A.Plug(kPlayerId, Ma, 1.0);
+        T_CHECK(A.StateHash() != B.StateHash());
+        B.Plug(kPlayerId, Mb, 1.0);
+        for (int I = 0; I < 30; ++I) { A.Step(); B.Step(); }
+        T_CHECK(A.StateHash() == B.StateHash());
+    }
+}
+
+// ------------------------------------------------------------------------------------------
+inline void TestEyeAway(const Config& Cfg)
+{
+    std::printf("[mod eye looks away]\n");
+    Params P = Cfg.params;
+    P.AttackTelegraph = 0.0;
+    P.EyeAwayHeatMult = 0.0;
+    P.EyeAwayHeldMult = 0.5;
+    P.SockHeldHeat = 400.0;
+    P.SockTolerance = 1.0;
+    auto Make = [&](Sim& S, uint32_t Seed)
+    {
+        S.Init(Cfg.jams[1], P, Seed);
+        S.SetPosts(5.0);
+        S.SetHeat(0.0);
+    };
+    // Night shift heats normally, adds nothing during a window, and heats again after it.
+    {
+        Sim S;
+        Make(S, 901);
+        S.SetNightHeld(true);
+        for (int I = 0; I < 20; ++I) { S.Step(); }
+        T_CHECK(S.Heat() > P.HeatNightRate * 0.9);
+        S.SetHeat(0.0);
+        S.SetEyeAway(2.0);
+        T_CHECK(Near(S.EyeAwayRemaining(), 2.0));
+        for (int I = 0; I < 20; ++I) { S.Step(); }
+        T_CHECK(Near(S.Heat(), 0.0));
+        T_CHECK(S.EyeAwayRemaining() > 0.9 && S.EyeAwayRemaining() < 1.1);
+        for (int I = 0; I < 40; ++I) { S.Step(); }
+        T_CHECK(Near(S.EyeAwayRemaining(), 0.0));
+        T_CHECK(S.Heat() > P.HeatNightRate * 0.9);
+    }
+    // A sockpuppet adds no Heat during a window, and a sweep that passes finds nobody suspicious; after the window the old rules are back.
+    {
+        Sim S;
+        Make(S, 902);
+        S.SetNightHeld(true);
+        const int Hub = FindNode(S, NodeRole::LocalHub, 1);
+        S.SetNodeState(Hub, 3, 1.0, 0.0);
+        S.SetHeat(P.HeatRedZone + 10.0);
+        T_CHECK(S.Suspicious());
+        S.SetEyeAway(5.0);
+        T_CHECK(!S.Suspicious());
+        const ActionOutcome O = S.Sock(Hub);
+        T_CHECK(O.result == ActionResult::Flipped && Near(O.heatDelta, 0.0));
+        T_CHECK(Near(S.Heat(), P.HeatRedZone + 10.0));
+        for (int I = 0; I < 110; ++I) { S.Step(); }
+        T_CHECK(Near(S.EyeAwayRemaining(), 0.0));
+        T_CHECK(S.Suspicious() == (S.InRedZone() || S.OverTolerance()));
+        // outside a window a sockpuppet that would reach the Heat cap is refused as before
+        Sim T;
+        Make(T, 903);
+        T.SetNightHeld(true);
+        T.SetNodeState(Hub, 3, 1.0, 0.0);
+        T.SetHeat(P.HeatMax - 1.0);
+        T_CHECK(T.Sock(Hub).result == ActionResult::Overheated);
+        T.SetEyeAway(5.0);
+        T_CHECK(T.Sock(Hub).result == ActionResult::Flipped);
+    }
+    // Held fake votes heat at EyeAwayHeldMult of the usual rate during a window.
+    {
+        auto HeatAfterOneSecond = [&](bool bAway)
+        {
+            Sim S;
+            Make(S, 904);
+            S.SetNightHeld(true);
+            const int Hub = FindNode(S, NodeRole::LocalHub, 1);
+            S.SetNodeState(Hub, 3, 1.0, 0.0);
+            if (bAway) { S.SetEyeAway(5.0); }
+            T_CHECK(S.Sock(Hub).result == ActionResult::Flipped);
+            S.SetNightHeld(false);
+            S.SetHeat(0.0);
+            for (int I = 0; I < 20; ++I) { S.Step(); }
+            return S.Heat();
+        };
+        const double Usual = HeatAfterOneSecond(false);
+        const double Away = HeatAfterOneSecond(true);
+        T_CHECK(Away > 1.0 && Usual > Away + 3.0);
+    }
+    // The window is part of the state hash, and a replay reproduces it.
+    {
+        Sim A, B;
+        Make(A, 905);
+        Make(B, 905);
+        T_CHECK(A.StateHash() == B.StateHash());
+        A.SetEyeAway(3.0);
+        T_CHECK(A.StateHash() != B.StateHash());
+        B.SetEyeAway(3.0);
+        for (int I = 0; I < 80; ++I) { A.Step(); B.Step(); }
+        T_CHECK(A.StateHash() == B.StateHash());
+    }
+}
+
+// ------------------------------------------------------------------------------------------
+inline void TestBuild(const Config& Cfg)
+{
+    std::printf("[build levers]\n");
+    auto Make = [&](int Q, int T, int N, Params* OutP, JamDef* OutJ)
+    {
+        *OutP = Cfg.params;
+        *OutJ = Cfg.jams[1];
+        BuildHours H;
+        H.quality = Q;
+        H.thumbnail = T;
+        H.network = N;
+        ApplyBuild(H, *OutP, *OutJ);
+    };
+    // Neutral at 4 / 4 / 4: nothing changes.
+    {
+        Params P;
+        JamDef J;
+        Make(4, 4, 4, &P, &J);
+        T_CHECK(Near(P.PlayerBuildBonus, Cfg.params.PlayerBuildBonus) && Near(P.PlayerFlipConv, Cfg.params.PlayerFlipConv));
+        T_CHECK(Near(P.PlayerClout, Cfg.params.PlayerClout) && Near(P.PlayerPlugCost, 1.0));
+        T_CHECK(Near(P.PlayerStartNodes, Cfg.params.PlayerStartNodes) && Near(P.PostsMax, Cfg.params.PostsMax) && Near(P.PostsStart, Cfg.params.PostsStart));
+        T_CHECK(Near(J.regen, Cfg.jams[1].regen));
+    }
+    // Every lever moves its numbers the right way as hours go in (0..8), and under an even split it loses faster than it gains over it.
+    {
+        double LastFlip = -1.0, LastBank = -1.0, LastRegen = -1.0, LastStart = -1.0, LastCost = 9.0, LastAppeal = -1.0, LastClout = -1.0;
+        for (int Hrs = 0; Hrs <= 8; ++Hrs)
+        {
+            Params Pq, Pt, Pn;
+            JamDef Jq, Jt, Jn;
+            Make(Hrs, 4, 4, &Pq, &Jq);
+            Make(4, Hrs, 4, &Pt, &Jt);
+            Make(4, 4, Hrs, &Pn, &Jn);
+            const BuildSummary Sq = SummarizeBuild(Pq, Jq), St = SummarizeBuild(Pt, Jt), Sn = SummarizeBuild(Pn, Jn);
+            T_CHECK(Sq.flipConv >= LastFlip - 1.0e-12 && Sq.appeal >= LastAppeal - 1.0e-12);
+            T_CHECK(St.plugCost <= LastCost + 1.0e-12 && St.clout >= LastClout - 1.0e-12);
+            T_CHECK(Sn.postsMax >= LastBank - 1.0e-12 && Sn.postsRegen >= LastRegen - 1.0e-12 && Sn.startNodes >= LastStart - 1.0e-12);
+            LastFlip = Sq.flipConv; LastAppeal = Sq.appeal; LastCost = St.plugCost; LastClout = St.clout; LastBank = Sn.postsMax; LastRegen = Sn.postsRegen; LastStart = Sn.startNodes;
+        }
+        Params P0, P4, P8;
+        JamDef J0, J4, J8;
+        Make(4, 4, 0, &P0, &J0);
+        Make(4, 4, 4, &P4, &J4);
+        Make(4, 4, 8, &P8, &J8);
+        T_CHECK((J4.regen - J0.regen) > (J8.regen - J4.regen) * 1.2);
+    }
+    // The range stays inside what the UI and the sim can show, whatever the split.
+    {
+        const int Splits[][3] = { { 0, 0, 0 }, { 8, 8, 8 }, { 8, 0, 4 }, { 0, 8, 4 }, { 4, 0, 8 }, { 0, 0, 12 }, { 12, 0, 0 }, { 0, 12, 0 } };
+        for (const auto& Sp : Splits)
+        {
+            Params P;
+            JamDef J;
+            Make(Sp[0], Sp[1], Sp[2], &P, &J);
+            const BuildSummary S = SummarizeBuild(P, J);
+            T_CHECK(S.postsMax >= 3.0 && S.postsMax <= 8.0 && S.startNodes >= 1 && S.startNodes <= 4);
+            T_CHECK(S.plugCost >= 0.5 && S.plugCost <= 1.5 && S.flipConv >= 0.5 && S.flipConv <= 0.98 && S.postsRegen > 0.0 && S.clout >= 0.0);
+            Sim Run;
+            T_CHECK(Run.Init(J, P, 951));                                                      // a build of any split starts a valid run
+            T_CHECK(Near(Run.Posts(), P.PostsMax));                                            // with a full bank
+        }
+    }
+    // The Plug cost of the Thumbnail lever: a Plug on a foreign voter costs PlayerPlugCost Posts, a reinforcement costs one, and with fewer Posts than the cost a Plug is refused (free).
+    {
+        Params P = Cfg.params;
+        P.PlayerPlugCost = 0.9;
+        P.AttackTelegraph = 0.0;
+        Sim S;
+        S.Init(Cfg.jams[1], P, 952);
+        const int M = FindNode(S, NodeRole::Member);
+        S.SetNodeState(M, 3, 0.9, 0.0);
+        S.SetPosts(0.85);
+        T_CHECK(S.Plug(kPlayerId, M, 1.0).result == ActionResult::NoPosts && Near(S.Posts(), 0.85));
+        S.SetPosts(2.0);
+        const ActionOutcome O = S.Plug(kPlayerId, M, 1.0);
+        T_CHECK(O.Accepted() && Near(O.postsSpent, 0.9) && Near(S.Posts(), 1.1));
+        S.SetNodeState(M, kPlayerId, 0.5, 0.0);
+        S.SetPosts(2.0);
+        T_CHECK(S.Plug(kPlayerId, M, 1.0).result == ActionResult::Reinforced && Near(S.Posts(), 1.0));
+    }
+}
+
+// ------------------------------------------------------------------------------------------
+inline void TestLayout(const Config& Cfg)
+{
+    std::printf("[layout: the HUD gutter]\n");
+    // The voters keep left of LayoutWidth - LayoutMarginRight (the HUD's right gutter), and squeezing them there does not crowd the board much more than the old full-width layout did.
+    // The graph itself does not depend on the layout (it has its own random stream), so the same seed gives the same network in both.
+    const int Seeds = 24;
+    for (int J = 0; J < 3; ++J)
+    {
+        double PairsNew = 0.0, PairsOld = 0.0, PinnedNew = 0.0, PinnedOld = 0.0;
+        for (int Sd = 0; Sd < Seeds; ++Sd)
+        {
+            Params Pn = Cfg.params;
+            Params Po = Cfg.params;
+            Po.LayoutMarginRight = Po.LayoutMargin;
+            Po.LayoutRingX = 480.0;
+            Sim A, B;
+            A.Init(Cfg.jams[J], Pn, 7000u + static_cast<uint32_t>(Sd));
+            B.Init(Cfg.jams[J], Po, 7000u + static_cast<uint32_t>(Sd));
+            T_CHECK(A.NodeCount() == B.NodeCount());
+            auto Count = [](const Sim& S, const Params& P, double* Pairs, double* Pinned)
+            {
+                const std::vector<GraphNode>& N = S.GetGraph().nodes;
+                for (size_t a = 0; a < N.size(); ++a)
+                {
+                    for (size_t b = a + 1; b < N.size(); ++b)
+                    {
+                        const double Dx = N[a].x - N[b].x;
+                        const double Dy = N[a].y - N[b].y;
+                        *Pairs += (Dx * Dx + Dy * Dy < 34.0 * 34.0) ? 1.0 : 0.0;
+                    }
+                    const bool bPinned = N[a].x <= P.LayoutMargin + 0.5 || N[a].x >= P.LayoutWidth - P.LayoutMarginRight - 0.5 || N[a].y <= P.LayoutMargin + 0.5 || N[a].y >= P.LayoutHeight - P.LayoutMargin - 0.5;
+                    *Pinned += bPinned ? 1.0 : 0.0;
+                }
+            };
+            Count(A, Pn, &PairsNew, &PinnedNew);
+            Count(B, Po, &PairsOld, &PinnedOld);
+            double MaxX = 0.0;
+            for (const GraphNode& N : A.GetGraph().nodes) { MaxX = N.x > MaxX ? N.x : MaxX; }
+            T_CHECK(MaxX <= Pn.LayoutWidth - Pn.LayoutMarginRight + 0.01);
+        }
+        std::printf("  jam %d: voters closer than 34 px %.2f a board (was %.2f), pinned to a margin %.1f (was %.1f)\n", J + 1, PairsNew / Seeds, PairsOld / Seeds, PinnedNew / Seeds, PinnedOld / Seeds);
+        T_CHECK(PairsNew / Seeds <= PairsOld / Seeds + 1.5);
+        T_CHECK(PinnedNew / Seeds <= PinnedOld / Seeds + 8.0);   // some voters sit on the margin line, but none overlaps another (see above)
     }
 }
 
@@ -1374,6 +1695,10 @@ inline void RunAll(const Config& Cfg)
     TestOverheatAndAudit(Legacy);
     TestRallyAndAttribution(Legacy);
     TestTelegraph(Cfg);
+    TestParry(Cfg);
+    TestEyeAway(Cfg);
+    TestBuild(Cfg);
+    TestLayout(Cfg);
     TestSockReview(Cfg);
     TestTolerance(Cfg);
     TestEconomy(Legacy);

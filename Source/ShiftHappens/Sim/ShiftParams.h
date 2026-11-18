@@ -41,7 +41,8 @@ namespace ShiftSim
 		double LayoutWidth = 1280.0;
 		double LayoutHeight = 720.0;
 		double LayoutMargin = 56.0;
-		double LayoutRingX = 480.0;             // community centres sit on this ellipse
+		double LayoutMarginRight = 200.0;       // voters keep this far from the right edge: the HUD's gutter (leaderboard, states, feed) lives there
+		double LayoutRingX = 410.0;             // community centres sit on this ellipse
 		double LayoutRingY = 250.0;
 		double LayoutMinDist = 40.0;            // minimum node spacing the layout aims for
 		double LayoutCelebRadius = 110.0;       // celebrities cluster this far from the centre
@@ -62,6 +63,16 @@ namespace ShiftSim
 		double RivalFollowerConvMin = 0.5;
 		double RivalFollowerConvMax = 0.9;
 		double PlayerStartNodes = 2.0;
+		double PlayerPlugCost = 1.0;            // Posts a Plug on a foreign voter costs the player (the Thumbnail lever: a better thumbnail makes every Post go further)
+		// The build levers (Sim/ShiftBuildRules.h): per hour over an even 4/4/4 split; under it a lever loses BuildBelowSlope times as fast.
+		double BuildBelowSlope = 2.0;
+		double BuildQualityPerHour = 0.225;      // Quality: quality points (PlayerBuildBonus)
+		double BuildFlipConvPerHour = 0.015;    // Quality: conviction of a voter the player wins (PlayerFlipConv)
+		double BuildCloutPerHour = 0.5;         // Thumbnail: clout, relative per hour (the first look of undecided voters)
+		double BuildPlugCostPerHour = 0.00375;   // Thumbnail: PlayerPlugCost drops by this per hour
+		double BuildStartNodesPerHour = 0.5;    // Network: start voters
+		double BuildBankPerHour = 0.5;          // Network: the Post bank (PostsMax)
+		double BuildRegenPerHour = 0.003;     // Network: Post refill, relative per hour
 		double PlayerStartConv = 0.6;
 		double PlayerStartMaxFollowers = 1.0;   // player starts on low-degree nodes
 
@@ -104,14 +115,18 @@ namespace ShiftSim
 		double SockRequiresNight = 1.0;         // 1: Sock refused unless the night-held flag is set
 		double SockLaunderConv = 0.9;           // a sockpuppet flip becomes a real vote once its conviction reaches this: three Posts of reinforcing (0.25 + 3 x 0.3) in its 3 s immunity (>1 = off, strikes and the audit always revert)
 		double SockOverheatRefuse = 1.0;        // 1: a sockpuppet that would take Heat to the cap is refused (Overheated, costs nothing) instead of striking at once
-		double SockHeldHeat = 40.0;             // Heat per second per 100% of all vote weight held in sockpuppet votes, flagged or backed: holding fake votes keeps you warm (0 = off); cooling is 3 a second, so a 7.5% fake share is the most Heat can hold steady
+		double EyeAwayHeatMult = 0.0;           // while the Mod Eye looks away (Sim::SetEyeAway): the Heat that night shift and a sockpuppet click add is multiplied by this ...
+		double EyeAwayHeldMult = 0.5;           // ... and the Heat that held sockpuppet votes add by this
+		double SockHeldHeat = 50.0;             // Heat per second per 100% of all vote weight held in sockpuppet votes, flagged or backed: holding fake votes keeps you warm (0 = off); cooling is 3 a second, so a 6% fake share is the most Heat can hold steady
 		double SockTolerance = 1.0;             // share of all vote weight the player may hold in sockpuppet votes (flagged or backed) when the Mod Eye passes; above it the sweep strikes (>= 1 = off, the default: SockHeldHeat does the job)
 		double SockReview = 15.0;               // seconds: the final audit also purges sockpuppet votes bought in the last this-many seconds of the jam, backed or not (0 = only the ones still flagged)
 		double FinalAudit = 1.0;                // 1: at the end of the jam the Mod Eye purges every sockpuppet vote that is still flagged (Sim::RevertSockpuppets)
 		double RallyCost = 1.0;                 // Posts a Rally costs (right-click on a voter the player holds)
 		double RallyBoost = 0.3;                // conviction a Rally adds to that voter and to every voter of the player's one hop away
 		double RallyLock = 6.0;                 // immunity seconds a Rally also gives every voter it boosts (immune voters cannot be plugged or drained)
-		double RallyCooldown = 3.0;             // seconds before the next Rally
+		double RallyCooldown = 8.0;             // seconds before the next Rally (longer than the 6 s shield: one cluster cannot be kept shielded for ever)
+		double ParryOnReinforce = 1.0;          // 1: reinforcing a voter that has an announced attack pending (a ring closing in) cancels the soonest one on it: the ring bounces
+		double ParryCost = 1.0;                 // Posts a reinforcement that parries costs (1 = the same as any reinforcement)
 		double PostsMax = 5.0;
 		double PostsStart = 5.0;
 		double PostsRegen = 0.5;                // per second; Jams.csv Regen overrides per jam

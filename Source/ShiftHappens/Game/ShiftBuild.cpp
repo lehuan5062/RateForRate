@@ -18,18 +18,19 @@ namespace
 
 void ShiftBuildRules::Apply(const FShiftBuild& Build, ShiftSim::Params& Params, ShiftSim::JamDef& Jam)
 {
-	// Hours relative to an even 4/4/4 split. Each lever is worth something different:
-	//   quality   : how good the game actually is (the player's appeal); matters, but fame outweighs it by design
-	//   thumbnail : how many undecided voters even look at the entry (the player's clout)
-	//   network   : followers on day one (start nodes) and how fast Posts come back
-	const double Q = static_cast<double>(Build.Quality - 4);
-	const double T = static_cast<double>(Build.Thumbnail - 4);
-	const double N = static_cast<double>(Build.Network - 4);
+	ShiftSim::BuildHours Hours;
+	Hours.quality = Build.Quality;
+	Hours.thumbnail = Build.Thumbnail;
+	Hours.network = Build.Network;
+	ShiftSim::ApplyBuild(Hours, Params, Jam);
+}
 
-	Params.PlayerBuildBonus = 0.45 * Q;
-	Params.PlayerClout = FMath::Max(0.15, 1.0 + 0.5 * T) * Params.PlayerClout;
-	Params.PlayerStartNodes = FMath::Clamp(Params.PlayerStartNodes + FMath::RoundToDouble(N / 3.0), 1.0, 4.0);
-	Jam.regen *= 1.0 + 0.01 * N;
+ShiftSim::BuildSummary ShiftBuildRules::Summary(int32 JamIndex, const FShiftBuild& Build)
+{
+	ShiftSim::Params Params;
+	ShiftSim::JamDef Jam = ShiftSim::DefaultJam(FMath::Clamp(JamIndex, 0, 2));
+	ShiftBuildRules::Apply(Build, Params, Jam);
+	return ShiftSim::SummarizeBuild(Params, Jam);
 }
 
 FShiftForecast ShiftBuildRules::Forecast(int32 JamIndex, uint32 Seed, const FShiftBuild& Build, int32 Samples)
@@ -37,7 +38,7 @@ FShiftForecast ShiftBuildRules::Forecast(int32 JamIndex, uint32 Seed, const FShi
 	FShiftForecast Out;
 	const int32 NumSamples = FMath::Clamp(Samples, 1, 8);
 	ShiftSim::PolicyParams Policy;
-	Policy.BotInterval = 2.5;   // a casual player: one Plug every couple of seconds, well below what the Posts economy allows
+	Policy.BotInterval = 0.7;   // a steady player: a Plug about every 0.7 s, so the Post economy (bank, refill, Plug cost) decides how many of them land
 
 	for (int32 S = 0; S < NumSamples; ++S)
 	{
@@ -52,7 +53,7 @@ FShiftForecast ShiftBuildRules::Forecast(int32 JamIndex, uint32 Seed, const FShi
 		}
 		ShiftSim::StandInRival Rival;
 		ShiftSim::StandInOthers Others;
-		ShiftSim::PlayerBot Casual;                 // a casual player: greedy targets, a Plug every couple of seconds
+		ShiftSim::PlayerBot Casual;                 // a steady player: greedy targets, a Plug about every 0.7 s
 		Rival.Reset(Sim, Policy);
 		Others.Reset(Sim, Policy);
 		Casual.Reset(ShiftSim::BotKind::Greedy, Seed + static_cast<uint32>(S));

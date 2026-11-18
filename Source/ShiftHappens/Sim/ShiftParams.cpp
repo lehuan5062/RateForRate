@@ -24,12 +24,13 @@ namespace ShiftSim
 			SHIFT_P(RandomFollowSameCommunityProb), SHIFT_P(HubRandomFollowProb), SHIFT_P(ReciprocalProb),
 			SHIFT_P(CelebFollowProb), SHIFT_P(HubFollowsCelebProb), SHIFT_P(CelebMinFollowersPerCommunity),
 			SHIFT_P(BridgeCrossHubFollows), SHIFT_P(BridgeCrossMemberFollows), SHIFT_P(BridgeFollowers),
-			SHIFT_P(HubExtraFollowers), SHIFT_P(LayoutWidth), SHIFT_P(LayoutHeight), SHIFT_P(LayoutMargin),
+			SHIFT_P(HubExtraFollowers), SHIFT_P(LayoutWidth), SHIFT_P(LayoutHeight), SHIFT_P(LayoutMargin), SHIFT_P(LayoutMarginRight),
 			SHIFT_P(LayoutRingX), SHIFT_P(LayoutRingY), SHIFT_P(LayoutMinDist), SHIFT_P(LayoutCelebRadius),
 			SHIFT_P(QualityMin), SHIFT_P(QualityMax), SHIFT_P(PlayerBaseQuality), SHIFT_P(PlayerBuildBonus),
 			SHIFT_P(RivalClout), SHIFT_P(OtherCloutMin), SHIFT_P(OtherCloutMax), SHIFT_P(PlayerClout),
 			SHIFT_P(ChampionFraction), SHIFT_P(ChampionConvMin), SHIFT_P(ChampionConvMax), SHIFT_P(RivalConv),
-			SHIFT_P(RivalFollowerConvMin), SHIFT_P(RivalFollowerConvMax), SHIFT_P(PlayerStartNodes),
+			SHIFT_P(RivalFollowerConvMin), SHIFT_P(RivalFollowerConvMax), SHIFT_P(PlayerStartNodes), SHIFT_P(PlayerPlugCost), SHIFT_P(BuildBelowSlope), SHIFT_P(BuildQualityPerHour), SHIFT_P(BuildFlipConvPerHour), SHIFT_P(BuildCloutPerHour),
+			SHIFT_P(BuildPlugCostPerHour), SHIFT_P(BuildStartNodesPerHour), SHIFT_P(BuildBankPerHour), SHIFT_P(BuildRegenPerHour),
 			SHIFT_P(PlayerStartConv), SHIFT_P(PlayerStartMaxFollowers),
 			SHIFT_P(Capture), SHIFT_P(ConvBase), SHIFT_P(ConvWeight), SHIFT_P(AppealSlope), SHIFT_P(AppealMid),
 			SHIFT_P(AppealScale), SHIFT_P(LowQualityThreshold), SHIFT_P(LowQualityPenalty),
@@ -38,7 +39,7 @@ namespace ShiftSim
 			SHIFT_P(AdoptRate), SHIFT_P(AdoptConv), SHIFT_P(DriftRate), SHIFT_P(DriftConv),
 			SHIFT_P(PlugDrain), SHIFT_P(PlugReinforce), SHIFT_P(PlugFlipThreshold), SHIFT_P(PlugFlipConv),
 			SHIFT_P(AttackTelegraph), SHIFT_P(PlugLock), SHIFT_P(PlayerFlipConv), SHIFT_P(PlayerPlugLock), SHIFT_P(SockStrength), SHIFT_P(SockConv), SHIFT_P(SockLock), SHIFT_P(SockHeat),
-			SHIFT_P(SockRequiresNight), SHIFT_P(SockLaunderConv), SHIFT_P(SockOverheatRefuse), SHIFT_P(FinalAudit), SHIFT_P(SockReview), SHIFT_P(SockTolerance), SHIFT_P(SockHeldHeat), SHIFT_P(RallyCost), SHIFT_P(RallyBoost), SHIFT_P(RallyLock), SHIFT_P(RallyCooldown), SHIFT_P(PostsMax), SHIFT_P(PostsStart),
+			SHIFT_P(SockRequiresNight), SHIFT_P(SockLaunderConv), SHIFT_P(SockOverheatRefuse), SHIFT_P(FinalAudit), SHIFT_P(SockReview), SHIFT_P(SockTolerance), SHIFT_P(SockHeldHeat), SHIFT_P(EyeAwayHeatMult), SHIFT_P(EyeAwayHeldMult), SHIFT_P(RallyCost), SHIFT_P(RallyBoost), SHIFT_P(RallyLock), SHIFT_P(RallyCooldown), SHIFT_P(ParryOnReinforce), SHIFT_P(ParryCost), SHIFT_P(PostsMax), SHIFT_P(PostsStart),
 			SHIFT_P(PostsRegen), SHIFT_P(GatesApplyToAll),
 			SHIFT_P(HeatDecay), SHIFT_P(HeatNightRate), SHIFT_P(HeatRedZone), SHIFT_P(HeatMax),
 			SHIFT_P(HeatAfterStrike), SHIFT_P(ShadowbanSeconds), SHIFT_P(MaxStrikes),
@@ -121,7 +122,7 @@ namespace ShiftSim
 		{
 			J.name = "Tiny Jam #7";
 			J.nodes = 36; J.communities = 5; J.bridges = 2; J.celebs = 2;
-			J.days = 31; J.secPerDay = 6.0; J.regen = 0.487;
+			J.days = 31; J.secPerDay = 6.0; J.regen = 0.472;
 			J.localGate = 0.25; J.celebGate = 0.15;
 			J.celebExtraFollowers = 8.0;
 			J.modIntervalMin = 25.0; J.modIntervalMax = 35.0;
@@ -130,7 +131,7 @@ namespace ShiftSim
 		{
 			J.name = "48h Pixel Rumble";
 			J.nodes = 52; J.communities = 7; J.bridges = 3; J.celebs = 2;
-			J.days = 31; J.secPerDay = 6.0; J.regen = 0.462;
+			J.days = 31; J.secPerDay = 6.0; J.regen = 0.457;
 			J.localGate = 0.25; J.celebGate = 0.20;
 			J.celebExtraFollowers = 8.0;
 			J.modIntervalMin = 15.0; J.modIntervalMax = 25.0;
@@ -139,7 +140,7 @@ namespace ShiftSim
 		{
 			J.name = "GAME OFF 2026";
 			J.nodes = 72; J.communities = 9; J.bridges = 4; J.celebs = 2;
-			J.days = 31; J.secPerDay = 8.0; J.regen = 0.487;
+			J.days = 31; J.secPerDay = 8.0; J.regen = 0.486;
 			J.localGate = 0.25; J.celebGate = 0.25;
 			J.celebExtraFollowers = 14.0;
 			J.modIntervalMin = 12.0; J.modIntervalMax = 20.0;

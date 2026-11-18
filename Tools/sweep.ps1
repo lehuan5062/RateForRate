@@ -7,7 +7,8 @@ param(
 	[string[]]$Variants,
 	[string[]]$Bot = @('greedy', 'reactor'),
 	[int]$Runs = 100,
-	[string]$Jam = 'all'
+	[string]$Jam = 'all',
+	[int]$Seed0 = 1000            # first seed of the runs (a second, disjoint set such as 500000 checks a setting is not fitted to one)
 )
 $ErrorActionPreference = 'Stop'
 $jams = if ($Jam -eq 'all') { 0, 1, 2 } else { @([int]$Jam) }
@@ -21,13 +22,20 @@ foreach ($v in $Variants) {
 			if ($tok -match '^@(\d):(.*)$') { if ([int]$Matches[1] -eq $j) { $sets += $Matches[2] } }
 			else { $sets += $tok }
 		}
-		$out = & (Join-Path $PSScriptRoot 'balance.ps1') -Runs $Runs -Jam $j -Bot $botArg -Set $sets -Tag sweep
+		$out = & (Join-Path $PSScriptRoot 'balance.ps1') -Runs $Runs -Jam $j -Bot $botArg -Set $sets -Seed0 $Seed0 -Tag sweep
 		$cells = @()
+		$swing = @{}
+		foreach ($l in $out) {
+			if ($l -match 'Balance: mega jam=\d bot=(\S+)\s+share at start [\d.]+% at end [\d.]+% swing ([+-]?[\d.]+)') {
+				$swing[$Matches[1]] = [double]::Parse($Matches[2], [cultureinfo]::InvariantCulture)
+			}
+		}
 		foreach ($l in $out) {
 			if ($l -match 'jam=\d bot=(\S+)\s+runs=\d+\s+win\s+([\d.]+)%\s+dq\s+([\d.]+)%') {
 				$win = ([double]::Parse($Matches[2], [cultureinfo]::InvariantCulture)).ToString('0.0', [cultureinfo]::InvariantCulture)
 				$dq = [double]::Parse($Matches[3], [cultureinfo]::InvariantCulture)
-				$cells += ('{0} {1,5}{2}' -f $Matches[1], $win, $(if ($dq -gt 0) { "(dq$($dq.ToString('0', [cultureinfo]::InvariantCulture)))" } else { '' }))
+				$sw = if ($swing.ContainsKey($Matches[1])) { ' sw' + $swing[$Matches[1]].ToString('+0.0;-0.0', [cultureinfo]::InvariantCulture) } else { '' }
+				$cells += ('{0} {1,5}{2}{3}' -f $Matches[1], $win, $(if ($dq -gt 0) { "(dq$($dq.ToString('0', [cultureinfo]::InvariantCulture)))" } else { '' }), $sw)
 			}
 		}
 		$line += ' | J' + $j + ' ' + ($cells -join ' ')

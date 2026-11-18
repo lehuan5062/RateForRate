@@ -37,6 +37,7 @@ namespace EShiftUi
 		CoachDismiss = 45,
 		Mute = 50,
 		Share = 51,
+		FakeInfo = 52,            // hover only: the explanation of the sockpuppet-votes chip
 	};
 }
 
@@ -73,6 +74,16 @@ struct FShiftHudBuild
 	float ForecastShare = 0.0f;
 	int32 QualityRank = 0;                     // 1-based
 	FString RivalFollowers;                    // "1.2M"
+	FString Effects[3];                        // what each lever comes to in play (quality, thumbnail, network), with numbers, from the same rules the sim uses
+};
+
+/** One card of the notification feed in the right gutter: a toast, or a news headline (bNews). */
+struct FShiftHudFeedItem
+{
+	FString Text;
+	FLinearColor Color = FLinearColor::White;
+	float Alpha = 1.0f;       // fades in and out
+	bool bNews = false;
 };
 
 /** One leaderboard row. */
@@ -198,6 +209,14 @@ struct FShiftHudModel
 	float NextSweepIn = -1.0f;         // seconds, < 0 when unknown
 	float RallyCooldown = 0.0f;        // seconds until the next Rally is possible (0 = ready)
 	float RallyCost = 1.0f;            // Posts a Rally costs
+	float EyeAwayLeft = -1.0f;         // seconds left of a window in which the Mod Eye looks away, < 0 when none
+	float EyeAwayWarnIn = -1.0f;       // seconds until an announced window starts, < 0 when none is announced
+	float FinalPushIn = -1.0f;         // seconds until the rival's final push, shown for the last 12 s before it, < 0 otherwise
+	float FinalPushLeft = -1.0f;       // seconds of the final push left while it is on, < 0 otherwise
+	float FinalPushBonus = 0.0f;       // the player's extra Post refill in the final push (0.25 = 25%)
+	float FakeHeatRate = 0.0f;         // Heat a second the fake votes held right now add, before cooling
+	FString FakeInfo;                  // the plain-language explanation shown when the sockpuppet-votes chip is hovered
+	FString NightHint;                 // what night shift could do for you right now ("" = the plain hint)
 	float FinalAuditIn = -1.0f;        // seconds until the final audit while it is close (the last 10 s), < 0 otherwise
 
 	// state
@@ -207,12 +226,8 @@ struct FShiftHudModel
 	bool bOver = false;
 
 	// feedback
-	FString Toast;
-	float ToastAlpha = 0.0f;
-	FLinearColor ToastColor = FLinearColor::White;
+	TArray<FShiftHudFeedItem> Feed;    // newest first: toasts and news, drawn as cards in the right gutter (nothing floats over the board)
 	FShiftHudTooltip Tooltip;
-	FString Headline;                  // news ticker line
-	float HeadlineAlpha = 0.0f;
 
 	// results (shown when bOver)
 	FString OutcomeTitle;
