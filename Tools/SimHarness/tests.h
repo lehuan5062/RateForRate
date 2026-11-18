@@ -14,6 +14,7 @@
 #include "ShiftSim.h"
 #include "ShiftBlameRules.h"
 #include "ShiftBuildRules.h"
+#include "ShiftRivalBank.h"
 
 namespace ShiftSim
 {
@@ -874,6 +875,16 @@ inline void TestBlame(const Config& Cfg)
         while (!S.Finished()) { S.Step(); }
         T_CHECK(BlameWindowFor(S) < 1.0e-6 && BlameWindowFor(S) >= 0.0);
     }
+    // BlameBasis: the cap is measured on the fatal strike alone (0) or on all of the player's strikes together (1).
+    {
+        Params Q = P;
+        Q.BlameBasis = 0.0;
+        T_CHECK(Near(BlameBasisShare(Q, 0.05, 0.09), 0.05));
+        Q.BlameBasis = 1.0;
+        T_CHECK(Near(BlameBasisShare(Q, 0.05, 0.09), 0.14) && Near(BlameBasisShare(Q, 0.05, 0.0), 0.05));
+        double V = 1.0;
+        T_CHECK(SetParam(Q, "BlameBasis", 0.0) && GetParam(Q, "BlameBasis", &V) && Near(V, 0.0));
+    }
     // The numbers are reachable by name (-Set).
     {
         Params Q = P;
@@ -884,6 +895,42 @@ inline void TestBlame(const Config& Cfg)
         T_CHECK(SetParam(Q, "BlameRivalFreeze", 3.0) && Near(Q.BlameRivalFreeze, 3.0));
         T_CHECK(GetParam(Q, "BlameMaxFake", &V) && Near(V, 0.2));
     }
+}
+
+// ------------------------------------------------------------------------------------------
+// The rival's Post bank (Sim/ShiftRivalBank.h): full at the start, one Post an action, a lazy refill from the sim clock, a cap, refused (and free) when empty, off when the bank is 0.
+inline void TestRivalBank()
+{
+    std::printf("[rival post bank]\n");
+    RivalBank B;
+    B.Reset(4.0, 10.0);
+    T_CHECK(Near(B.PostsAt(10.0, 4.0, 0.4), 4.0));
+    T_CHECK(B.Spend(10.0, 4.0, 0.4, 1.0) && Near(B.PostsAt(10.0, 4.0, 0.4), 3.0));
+    T_CHECK(Near(B.PostsAt(11.0, 4.0, 0.4), 3.4));                       // the refill is lazy: nothing ticked it
+    T_CHECK(Near(B.PostsAt(100.0, 4.0, 0.4), 4.0));                      // and the bank holds no more than its size
+    T_CHECK(Near(B.PostsAt(9.0, 4.0, 0.4), 3.0));                        // a clock that went back adds nothing
+    for (int K = 0; K < 3; ++K)
+    {
+        T_CHECK(B.Spend(11.0, 4.0, 0.4, 1.0));                           // 3.4 -> 2.4 -> 1.4 -> 0.4
+    }
+    T_CHECK(!B.Spend(11.0, 4.0, 0.4, 1.0) && Near(B.PostsAt(11.0, 4.0, 0.4), 0.4));   // refused, and it cost nothing
+    T_CHECK(Near(B.PostsAt(12.5, 4.0, 0.4), 1.0));                       // 1.5 s later one Post is back
+    T_CHECK(B.Spend(12.5, 4.0, 0.4, 1.0) && Near(B.PostsAt(12.5, 4.0, 0.4), 0.0));
+    T_CHECK(!B.Spend(12.6, 4.0, 0.4, 1.0) && Near(B.PostsAt(12.6, 4.0, 0.4), 0.04));  // a refused spend does not count the seconds twice
+    T_CHECK(!B.Spend(13.0, 4.0, 0.4, 2.0) && B.Spend(18.0, 4.0, 0.4, 2.0));          // a dearer action needs more in the bank
+    RivalBank Off;
+    Off.Reset(0.0, 0.0);
+    T_CHECK(Off.Spend(5.0, 0.0, 0.4, 1.0) && Near(Off.PostsAt(5.0, 0.0, 0.4), 0.0));   // off: every action is free
+    // The push: demand 0.606 attacks a second against a refill of 0.40 empties a bank of 4 in about 19 s; before the push (0.303 a second) the bank never drops.
+    RivalBank Push;
+    Push.Reset(4.0, 0.0);
+    int Calm = 0;
+    for (int K = 0; K < 60; ++K) { Calm += Push.Spend(3.3 * (K + 1), 4.0, 0.4, 1.0) ? 1 : 0; }
+    T_CHECK(Calm == 60 && Push.PostsAt(3.3 * 60.0, 4.0, 0.4) >= 2.99);
+    int Made = 0;
+    const double Start = 3.3 * 60.0;
+    for (int K = 0; K < 11; ++K) { Made += Push.Spend(Start + 1.65 * (K + 1), 4.0, 0.4, 1.0) ? 1 : 0; }   // 18 s of push at one action every 1.65 s
+    T_CHECK(Made >= 10 && Made <= 11);
 }
 
 // ------------------------------------------------------------------------------------------
@@ -1874,6 +1921,7 @@ inline void RunAll(const Config& Cfg)
     TestGates(Legacy);
     TestStrike(Legacy);
     TestBlame(Legacy);
+    TestRivalBank();
     TestOverheatAndAudit(Legacy);
     TestRallyAndAttribution(Legacy);
     TestTelegraph(Cfg);

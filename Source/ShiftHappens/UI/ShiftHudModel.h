@@ -92,7 +92,7 @@ struct FShiftHudFeedItem
 	bool bNews = false;
 };
 
-/** An urgent event that takes over the middle of the top bar for a few seconds: a strike, the Shift the Blame offer, a disqualification. The right gutter is peripheral, this is not. */
+/** An urgent event that takes over the middle of the bottom bar for a few seconds: a strike, the Shift the Blame offer, a disqualification. The right gutter is peripheral, this is not. */
 struct FShiftHudAlert
 {
 	int32 Kind = 0;                    // 0 = none (EAlertKind in the controller)
@@ -236,6 +236,8 @@ struct FShiftHudModel
 	float FinalPushIn = -1.0f;         // seconds until the rival's final push, shown for the last 12 s before it, < 0 otherwise
 	float FinalPushLeft = -1.0f;       // seconds of the final push left while it is on, < 0 otherwise
 	float FinalPushBonus = 0.0f;       // the player's extra Post refill in the final push (0.25 = 25%)
+	float RivalPosts = 0.0f;           // the rival's Post bank now, and its size (0 = the rival has no bank): shown on the final push card
+	float RivalPostsMax = 0.0f;
 	float FakeHeatRate = 0.0f;         // Heat a second the fake votes held right now add, before cooling
 	FString FakeInfo;                  // the plain-language explanation shown when the sockpuppet-votes chip is hovered
 	FString NightHint;                 // what night shift could do for you right now ("" = the plain hint)

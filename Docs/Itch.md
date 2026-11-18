@@ -13,7 +13,7 @@ Everything below is for **you** to do or paste; nothing here has been done on yo
 >
 > Nine games enter. Yours is fine. The rival's is fine too. The rival has 1.2 million followers; you have a few. You have 31 days of voting to change that.
 >
-> Click through the follower network to flip voters one by one: every hub you win drags its followers along. Or hold **SHIFT** and work the night shift: sockpuppets, bots, bribes. Powerful, fragile and risky. The Mod Eye is watching, three strikes and you are disqualified, and the last one can be **blamed on your rival**, once, if it was only a few fake votes. A big pile of them is too much to pin on anyone.
+> Click through the follower network to flip voters one by one: every hub you win drags its followers along. Or hold **SHIFT** and work the night shift: sockpuppets, bots, bribes. Powerful, fragile and risky. The Mod Eye is watching, three strikes and you are disqualified, and the last one can be **blamed on your rival**, once, if all your strikes together took only a few fake votes. A big pile of them, over several strikes, is too much to pin on anyone.
 >
 > Three jams, a build screen that asks how to spend your last 12 hours, and a results screen that computes, from your own run, how much of the vote was explained by quality and how much by fame.
 >

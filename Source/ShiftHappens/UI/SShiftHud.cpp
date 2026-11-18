@@ -640,41 +640,6 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		P.Text(bAway ? FString::Printf(TEXT("MODS AWAY %.0fs"), Model.EyeAwayLeft) : FString::Printf(TEXT("MODS %.0fs"), Model.NextSweepIn), 916, 13, 12, EyeColor, EShiftAlign::Left, bSoon || bAway);
 	}
 
-	// ------------------------------------------------------------------ the alert: urgent events take over the middle of the top bar (not the MODS chip, the deadline or the mute button)
-	if (Model.Alert.Kind != 0)
-	{
-		const FShiftHudAlert& A = Model.Alert;
-		const float X0 = 150.0f;
-		const float W = 730.0f;
-		const float Y0 = 2.0f;
-		const float H = 36.0f;
-		const float In = FMath::Clamp(A.Age / 0.14f, 0.0f, 1.0f);
-		const bool bLive = A.bClickable && !Model.bPaused;
-		const bool bHover = bLive && AddHit(X0, Y0, W, H, EShiftUi::Blame);
-		const float Pulse = A.bClickable ? 0.5f + 0.5f * FMath::Sin(AnimTime * 9.0f) : 0.0f;
-		FLinearColor Fill = A.Color;
-		Fill = Mix(Fill, FLinearColor::White, (bHover ? 0.18f : 0.0f) + 0.10f * Pulse);
-		if (Model.bPaused)
-		{
-			Fill = Mix(Fill, Hex(0x77777F), 0.7f);
-		}
-		P.Rect(X0, Y0 + 2.0f, W, H, Hex(0x000000, 0.22f * In), 9.0f);
-		P.Rect(X0, Y0 + (1.0f - In) * -6.0f, W, H, WithAlpha(Fill, In), 9.0f);
-		const float Dy = (1.0f - In) * -6.0f;
-		const FLinearColor Ink = WithAlpha(FLinearColor::White, In);
-		const float TextW = W - 28.0f - (A.SecondsLeft >= 0.0f ? 64.0f : 0.0f);
-		P.Text(P.Fit(A.Title, TextW, 15.0f, true), X0 + 14.0f, Y0 + 3.0f + Dy, 15.0f, Ink, EShiftAlign::Left, true);
-		P.Text(P.Fit(A.Detail, TextW, 11.0f), X0 + 14.0f, Y0 + 19.0f + Dy, 11.0f, WithAlpha(FLinearColor::White, 0.92f * In), EShiftAlign::Left);
-		if (A.SecondsLeft >= 0.0f)
-		{
-			P.Text(FString::Printf(TEXT("%.1fs"), A.SecondsLeft), X0 + W - 14.0f, Y0 + 8.0f + Dy, 18.0f, Ink, EShiftAlign::Right, true);
-		}
-		if (A.Frac >= 0.0f)
-		{
-			P.Rect(X0 + 14.0f, Y0 + H - 3.5f + Dy, (W - 28.0f) * FMath::Clamp(A.Frac, 0.0f, 1.0f), 2.0f, WithAlpha(FLinearColor::White, 0.85f * In), 1.0f);
-		}
-	}
-
 	// ------------------------------------------------------------------ leaderboard
 	const int32 LeaderRows = FMath::Max(1, Model.Rows.Num());
 	const float LeaderBottom = Model.LeaderboardMode == 1 ? 52.0f + 38.0f + RowHeight * static_cast<float>(LeaderRows)
@@ -763,7 +728,11 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	}
 	P.Text(FString::Printf(TEXT("%.1f"), Model.Posts), 86.0f + PipStep * static_cast<float>(PipCount) + 2.0f, 690, 13, C.Ink, EShiftAlign::Left, true);
 
+	// An alert takes over the middle of this bar (below), so what it would cover is not painted meanwhile.
+	const bool bAlertUp = Model.Alert.Kind != 0;
+
 	// Rally (right-click on a voter you hold): ready, or counting down.
+	if (!bAlertUp)
 	{
 		const bool bReady = Model.RallyCooldown <= 0.0f;
 		P.Rect(268, 683, 214, 28, WithAlpha(bReady ? C.Teal : C.Track, bReady ? 0.22f : 0.60f), 14);
@@ -772,9 +741,10 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	}
 
 	const bool bNight = Model.bNightActive;
-	P.Rect(500, 683, 150, 28, bNight ? Hex(0x2A2250) : WithAlpha(C.Amber, 0.28f), 14);
-	P.Text(bNight ? TEXT("NIGHT SHIFT") : TEXT("DAY SHIFT"), 575, 688, 14, bNight ? Hex(0xCBB8FF) : Hex(0x7A5400), EShiftAlign::Center, true);
+	if (!bAlertUp)
 	{
+		P.Rect(500, 683, 150, 28, bNight ? Hex(0x2A2250) : WithAlpha(C.Amber, 0.28f), 14);
+		P.Text(bNight ? TEXT("NIGHT SHIFT") : TEXT("DAY SHIFT"), 575, 688, 14, bNight ? Hex(0xCBB8FF) : Hex(0x7A5400), EShiftAlign::Center, true);
 		const bool bFree = Model.EyeAwayLeft > 0.0f;
 		const FString Hint = !Model.NightHint.IsEmpty() ? Model.NightHint : (bNight ? FString(TEXT("click = sockpuppet")) : FString(TEXT("hold SHIFT to cheat")));
 		P.Text(P.Fit(Hint, 130.0f, 11.0f, bFree), 664, 691, 11, bFree ? Hex(0x7B5CF0) : (Model.NightHint.IsEmpty() ? C.InkDim : C.Ink), EShiftAlign::Left, bFree);
@@ -806,6 +776,42 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	}
 	P.Text(TEXT("SPACE pause   ESC menu"), 1262, 693, 11, C.InkDim, EShiftAlign::Right);
 
+	// ------------------------------------------------------------------ the alert: urgent events take over the middle of the bottom bar, where the eyes already are for Posts, Heat and strikes
+	// (x 280..792: the POSTS pips and counter at the left, the HEAT bar and the strike pips at the right stay in view; the edge frame's bottom strip, y 712 and below, stays clear)
+	if (bAlertUp)
+	{
+		const FShiftHudAlert& A = Model.Alert;
+		const float X0 = 280.0f;
+		const float W = 512.0f;
+		const float Y0 = 678.0f;
+		const float H = 32.0f;
+		const float In = FMath::Clamp(A.Age / 0.14f, 0.0f, 1.0f);
+		const float Dy = (1.0f - In) * 4.0f;
+		const bool bLive = A.bClickable && !Model.bPaused;
+		const bool bHover = bLive && AddHit(X0, Y0, W, H, EShiftUi::Blame);
+		const float Pulse = A.bClickable ? 0.5f + 0.5f * FMath::Sin(AnimTime * 9.0f) : 0.0f;
+		FLinearColor Fill = A.Color;
+		Fill = Mix(Fill, FLinearColor::White, (bHover ? 0.18f : 0.0f) + 0.10f * Pulse);
+		if (Model.bPaused)
+		{
+			Fill = Mix(Fill, Hex(0x77777F), 0.7f);
+		}
+		P.Rect(X0, Y0 + 2.0f + Dy, W, H, Hex(0x000000, 0.22f * In), 9.0f);
+		P.Rect(X0, Y0 + Dy, W, H, WithAlpha(Fill, In), 9.0f);
+		const FLinearColor Ink = WithAlpha(FLinearColor::White, In);
+		const float TextW = W - 28.0f - (A.SecondsLeft >= 0.0f ? 64.0f : 0.0f);
+		P.Text(P.Fit(A.Title, TextW, 15.0f, true), X0 + 14.0f, Y0 + 2.0f + Dy, 15.0f, Ink, EShiftAlign::Left, true);
+		P.Text(P.Fit(A.Detail, TextW, 11.0f), X0 + 14.0f, Y0 + 17.0f + Dy, 11.0f, WithAlpha(FLinearColor::White, 0.92f * In), EShiftAlign::Left);
+		if (A.SecondsLeft >= 0.0f)
+		{
+			P.Text(FString::Printf(TEXT("%.1fs"), A.SecondsLeft), X0 + W - 14.0f, Y0 + 6.0f + Dy, 18.0f, Ink, EShiftAlign::Right, true);
+		}
+		if (A.Frac >= 0.0f)
+		{
+			P.Rect(X0 + 14.0f, Y0 + H - 3.0f + Dy, (W - 28.0f) * FMath::Clamp(A.Frac, 0.0f, 1.0f), 2.0f, WithAlpha(FLinearColor::White, 0.85f * In), 1.0f);
+		}
+	}
+
 	// ------------------------------------------------------------------ the right gutter
 	// Everything that is not the board lives in the strip right of the voters (the layout keeps them left of x = 1084): under the leaderboard the states you are in, then the
 	// notification feed; at the bottom the coach card. Nothing here floats over the board.
@@ -814,7 +820,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		const float GW = CompactLeaderboardW;
 		float BottomY = 668.0f;
 
-		// the bottom stack: the coach card (the Blame prompt is in the top bar now, where it cannot be missed)
+		// the bottom stack: the coach card (the Blame prompt is in the bottom bar, where the eyes already are)
 		if (Model.CoachAlpha > 0.01f && !Model.CoachText.IsEmpty())
 		{
 			const TArray<FString> Lines = P.Wrap(Model.CoachText, GW - 36.0f, 12.0f, false);
@@ -863,7 +869,9 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		}
 		if (Model.FinalPushLeft > 0.0f)
 		{
-			Pin(FString::Printf(TEXT("FINAL PUSH  %.0fs"), Model.FinalPushLeft), FString::Printf(TEXT("rival x2 attacks, your Posts +%.0f%%"), Model.FinalPushBonus * 100.0f), WithAlpha(C.Red, 0.92f));
+			Pin(FString::Printf(TEXT("FINAL PUSH  %.0fs"), Model.FinalPushLeft),
+					Model.RivalPostsMax > 0.0f ? FString::Printf(TEXT("rival Posts %d/%.0f, yours +%.0f%%"), FMath::FloorToInt(Model.RivalPosts + 1.0e-3f), Model.RivalPostsMax, Model.FinalPushBonus * 100.0f)
+						: FString::Printf(TEXT("rival x2 attacks, your Posts +%.0f%%"), Model.FinalPushBonus * 100.0f), WithAlpha(C.Red, 0.92f));
 		}
 		else if (Model.FinalPushIn >= 0.0f)
 		{
@@ -939,7 +947,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	}
 
 	// ------------------------------------------------------------------ the edge frame: a thin line along the left, right and bottom edges for a strike, the Blame offer and a disqualification
-	// (the voters stay inside x 56..1080, so it never covers one, and the top bar belongs to the alert)
+	// (the voters stay inside x 56..1080, so it never covers one)
 	if (Model.EdgeFlash > 0.01f)
 	{
 		const FLinearColor Edge = WithAlpha(Model.EdgeColor, 0.80f * FMath::Clamp(Model.EdgeFlash, 0.0f, 1.0f));

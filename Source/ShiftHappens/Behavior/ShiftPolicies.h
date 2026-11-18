@@ -6,6 +6,7 @@
 #include <cstdint>
 #include "Sim/ShiftGraph.h"
 #include "Sim/ShiftParams.h"
+#include "Sim/ShiftRivalBank.h"
 #include "Sim/ShiftRng.h"
 #include "Sim/ShiftSim.h"
 #include <string>
@@ -23,6 +24,9 @@ namespace ShiftSim
 		double RivalBandBase = 1.0;          // strength = base + slope * max(0, playerShare - threshold)
 		double RivalBandSlope = 4.0;
 		double RivalBandThreshold = 0.15;
+		double RivalPostsMax = 4.0;          // the rival's Post bank: every action (a plug on a voter, or a re-plug of a weak hub of its own) costs a Post, so the final push is not unlimited (0 = no bank, no limit)
+		double RivalPostsRegen = 0.48;       // ... Posts a second it refills (before the push the rival acts 0.30 times a second, so the bank stays full; in the push it drains a little: 0.40 weakened the push enough to move the honest rows out of their bands)
+		double RivalDefendCost = 1.0;        // ... Posts a re-plug of a weak hub of its own costs
 		double MegaDays = 3.0;               // last N days: Mega Campaign
 		double MegaConvBoost = 0.3;          // +conviction on all rival nodes at Mega start
 		double EyeAwayCount = 0.0;           // scheduled "the Mod Eye looks away" windows per run (0 = none)
@@ -140,7 +144,13 @@ namespace ShiftSim
 		{
 			Next_ = IntervalFor(S, PP);
 			MegaStarted_ = false;
+			Bank_.Reset(PP.RivalPostsMax, S.Time());
+			Starved = 0;
 		}
+
+		// The rival's Post bank as of now (0 when there is none: PP.RivalPostsMax = 0), and paying for an action out of it (false: nothing left, the action does not happen).
+		double PostsNow(const Sim& S, const PolicyParams& PP) const { return Bank_.PostsAt(S.Time(), PP.RivalPostsMax, PP.RivalPostsRegen); }
+		bool Pay(const Sim& S, const PolicyParams& PP, double Cost) { return Bank_.Spend(S.Time(), PP.RivalPostsMax, PP.RivalPostsRegen, Cost); }
 
 		// ---- building blocks (the StateTree tasks and conditions call these; Update() below composes them) ----
 		static bool InMegaPhase(const Sim& S, const PolicyParams& PP)
@@ -168,6 +178,11 @@ namespace ShiftSim
 			const int Weak = S.WeakestOwned(S.RivalId(), S.GetParams().HighValueV, PP.RivalDefendBelow);
 			if (Weak < 0)
 			{
+				return false;
+			}
+			if (!Pay(S, PP, PP.RivalDefendCost))
+			{
+				++Starved;   // no Post left: the hub stays weak for now
 				return false;
 			}
 			S.Plug(S.RivalId(), Weak, 1.0);
@@ -198,6 +213,11 @@ namespace ShiftSim
 			Target T;
 			if (S.BestTarget(Rival, F, &T))
 			{
+				if (!Pay(S, PP, 1.0))
+				{
+					++Starved;   // no Post left: the attack does not happen (a parried attack still cost its Post)
+					return;
+				}
 				const ActionOutcome O = S.Plug(Rival, T.node, Strength);
 				++Attacks;
 				if (O.flipped)
@@ -231,10 +251,12 @@ namespace ShiftSim
 		int Defends = 0;   // statistics (debug)
 		int Attacks = 0;
 		int Flips = 0;
+		int Starved = 0;   // actions that did not happen for want of a Post
 
 	private:
 		double Next_ = 0.0;
 		bool MegaStarted_ = false;
+		RivalBank Bank_;
 	};
 
 	// ---------------------------------------------------------------------------------------
@@ -942,12 +964,12 @@ namespace ShiftSim
 				const GraphNode& G = S.GetGraph().nodes[static_cast<size_t>(I)];
 				double Risk = 0.0;
 				auto Add = [&S, &Risk](int J)
-				{
-					if (S.Opinion(J) == kPlayerId && S.LockRemaining(J) <= 0.0 && S.SecondsToFlip(J) < 10.0)
 					{
-						Risk += S.GetGraph().nodes[static_cast<size_t>(J)].weight;
-					}
-				};
+						if (S.Opinion(J) == kPlayerId && S.LockRemaining(J) <= 0.0 && S.SecondsToFlip(J) < 10.0)
+						{
+							Risk += S.GetGraph().nodes[static_cast<size_t>(J)].weight;
+						}
+					};
 				Add(I);
 				for (size_t K = 0; K < G.follows.size(); ++K) { if (G.follows[K] != I) { Add(G.follows[K]); } }
 				for (size_t K = 0; K < G.followers.size(); ++K) { if (G.followers[K] != I) { Add(G.followers[K]); } }
@@ -1016,7 +1038,7 @@ namespace ShiftSim
 		{
 			static const Field kFields[] = {
 				SHIFT_PP(RivalDefendBelow), SHIFT_PP(RivalPlayerMult), SHIFT_PP(RivalCapShare), SHIFT_PP(RivalBandBase),
-				SHIFT_PP(RivalBandSlope), SHIFT_PP(RivalBandThreshold), SHIFT_PP(MegaDays), SHIFT_PP(MegaConvBoost),
+				SHIFT_PP(RivalBandSlope), SHIFT_PP(RivalBandThreshold), SHIFT_PP(RivalPostsMax), SHIFT_PP(RivalPostsRegen), SHIFT_PP(RivalDefendCost), SHIFT_PP(MegaDays), SHIFT_PP(MegaConvBoost),
 				SHIFT_PP(MegaAttackMult), SHIFT_PP(FinalPushRegen), SHIFT_PP(EyeAwayCount), SHIFT_PP(EyeAwaySeconds), SHIFT_PP(EyeAwayEndMargin), SHIFT_PP(EyeAwayWarn), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV), SHIFT_PP(OthersTargetsPlayer),
 				SHIFT_PP(ModFirstSweepMin), SHIFT_PP(BotInterval), SHIFT_PP(BotStart), SHIFT_PP(BotNoise), SHIFT_PP(BotBlame), SHIFT_PP(SockMaxHeat), SHIFT_PP(SockWindup), SHIFT_PP(LateSeconds), SHIFT_PP(RallyMinRisk), SHIFT_PP(ReactDelay), SHIFT_PP(ReactReserve), SHIFT_PP(ReactMinValue), SHIFT_PP(ReactRallyThreats), SHIFT_PP(ReactRallyValue), SHIFT_PP(XReact), SHIFT_PP(XRally), SHIFT_PP(XSock), SHIFT_PP(XBurst),
 				SHIFT_PP(XIdle), SHIFT_PP(XReinforceBelow), SHIFT_PP(XPlugMinV), SHIFT_PP(XSockMinV), SHIFT_PP(XSockShare), SHIFT_PP(XParry), SHIFT_PP(XWindow), SHIFT_PP(XWindowBank), SHIFT_PP(XValueFirst), SHIFT_PP(XKeepRally),

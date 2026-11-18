@@ -110,8 +110,9 @@ HeatMax,100
 HeatAfterStrike,35
 ShadowbanSeconds,6
 MaxStrikes,3
-BlameMaxFake,0.08
-BlameWindow,4
+BlameMaxFake,0.2
+BlameWindow,5
+BlameBasis,1
 BlameRivalConv,0.25
 BlameRivalFreeze,10
 TargetFollowerCredit,0.5

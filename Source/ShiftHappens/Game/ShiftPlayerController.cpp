@@ -998,8 +998,8 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 					TutEventMask |= EvStrikeLast;
 				}
 				PushAlert(AlertStrike, Number == Max - 1 ? FString::Printf(TEXT("STRIKE %d OF %d: ONE MORE AND YOU ARE OUT"), Number, Max) : FString::Printf(TEXT("STRIKE %d OF %d"), Number, Max),
-					E.Count > 0 ? FString::Printf(TEXT("%d sockpuppet vote%s reverted (-%.1f%% of the vote). Shadowbanned for %.0f s."), E.Count, E.Count == 1 ? TEXT("") : TEXT("s"), E.Share * 100.0f, Run->GetSim().GetParams().ShadowbanSeconds)
-						: FString::Printf(TEXT("The mods caught you in the red zone. Shadowbanned for %.0f s."), Run->GetSim().GetParams().ShadowbanSeconds),
+					E.Count > 0 ? FString::Printf(TEXT("%d fake vote%s reverted (-%.1f%% of the vote). Banned %.0f s."), E.Count, E.Count == 1 ? TEXT("") : TEXT("s"), E.Share * 100.0f, Run->GetSim().GetParams().ShadowbanSeconds)
+						: FString::Printf(TEXT("Caught in the red zone. Banned %.0f s."), Run->GetSim().GetParams().ShadowbanSeconds),
 					RedColor(), 3.4f, 50);
 				EdgeFlash = 1.0f;
 				EdgeColor = RedColor();
@@ -1024,7 +1024,8 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			FString Reason;
 			if (bBlameRefused)
 			{
-				Reason = FString::Printf(TEXT("Blame refused: %.0f%% of the vote was fake, too much to pin on the rival (the limit is %.0f%%)."), BlameRefusedShare * 100.0f, DP.BlameMaxFake * 100.0f);
+				Reason = DP.BlameBasis > 0.5 ? FString::Printf(TEXT("Blame refused: %.0f%% fake votes over your strikes, the limit is %.0f%%."), BlameRefusedShare * 100.0f, DP.BlameMaxFake * 100.0f)
+					: FString::Printf(TEXT("Blame refused: %.0f%% fake votes, the limit is %.0f%%."), BlameRefusedShare * 100.0f, DP.BlameMaxFake * 100.0f);
 			}
 			else if (Run->BlameUsed())
 			{
@@ -1079,7 +1080,7 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			break;
 		case EShiftEventType::FinalPushStart:
 			PlaySfx(EShiftSfx::ModWarn);
-			PushAlert(AlertFinalPush, TEXT("FINAL PUSH"), FString::Printf(TEXT("%s goes all-in for the last %.0f s: double attacks. Your Posts refill %.0f%% faster."), *EntryName(Run->GetSim().RivalId()), E.Value, E.Share * 100.0f), RedColor(), 3.6f, 20);
+			PushAlert(AlertFinalPush, TEXT("FINAL PUSH"), FString::Printf(TEXT("%s goes all-in for %.0f s: double attacks. Your Posts refill +%.0f%%."), *EntryName(Run->GetSim().RivalId()), E.Value, E.Share * 100.0f), RedColor(), 3.6f, 20);
 			ShowToast(FString::Printf(TEXT("%s goes all-in for the last %.0f s: double attacks. Your Posts refill %.0f%% faster."), *EntryName(Run->GetSim().RivalId()), E.Value, E.Share * 100.0f), RedColor(), 4.0f);
 			break;
 		case EShiftEventType::EyeAwayWarn:
@@ -1097,7 +1098,7 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			break;
 		case EShiftEventType::FinalAudit:
 			PlaySfx(EShiftSfx::ModSweep);
-			PushAlert(AlertFinalAudit, TEXT("FINAL AUDIT"), E.Count > 0 ? FString::Printf(TEXT("%d sockpuppet vote%s purged (-%.1f%% of the vote)."), E.Count, E.Count == 1 ? TEXT("") : TEXT("s"), E.Value * 100.0f) : FString(TEXT("Clean: no sockpuppet votes left to purge.")),
+			PushAlert(AlertFinalAudit, TEXT("FINAL AUDIT"), E.Count > 0 ? FString::Printf(TEXT("%d fake vote%s purged (-%.1f%% of the vote)."), E.Count, E.Count == 1 ? TEXT("") : TEXT("s"), E.Value * 100.0f) : FString(TEXT("Clean: no fake votes left to purge.")),
 				E.Count > 0 ? DeepRedColor() : TealColor(), 3.0f, 30);
 			ShowToast(E.Count > 0 ? FString::Printf(TEXT("FINAL AUDIT: %d sockpuppet vote%s purged (%.1f%% of the vote)."), E.Count, E.Count == 1 ? TEXT("") : TEXT("s"), E.Value * 100.0f)
 				: FString(TEXT("FINAL AUDIT: no sockpuppet votes left to purge.")), E.Count > 0 ? RedColor() : TealColor(), 3.5f);
@@ -1150,7 +1151,7 @@ void AShiftPlayerController::ResetAlerts()
 	BlameRefusedShare = 0.0f;
 }
 
-/** An urgent event takes over the top bar. The highest priority is on screen; a lower one waits its turn (three at most), and a higher one replaces it. */
+/** An urgent event takes over the bottom bar. The highest priority is on screen; a lower one waits its turn (three at most), and a higher one replaces it. */
 void AShiftPlayerController::PushAlert(int32 Kind, const FString& Title, const FString& Detail, const FLinearColor& Color, float Duration, int32 Priority)
 {
 	UE_LOG(LogShift, Display, TEXT("Alert: t=%.1f kind=%d '%s' / '%s'"), Run.IsValid() ? Run->GetSim().Time() : 0.0, Kind, *Title, *Detail);
@@ -1230,7 +1231,8 @@ void AShiftPlayerController::FillAlertModel(FShiftHudModel& M) const
 		const float Left = static_cast<float>(Run->BlameSecondsLeft());
 		A.Kind = AlertBlameOffer;
 		A.Title = FString::Printf(TEXT("STRIKE %d OF %d: SHIFT THE BLAME?  (B)"), Run->GetSim().Strikes(), static_cast<int32>(P.MaxStrikes));
-		A.Detail = FString::Printf(TEXT("Click here or press B to hand the strike to the rival. It works: %.0f%% of the vote was fake, the limit is %.0f%%."), Run->BlameFakeShare() * 100.0, P.BlameMaxFake * 100.0);
+		A.Detail = P.BlameBasis > 0.5 ? FString::Printf(TEXT("%.0f%% fake votes over your strikes (limit %.0f%%): click here or press B."), Run->BlameFakeShare() * 100.0, P.BlameMaxFake * 100.0)
+			: FString::Printf(TEXT("%.0f%% fake votes (limit %.0f%%): click here or press B to blame the rival."), Run->BlameFakeShare() * 100.0, P.BlameMaxFake * 100.0);
 		A.Color = OrangeColor();
 		A.Frac = FMath::Clamp(Left / FMath::Max(0.1f, static_cast<float>(Run->BlameWindowSeconds())), 0.0f, 1.0f);
 		A.SecondsLeft = Left;
@@ -1875,6 +1877,8 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 		M.FinalPushIn = (ToPush > 0.0 && ToPush <= 12.0) ? static_cast<float>(ToPush) : -1.0f;
 		M.FinalPushLeft = (ToPush <= 0.0 && SecondsLeft > 0.0) ? static_cast<float>(SecondsLeft) : -1.0f;
 		M.FinalPushBonus = static_cast<float>(FMath::Max(0.0, Pol.FinalPushRegen - 1.0));
+		M.RivalPosts = static_cast<float>(Run->RivalPosts());
+		M.RivalPostsMax = static_cast<float>(Run->RivalPostsMax());
 	}
 	M.EyeAwayLeft = S.EyeAwayRemaining() > 0.0 ? static_cast<float>(S.EyeAwayRemaining()) : -1.0f;
 	M.EyeAwayWarnIn = (Run->EyeWindowAnnounced() && S.EyeAwayRemaining() <= 0.0) ? static_cast<float>(FMath::Max(0.0, Run->NextEyeWindowStart() - S.Time())) : -1.0f;

@@ -171,35 +171,38 @@ void FShiftRun::ApplyModStrike()
 	Emit(Event);
 
 	// Shift the Blame is for the strike that would disqualify, and only for a few fake votes (Sim/ShiftBlameRules.h); the strikes before it keep every consequence.
+	const double EarlierFake = BlameStats.StrikeFakeSum;     // the fake share of the strikes before this one
 	++BlameStats.Strikes;
 	BlameStats.StrikeFakeSum += FakeShareBefore;
+	const double BlameShare = ShiftSim::BlameBasisShare(Sim->GetParams(), FakeShareBefore, EarlierFake);
 	if (Strike.disqualified)
 	{
 		++BlameStats.Fatal;
 		BlameStats.FatalFake.Add(static_cast<float>(FakeShareBefore));
+		BlameStats.FatalBasis.Add(static_cast<float>(BlameShare));
 	}
-	const ShiftSim::BlameVerdict Verdict = ShiftSim::JudgeBlame(*Sim, FakeShareBefore, bBlameUsed);
+	const ShiftSim::BlameVerdict Verdict = ShiftSim::JudgeBlame(*Sim, BlameShare, bBlameUsed);
 	const double Window = ShiftSim::BlameWindowFor(*Sim);
 	if (Verdict == ShiftSim::BlameVerdict::Offered && Window > 1.0e-9)
 	{
 		++BlameStats.Offered;
-		BlameFake = FakeShareBefore;
+		BlameFake = BlameShare;
 		BlameWindowLength = Window;
 		BlameRemaining = Window;
 		FShiftEvent Offer;
 		Offer.Type = EShiftEventType::BlameOffered;
 		Offer.Value = static_cast<float>(Window);
-		Offer.Share = static_cast<float>(FakeShareBefore);
+		Offer.Share = static_cast<float>(BlameShare);
 		Offer.Count = Strike.strikes;
 		Emit(Offer);
 	}
 	else if (Verdict == ShiftSim::BlameVerdict::Refused)
 	{
 		++BlameStats.Refused;
-		BlameFake = FakeShareBefore;
+		BlameFake = BlameShare;
 		FShiftEvent Refusal;
 		Refusal.Type = EShiftEventType::BlameRefused;
-		Refusal.Share = static_cast<float>(FakeShareBefore);
+		Refusal.Share = static_cast<float>(BlameShare);
 		Refusal.Count = Strike.strikes;
 		Emit(Refusal);
 	}

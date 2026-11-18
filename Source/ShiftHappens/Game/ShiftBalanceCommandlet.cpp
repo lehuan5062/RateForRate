@@ -58,6 +58,9 @@ namespace
 		double MegaEndShare = 0.0;
 		int32 MegaLeadAtStart = 0;          // runs in which the player led when the final push began, and still led at the end
 		int32 MegaLeadKept = 0;
+		int32 RivalAttacks = 0;             // what the rival did, summed over the runs: attacks, re-plugs of its own weak hubs, and actions its Post bank refused
+		int32 RivalDefends = 0;
+		int32 RivalStarved = 0;
 		int32 BlameStrikes = 0;             // Shift the Blame, summed over the runs: strikes, their fake share, the fatal ones and what became of them
 		double BlameFakeSum = 0.0;
 		int32 BlameFatal = 0;
@@ -65,7 +68,7 @@ namespace
 		int32 BlameTaken = 0;
 		int32 BlameRefused = 0;
 		int32 BlameLapsed = 0;
-		int32 FatalFakeBins[6] = { 0, 0, 0, 0, 0, 0 };   // fatal strikes by the fake share they took: <4%, 4-8, 8-12, 12-16, 16-20, 20+
+		int32 FatalFakeBins[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };   // fatal strikes by the share the Blame's cap is measured on: <4%, 4-8, 8-12, 12-16, 16-20, 20-30, 30-40, 40+
 	};
 
 	bool ParseBot(const FString& Name, ShiftSim::BotKind& Out)
@@ -74,7 +77,9 @@ namespace
 	}
 
 	/** Named strategies that are the explorer bot with a fixed configuration: castle (the playtester's snowball: biggest voter first, Rally kept on it), parry (answers attacks by
-	 *  reinforcing only) and rallyonly (answers by Rally only). Returns false for any other name. */
+	 *  reinforcing only), rallyonly (answers by Rally only) and, from round 6, the sockpuppet strategies the playtester and the search found: snowball (sockpuppet the biggest gated
+	 *  hubs and celebrities whenever Heat allows, no share cap of its own, answer attacks), steady (the same under a 6% fake share, the most Heat can hold steady) and gambler (the
+	 *  search's best on GAME OFF: sockpuppets on hubs, a burst in the last 21 s, answers attacks). Returns false for any other name. */
 	bool BalancePreset(const FString& Name, ShiftSim::BotKind& Kind, TMap<FString, double>& Overrides)
 	{
 		TMap<FString, double> P;
@@ -89,6 +94,21 @@ namespace
 		else if (Name.Equals(TEXT("window"), ESearchCase::IgnoreCase))
 		{
 			P.Add(TEXT("XReact"), 1.0); P.Add(TEXT("XRally"), 1.0); P.Add(TEXT("XWindow"), 1.0);
+		}
+		else if (Name.Equals(TEXT("snowball"), ESearchCase::IgnoreCase))
+		{
+			P.Add(TEXT("XReact"), 1.0); P.Add(TEXT("XRally"), 1.0); P.Add(TEXT("XSock"), 1.0); P.Add(TEXT("XBurst"), 0.0); P.Add(TEXT("XSockMinV"), 250.0); P.Add(TEXT("SockMaxHeat"), 35.0); P.Add(TEXT("XSockShare"), 0.0);
+		}
+		else if (Name.Equals(TEXT("steady"), ESearchCase::IgnoreCase))
+		{
+			P.Add(TEXT("XReact"), 1.0); P.Add(TEXT("XRally"), 1.0); P.Add(TEXT("XSock"), 1.0); P.Add(TEXT("XBurst"), 0.0); P.Add(TEXT("XSockMinV"), 250.0); P.Add(TEXT("SockMaxHeat"), 35.0); P.Add(TEXT("XSockShare"), 0.06);
+		}
+		else if (Name.Equals(TEXT("gambler"), ESearchCase::IgnoreCase))
+		{
+			P.Add(TEXT("XReact"), 1.0); P.Add(TEXT("XRally"), 1.0); P.Add(TEXT("XSock"), 1.0); P.Add(TEXT("XBurst"), 1.0); P.Add(TEXT("XIdle"), 0.0); P.Add(TEXT("XReinforceBelow"), 0.0);
+			P.Add(TEXT("XPlugMinV"), 57.32); P.Add(TEXT("XParry"), 1.0); P.Add(TEXT("XValueFirst"), 0.0); P.Add(TEXT("XKeepRally"), 0.0); P.Add(TEXT("XWindow"), 1.0); P.Add(TEXT("XWindowBank"), 6.38);
+			P.Add(TEXT("ReactRallyThreats"), 2.633); P.Add(TEXT("ReactRallyValue"), 489.9); P.Add(TEXT("XSockMinV"), 44.06); P.Add(TEXT("XSockShare"), 0.0); P.Add(TEXT("ReactDelay"), 0.7969);
+			P.Add(TEXT("ReactMinValue"), 129.8); P.Add(TEXT("ReactReserve"), 0.6859); P.Add(TEXT("SockMaxHeat"), 24.07); P.Add(TEXT("LateSeconds"), 20.98);
 		}
 		else if (Name.Equals(TEXT("rallyonly"), ESearchCase::IgnoreCase))
 		{
@@ -269,6 +289,9 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				St.Flips.PlugDwellSum += Flips.PlugDwellSum;
 				St.Flips.SockDwellCount += Flips.SockDwellCount;
 				St.Flips.SockDwellSum += Flips.SockDwellSum;
+				St.RivalAttacks += Run.RivalPolicy().Attacks;
+				St.RivalDefends += Run.RivalPolicy().Defends;
+				St.RivalStarved += Run.RivalPolicy().Starved;
 				const FShiftBlameStats& Blame = Run.GetBlameStats();
 				St.BlameStrikes += Blame.Strikes;
 				St.BlameFakeSum += Blame.StrikeFakeSum;
@@ -277,9 +300,10 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				St.BlameTaken += Blame.Taken;
 				St.BlameRefused += Blame.Refused;
 				St.BlameLapsed += Blame.Lapsed;
-				for (const float Fake : Blame.FatalFake)
+				for (const float Basis : Blame.FatalBasis)
 				{
-					St.FatalFakeBins[FMath::Clamp(FMath::FloorToInt(Fake * 100.0f / 4.0f), 0, 5)]++;
+					const float Pct = Basis * 100.0f;
+					St.FatalFakeBins[Pct < 20.0f ? FMath::FloorToInt(Pct / 4.0f) : (Pct < 30.0f ? 5 : (Pct < 40.0f ? 6 : 7))]++;
 				}
 				if (R % 40 == 39)
 				{
@@ -297,11 +321,13 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				St.Flips.PlugDwellCount > 0 ? St.Flips.PlugDwellSum / St.Flips.PlugDwellCount : 0.0, St.Flips.PlugDwellCount,
 				St.Flips.SockDwellCount > 0 ? St.Flips.SockDwellSum / St.Flips.SockDwellCount : 0.0, St.Flips.SockDwellCount,
 				St.Threats.queued / N, St.Threats.landed / N, St.Threats.flipped / N, St.Threats.blocked / N, St.Threats.fizzled / N, St.Threats.shieldBlocked / N, St.Threats.parried / N, St.Threats.postsRally / N, St.Threats.postsParry / N);
+			// The rival (a separate line): per run, its attacks, its re-plugs of weak hubs and the actions its Post bank refused (the final push drains it).
+			UE_LOG(LogShift, Display, TEXT("Balance: rival jam=%d bot=%-8s per run: attacks %.1f  defends %.1f  starved %.1f"), Jam, *BotName, St.RivalAttacks / N, St.RivalDefends / N, St.RivalStarved / N);
 			// Shift the Blame (a separate line, like the others): strikes per run and the fake share they took, the strikes that would disqualify and what became of them (offered, taken,
 			// refused for too many fake votes, let lapse), and how many fatal strikes fell in each band of fake share (the cap, Params::BlameMaxFake, sits between two of them).
-			UE_LOG(LogShift, Display, TEXT("Balance: blame jam=%d bot=%-8s per run: strikes %.2f (fake %.1f%% each)  fatal %.2f  offered %.2f  taken %.2f  refused %.2f  lapsed %.2f   fatal fake share <4%% %d  4-8 %d  8-12 %d  12-16 %d  16-20 %d  20+ %d"),
+			UE_LOG(LogShift, Display, TEXT("Balance: blame jam=%d bot=%-8s per run: strikes %.2f (fake %.1f%% each)  fatal %.2f  offered %.2f  taken %.2f  refused %.2f  lapsed %.2f   fatal fake share <4%% %d  4-8 %d  8-12 %d  12-16 %d  16-20 %d  20-30 %d  30-40 %d  40+ %d"),
 				Jam, *BotName, St.BlameStrikes / N, St.BlameStrikes > 0 ? 100.0 * St.BlameFakeSum / St.BlameStrikes : 0.0, St.BlameFatal / N, St.BlameOffered / N, St.BlameTaken / N, St.BlameRefused / N, St.BlameLapsed / N,
-				St.FatalFakeBins[0], St.FatalFakeBins[1], St.FatalFakeBins[2], St.FatalFakeBins[3], St.FatalFakeBins[4], St.FatalFakeBins[5]);
+				St.FatalFakeBins[0], St.FatalFakeBins[1], St.FatalFakeBins[2], St.FatalFakeBins[3], St.FatalFakeBins[4], St.FatalFakeBins[5], St.FatalFakeBins[6], St.FatalFakeBins[7]);
 			// The rival's final push (the last MegaDays days): the player's share when it starts and when the run ends, and how often a lead at the start survives.
 			UE_LOG(LogShift, Display, TEXT("Balance: mega jam=%d bot=%-8s share at start %.1f%% at end %.1f%% swing %+.1f  led at start %d, kept %d"),
 				Jam, *BotName, 100.0 * St.MegaStartShare / N, 100.0 * St.MegaEndShare / N, 100.0 * (St.MegaEndShare - St.MegaStartShare) / N, St.MegaLeadAtStart, St.MegaLeadKept);

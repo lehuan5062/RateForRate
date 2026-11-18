@@ -483,3 +483,34 @@ commandlet prints a `Balance: blame` line per jam and bot (strikes, fatal strike
 **Not done / not known.** I cannot watch the playtest video. The alerts are checked by logs and screenshots (1280 x 720 and 1920 x 1080, day and night), not by a person who is looking at the board; whether a
 top-bar band with a frame and a repeating warning is enough for someone with their eyes on the voters is the question for the tester. The forecast describes a varied steady player (a Plug about every 0.7 s that sometimes
 misses the best target), which is more modest than the greedy bot on the hard jam (29% against its 44% at the even split); it is a forecast of play, not of skill.
+
+## M12 - playtest round 6 (issue #1, `2e61bc1`)
+
+The tester's answers to the round-5 questions: the forecast chart is fine ("Pass"); the alert "is on the screen, but users are more likely to look at the middle bottom than the top"; the Blame window "maybe 5 seconds";
+"the current best strat is using sockpuppets to take the largest voter, then snowball with them as they put too much pressure on nearby voters; often the strike or the limit to shift blame doesn't matter once the player
+succeeded"; "at the last day the red team seems to have unlimited flips / Posts, and all the Posts have to be used to parry / Rally big voters"; "the game is mostly player vs red, none of the other colours has much effect".
+
+**Alert and window.** The alert band moved from the top bar to the middle of the bottom bar (x 280..792, y 678..710; the Posts pips and counter, the HEAT bar and the strike pips stay in view; the Rally chip, the day / night
+chip and the hint are not painted while it is up). Texts were shortened to fit (<= 44 / 77 characters with the countdown). `BlameWindow` is 5 s. This supersedes M11's top-bar text.
+
+**The exploit: measured first, then one lever.** My first idea (a strike also takes back the voters that followed the fake votes) was tested before it was built, on the standalone harness (`harness.exe snow`, core API only, 100
+seeds per jam, steal the heaviest voter at t = 40 s and back it, strike after 8 / 14 / 20 s): what a stolen celebrity pulls along beyond its own weight is **0.00-0.15% of the vote** (followers hardly flip), the stolen voter
+itself drifts back to the rival within about 20 s unless it is kept up, and what is left of it 30 s after a strike is zero. A steal at T-21 s and one at T-14 s is worth +27..+31% of the vote before the final audit and
++15..+17% after it (the older one is outside the 15 s review window), which is a potential, not a result: strikes land in between. So no taint rule. Experiment 0 (the search's GAME OFF gambler, 200 runs, seeds 500000,
+one knob at a time, win % of gambler / greedy / reactor): base 42.0 / 30.5 / 47.5; `BotBlame=0` **23.0**; Blame without its rival debuff 43.5; no front-page boost 33.5 / 40.0 / 55.5; `SockReview` 30 **42.0** (no
+change); `SockHeldHeat` 100 1.5; the 6% steady variant 49.0 (DQ 0). The edge is the Blame: the strikes before the fatal one are free and the cap only looked at the fatal one ("the limit doesn't matter"). **Shift the Blame
+now measures its cap on the fake votes of all the player's strikes added up** (`BlameBasis` 1; `BlameMaxFake` **0.20** over all strikes, was 0.08 on the last one). Sweep, gambler / steady on GAME OFF (win %) and the sock
+bot's offers: basis 0 cap 0.08 42 / 45, offered 0.31; 0.12 49.5 / 45, 0.34; 0.20 53 / 45, 0.94; **basis 1** cap 0.08, 0.12 and 0.20 all 23 / 45, offered 0.00 / 0.00 / 0.03: the reckless are never offered it, a clean
+record still is. The prompt reads "6% fake votes over your strikes (limit 20%)". Regression guards now in the gate (`Data/BalanceTargets.csv`): the presets `snowball`, `steady` and `gambler` against the reactor (<= +5 on every
+jam: -86 / -52 / -37, +-3 / +3 / +1, -54 / -12 / -9).
+
+**The rival pays Posts.** In the final push the rival attacked every 1.65 s (RivalInterval 3.3 s, two actions per round) for 10.9 / 14.5 attacks against a player refill of ~0.6 Posts/s: every parry used the player's whole
+Post flow, and the rival had no economy at all. It has one now (`Sim/ShiftRivalBank.h`, lazy refill, tested; `PolicyParams::RivalPostsMax` 4, `RivalPostsRegen` 0.48, `RivalDefendCost` 1; an action that finds the bank empty
+does not happen, a parried attack still cost its Post) and the pinned FINAL PUSH card shows "rival Posts 2/4, yours +25%". Refill 0.40 weakened the push enough to push the honest rows out of their bands (greedy 95 / 39,
+reactor -7 / +2); with the bank off or at 0.48 the gate is green and the table is the round-5 one (0 is bit-identical). It refuses 1 to 2 rival actions a run, so it is mostly visible, not a nerf.
+
+**Others.** Not changed: by design they are the background that the thesis (fame decides) rests on; making them hit the leader's low-weight voters would be nearly invisible. Candidate for a later round: the "drama
+thread" event hitting the front-runner instead of a random entry.
+
+**Gate.** All rows green (70 + 9 new; the explorer's best responses were inside the +30 limit on the first run with these rules), `forecast_check` and `verify` below. New: `harness.exe snow`, balance presets `snowball` /
+`steady` / `gambler`, the `Balance: rival` line (attacks, defends, starved) and the Blame line's bins up to 40+%.

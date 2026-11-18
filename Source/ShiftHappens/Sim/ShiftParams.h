@@ -143,8 +143,9 @@ namespace ShiftSim
 		double MaxStrikes = 3.0;
 		// Shift the Blame (Sim/ShiftBlameRules.h): a last chance at the strike that would disqualify the player, not a free fourth strike. It works only when the fake votes the
 		// mods just took away were few enough to pass for the rival's doing.
-		double BlameMaxFake = 0.08;             // the most the fake votes reverted by the fatal strike may come to, as a share of all vote weight (a little over the 6% a held block of sockpuppet votes can keep warm: 0.12 let a sockpuppet gambler win 50% on GAME OFF against greedy's 30%)
-		double BlameWindow = 4.0;               // seconds the offer stays open (0 = no Shift the Blame at all)
+		double BlameMaxFake = 0.20;             // the most the fake votes the Blame's basis counts may come to, as a share of all vote weight (see BlameBasis; 0.08 on the fatal strike alone, round 5, still let a gambler win 42% on GAME OFF)
+		double BlameWindow = 5.0;               // seconds the offer stays open (0 = no Shift the Blame at all); the playtester asked for 5 after 4
+		double BlameBasis = 1.0;                // what BlameMaxFake is measured on: 0 = the fatal strike's own fake votes, 1 = the fake votes of all of the player's strikes added up (a pile of them at strike one makes the rival an unlikely culprit at strike three; the playtester: the limit "doesn't matter" when only the last strike counts)
 		double BlameRivalConv = 0.25;           // conviction every voter of the rival's loses when the blame lands
 		double BlameRivalFreeze = 10.0;         // seconds the rival is busy defending itself afterwards (behaviour layer)
 

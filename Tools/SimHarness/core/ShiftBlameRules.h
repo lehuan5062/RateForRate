@@ -34,6 +34,12 @@ namespace ShiftSim
 		return FakeShare <= P.BlameMaxFake + 1.0e-12 ? BlameVerdict::Offered : BlameVerdict::Refused;
 	}
 
+	// The fake share the cap (Params::BlameMaxFake) is measured on: the fatal strike's own (BlameBasis 0), or the sum over all of the player's strikes including this one (BlameBasis 1).
+	inline double BlameBasisShare(const Params& P, double StrikeFake, double EarlierStrikesFake)
+	{
+		return P.BlameBasis > 0.5 ? EarlierStrikesFake + StrikeFake : StrikeFake;
+	}
+
 	// How long the offer stays open: the window, or what is left of the jam if that is less.
 	inline double BlameWindowFor(const Sim& S)
 	{

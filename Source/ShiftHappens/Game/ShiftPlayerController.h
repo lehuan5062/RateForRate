@@ -91,7 +91,7 @@ private:
 	void ShowHeadline(const FString& Event, const FString& EntryName);
 	void TickLostVoters(float DeltaTime);
 
-	// ---- alerts: the urgent events (strike, Shift the Blame offer, disqualification, final push and audit) take over the middle of the top bar for a few seconds (FShiftHudAlert)
+	// ---- alerts: the urgent events (strike, Shift the Blame offer, disqualification, final push and audit) take over the middle of the bottom bar for a few seconds (FShiftHudAlert)
 	enum EAlertKind : int32 { AlertNone = 0, AlertStrike, AlertBlameOffer, AlertBlameTaken, AlertDisqualified, AlertFinalPush, AlertFinalAudit };
 	struct FAlert
 	{

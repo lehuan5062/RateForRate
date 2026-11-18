@@ -91,6 +91,7 @@ struct FShiftBlameStats
 	int32 Refused = 0;           // ... of which had too many fake votes
 	int32 Lapsed = 0;            // ... of which the player let the window run out on
 	TArray<float> FatalFake;     // the fake share of every fatal strike
+	TArray<float> FatalBasis;    // ... and the share the Blame's cap was measured on (the same, or all strikes added up: Params::BlameBasis)
 };
 
 /** Drives the behaviour layer (rival, other entries, jam director) for one fixed step; the StateTree runner implements this. */
@@ -141,6 +142,9 @@ public:
 	ShiftSim::StandInRival& RivalPolicy() { return Rival; }
 	ShiftSim::Rng& DirectorRng() { return ModRng; }
 	bool RivalFrozen() const { return Sim.IsValid() && Sim->Time() < RivalFrozenUntil; }
+	/** The rival's Post bank now and its size (0 / 0 when the rule is off): the final push's pinned card shows it. */
+	double RivalPosts() const { return Sim.IsValid() ? Rival.PostsNow(*Sim, Policy) : 0.0; }
+	double RivalPostsMax() const { return Policy.RivalPostsMax; }
 	void SetNextModSweep(double Time) { NextSweep = Time; }
 	/** Heat at the cap: the mods strike at once. */
 	void HeatGuard();
@@ -154,7 +158,7 @@ public:
 	bool BlameAvailable() const { return BlameRemaining > 0.0 && !bBlameUsed; }
 	double BlameSecondsLeft() const { return BlameRemaining; }
 	double BlameWindowSeconds() const { return BlameWindowLength; }
-	/** The fake share the offered (or refused) strike took, for the prompt: "works: 8% fake, limit 12%". */
+	/** The share the Blame's cap was measured on for the offered (or refused) strike, for the prompt: "6% fake votes (limit 8%)". */
 	double BlameFakeShare() const { return BlameFake; }
 	bool BlameUsed() const { return bBlameUsed; }
 	const FShiftBlameStats& GetBlameStats() const { return BlameStats; }

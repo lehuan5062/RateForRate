@@ -21,7 +21,7 @@ Hubs and celebrities carry most of the vote weight. Flip them and their follower
 | **Click** | **Plug** (day shift): spend 1 Post to chip away at a voter's conviction (the ring). At zero they flip to you. Click your own voters to reinforce them, and click a voter a ring is closing in on to **parry** the attack |
 | **Right-click** a voter you hold | **Rally**: spend 1 Post to shield it and your voters one hop away from every plug for 6 s (teal dome) and add a little conviction (8 s cooldown) |
 | **Hold SHIFT** (or press **N** to toggle) | **Night shift**: the world goes dark. Clicks become **sockpuppets**: 3x stronger, ignore gates, but fragile, and they build **Heat** |
-| **B** | **Shift the Blame**: the strike that would disqualify you can be handed to your rival, once per jam, if the fake votes it took were few (under 8% of the vote). It is offered for 4 s as an orange bar across the top of the screen: click it or press B |
+| **B** | **Shift the Blame**: the strike that would disqualify you can be handed to your rival, once per jam, if the fake votes of all your strikes together were few (under 20% of the vote). It is offered for 5 s as an orange bar in the middle of the bottom bar: click it or press B |
 | **Space / Esc** | Pause and menu |
 | **M** | Mute |
 | **E** | Relation lines: faint (default) / off / full |
@@ -36,7 +36,7 @@ Hubs and celebrities carry most of the vote weight. Flip them and their follower
 * **Attacks are announced.** When the rival or another entry picks one of your voters, a ring in *their* colour closes in on it for 1.5 seconds before the plug lands. Click the voter to **parry** it (the ring bounces, 1 Post), or Rally it and its neighbours (the ring bounces off the shield), or let it go. Your fans are loyal (a voter you flip starts at 80% conviction). Sockpuppet votes are flagged and get no warning.
 * **Front page**: the top three entries get a boost, so leads snowball.
 * **The rival's final push**: in the last three days the rival doubles its attacks. A countdown announces it, and your Posts refill 25% faster for the same days.
-* **Nothing floats over the board**: the voters keep left of a right-hand strip that holds the leaderboard, the states you are in (shadowban, final push, final audit, fake votes) and the notification cards. What cannot be missed takes over the middle of the top bar instead (a strike, the Shift the Blame offer, the disqualification, the final push and audit), with a thin frame at the edge of the screen and a warning sound.
+* **Nothing floats over the board**: the voters keep left of a right-hand strip that holds the leaderboard, the states you are in (shadowban, final push, final audit, fake votes) and the notification cards. What cannot be missed takes over the middle of the bottom bar instead, where the eyes already are for Posts, Heat and strikes (a strike, the Shift the Blame offer, the disqualification, the final push and audit), with a thin frame at the edge of the screen and a warning sound.
 
 Flow: **Title** → **Pick a jam** (Tiny Jam #7, 48h Pixel Rumble, GAME OFF 2026) → **Build your entry** (spend 12 hours on Quality, Thumbnail and Network, with a forecast of this very jam) → **Vote** (31 days) → **Results**
 (the results screen computes, from your own run, how much of the vote is explained by quality and how much by starting fame).

@@ -26,6 +26,15 @@ reactor_2,2,reactor,,win_pct,greedy,,3,25,Answering announced attacks (Rally) be
 explorer_0,0,explorer,,best_response,greedy,,,30,No searched strategy beats honest play by more than 30 points on fresh seeds (greedy is weaker on them; needs -Explore)
 explorer_1,1,explorer,,best_response,greedy,,,30,No searched strategy beats honest play by more than 30 points on fresh seeds (greedy is weaker on them; needs -Explore)
 explorer_2,2,explorer,,best_response,greedy,,,30,No searched strategy beats honest play by more than 30 points on fresh seeds (greedy is weaker on them; needs -Explore)
+snowball_0,0,snowball,,win_pct,reactor,,,5,Sockpuppeting the biggest hubs and celebrities with no care for the share does not beat honest play that answers attacks
+snowball_1,1,snowball,,win_pct,reactor,,,5,Sockpuppeting the biggest hubs and celebrities with no care for the share does not beat honest play that answers attacks
+snowball_2,2,snowball,,win_pct,reactor,,,5,Sockpuppeting the biggest hubs and celebrities with no care for the share does not beat honest play that answers attacks
+steady_0,0,steady,,win_pct,reactor,,,5,Sockpuppets kept under the 6% Heat can hold do not beat honest play that answers attacks
+steady_1,1,steady,,win_pct,reactor,,,5,Sockpuppets kept under the 6% Heat can hold do not beat honest play that answers attacks
+steady_2,2,steady,,win_pct,reactor,,,5,Sockpuppets kept under the 6% Heat can hold do not beat honest play that answers attacks
+gambler_0,0,gambler,,win_pct,reactor,,,5,The search's sockpuppet gambler (hubs, a last-21-s burst, answers attacks) does not beat honest play that answers attacks
+gambler_1,1,gambler,,win_pct,reactor,,,5,The search's sockpuppet gambler (hubs, a last-21-s burst, answers attacks) does not beat honest play that answers attacks
+gambler_2,2,gambler,,win_pct,reactor,,,5,The search's sockpuppet gambler (hubs, a last-21-s burst, answers attacks) does not beat honest play that answers attacks
 castle_0,0,castle,,win_pct,greedy,,,5,Rally-spam on the biggest voter does not beat honest play
 castle_1,1,castle,,win_pct,greedy,,,5,Rally-spam on the biggest voter does not beat honest play
 castle_2,2,castle,,win_pct,greedy,,,5,Rally-spam on the biggest voter does not beat honest play

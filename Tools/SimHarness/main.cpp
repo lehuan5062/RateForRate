@@ -5,9 +5,11 @@
 //   harness.exe r2    [--seeds 200]        R^2 of final votes vs quality / followers
 //   harness.exe calib [--seeds 200]        bisect per-jam regen for the target greedy win rates
 //   harness.exe trace --jam 1 --seed 5 --bot greedy
+//   harness.exe snow [--seeds 100] [--jam N]  how much a stolen big voter pulls along, and how much survives a strike / the final audit (round 6)
 //   harness.exe all                        test + batch + sweep + r2
 //   harness.exe export-data                write built-in defaults to Data/Tuning.csv and Data/Jams.csv
 // Options: --data <dir>  --threads N  --set Name=Value (repeatable, Params or policy)  --jamset N.Field=Value
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -458,6 +460,215 @@ void CmdTrace(const Config& Cfg, const Args& A)
     std::printf("  leader e%d strikes %d\n", S.Leader(), S.Strikes());
 }
 
+
+// ------------------------------------------------------------------------------------------
+// Experiment 1 (round 6): how much of what a stolen big voter pulls along survives the strike? Core API only (no rival, no others, no bot): two sims from one seed run side by side
+// through 40 s of natural dynamics; in B the player then sockpuppets the heaviest voter it does not hold and backs it (three reinforcing Plugs, as the bots do); both run on, B is
+// struck after H seconds, and the gain of B over A (the player's tally difference as a share of all vote weight) is read at the strike and 10, 30 and 60 s later. F is the gain
+// beyond the fake weight itself, i.e. what the stolen voter pulled along (its followers coming round, the front-page rank). The end-game variant steals at T-21 s and T-14 s and
+// reads the gain before and after the final audit.
+int HeaviestNonPlayer(const Sim& S)
+{
+    int Best = -1;
+    for (int I = 0; I < S.NodeCount(); ++I)
+    {
+        if (S.Opinion(I) == kPlayerId || S.LockRemaining(I) > 0.0)
+        {
+            continue;
+        }
+        if (Best < 0 || S.GetGraph().nodes[static_cast<size_t>(I)].weight > S.GetGraph().nodes[static_cast<size_t>(Best)].weight)
+        {
+            Best = I;
+        }
+    }
+    return Best;
+}
+
+void StepFor(Sim& S, double Seconds)
+{
+    const int Steps = static_cast<int>(Seconds / S.GetParams().Dt + 0.5);
+    for (int I = 0; I < Steps && !S.Finished(); ++I)
+    {
+        S.Step();
+    }
+}
+
+// Sockpuppets the node and backs it with three reinforcing Plugs. False when the click was refused.
+bool StealAndBack(Sim& S, int Node)
+{
+    S.SetPosts(5.0);
+    S.SetHeat(0.0);
+    S.SetNightHeld(true);
+    const ActionOutcome O = S.Sock(Node);
+    S.SetNightHeld(false);
+    if (O.result != ActionResult::Flipped)
+    {
+        return false;
+    }
+    for (int K = 0; K < 3; ++K)
+    {
+        S.SetPosts(5.0);
+        S.Plug(kPlayerId, Node, 1.0);
+    }
+    return true;
+}
+
+// Hops from a node over "follows" and "followed by" together.
+std::vector<int> HopDistances(const Sim& S, int Root)
+{
+    std::vector<int> Dist(static_cast<size_t>(S.NodeCount()), -1);
+    std::vector<int> Queue(1, Root);
+    Dist[static_cast<size_t>(Root)] = 0;
+    for (size_t Head = 0; Head < Queue.size(); ++Head)
+    {
+        const GraphNode& G = S.GetGraph().nodes[static_cast<size_t>(Queue[Head])];
+        const int D = Dist[static_cast<size_t>(Queue[Head])];
+        for (size_t K = 0; K < G.follows.size() + G.followers.size(); ++K)
+        {
+            const int Next = K < G.follows.size() ? G.follows[K] : G.followers[K - G.follows.size()];
+            if (Dist[static_cast<size_t>(Next)] < 0)
+            {
+                Dist[static_cast<size_t>(Next)] = D + 1;
+                Queue.push_back(Next);
+            }
+        }
+    }
+    return Dist;
+}
+
+double Median(std::vector<double> V)
+{
+    if (V.empty())
+    {
+        return 0.0;
+    }
+    std::sort(V.begin(), V.end());
+    return V[V.size() / 2];
+}
+
+void CmdSnow(const Config& Cfg, const Args& A)
+{
+    const int Seeds = OptInt(A, "seeds", 100);
+    const int JamOnly = OptInt(A, "jam", 0);
+    const double Holds[3] = { 8.0, 14.0, 20.0 };
+    const double Marks[4] = { 0.0, 10.0, 30.0, 60.0 };
+    std::printf("snow: %d seeds per jam, steal at t=40 s, shares are percent of all vote weight\n", Seeds);
+    for (size_t J = 0; J < Cfg.jams.size(); ++J)
+    {
+        if (JamOnly > 0 && static_cast<int>(J) + 1 != JamOnly)
+        {
+            continue;
+        }
+        const JamDef& Jam = Cfg.jams[J];
+        for (int H = 0; H < 3; ++H)
+        {
+            std::vector<double> Fs;
+            double Fake = 0.0, R[4] = { 0.0, 0.0, 0.0, 0.0 }, Near = 0.0, Far = 0.0, Rank = 0.0;
+            int N = 0, Big = 0;
+            for (int I = 0; I < Seeds; ++I)
+            {
+                const uint32_t Seed = SeedFor(I, 1000u);
+                Sim SimA, SimB;
+                if (!SimA.Init(Jam, Cfg.params, Seed) || !SimB.Init(Jam, Cfg.params, Seed))
+                {
+                    continue;
+                }
+                StepFor(SimA, 40.0);
+                StepFor(SimB, 40.0);
+                const int Root = HeaviestNonPlayer(SimB);
+                if (Root < 0 || !StealAndBack(SimB, Root))
+                {
+                    continue;
+                }
+                const double Total = SimB.TotalWeight();
+                const std::vector<int> Dist = HopDistances(SimB, Root);
+                const int HoldSteps = static_cast<int>(Holds[H] / Cfg.params.Dt + 0.5);
+                int NearFlips = 0, FarFlips = 0;
+                for (int K = 0; K < HoldSteps; ++K)
+                {
+                    SimA.Step();
+                    SimB.Step();
+                    for (size_t C = 0; C < SimB.LastStepChanges().size(); ++C)
+                    {
+                        const NodeChange& Ch = SimB.LastStepChanges()[C];
+                        if (Ch.newOwner == kPlayerId)
+                        {
+                            (Dist[static_cast<size_t>(Ch.node)] == 1 ? NearFlips : FarFlips)++;
+                        }
+                    }
+                }
+                const double FakeShare = SimB.SockBoughtWeight() / Total;
+                const double F = (SimB.Tally(kPlayerId) - SimA.Tally(kPlayerId) - SimB.SockBoughtWeight()) / Total;
+                Rank += SimB.RankOf(kPlayerId) + 1;
+                SimB.ApplyStrike();
+                double Done = 0.0;
+                double Row[4];
+                for (int M = 0; M < 4; ++M)
+                {
+                    StepFor(SimA, Marks[M] - Done);
+                    StepFor(SimB, Marks[M] - Done);
+                    Done = Marks[M];
+                    Row[M] = (SimB.Tally(kPlayerId) - SimA.Tally(kPlayerId)) / Total;
+                }
+                Fake += FakeShare;
+                Fs.push_back(F);
+                for (int M = 0; M < 4; ++M) { R[M] += Row[M]; }
+                Near += NearFlips;
+                Far += FarFlips;
+                Big += F >= 0.03 ? 1 : 0;
+                ++N;
+            }
+            const double D = N > 0 ? static_cast<double>(N) : 1.0;
+            double MeanF = 0.0;
+            for (size_t K = 0; K < Fs.size(); ++K) { MeanF += Fs[K]; }
+            MeanF /= D;
+            std::printf("jam %zu hold %2.0f s: n %3d  stolen %4.1f%%  rank %.1f  pulled along F mean %5.2f%% median %5.2f%% (>=3%%: %2.0f%%)  flips near %.1f far %.1f  after the strike: %+5.2f%% now, %+5.2f%% +10 s, %+5.2f%% +30 s, %+5.2f%% +60 s",
+                        J + 1, Holds[H], N, 100.0 * Fake / D, Rank / D, 100.0 * MeanF, 100.0 * Median(Fs), 100.0 * Big / D, Near / D, Far / D,
+                        100.0 * R[0] / D, 100.0 * R[1] / D, 100.0 * R[2] / D, 100.0 * R[3] / D);
+            std::printf("  survival +30 s %.2f\n", MeanF > 1.0e-9 ? (R[2] / D) / MeanF : 0.0);
+        }
+
+        // The end game: steal at T-21 s and T-14 s, run to the end, read the gain before and after the final audit.
+        double Before = 0.0, After = 0.0;
+        int N = 0;
+        for (int I = 0; I < Seeds; ++I)
+        {
+            const uint32_t Seed = SeedFor(I, 1000u);
+            Sim SimA, SimB;
+            if (!SimA.Init(Jam, Cfg.params, Seed) || !SimB.Init(Jam, Cfg.params, Seed))
+            {
+                continue;
+            }
+            const double Total = SimB.TotalWeight();
+            StepFor(SimA, SimA.TotalSeconds() - 21.0);
+            StepFor(SimB, SimB.TotalSeconds() - 21.0);
+            int Root = HeaviestNonPlayer(SimB);
+            if (Root < 0 || !StealAndBack(SimB, Root))
+            {
+                continue;
+            }
+            StepFor(SimA, 7.0);
+            StepFor(SimB, 7.0);
+            Root = HeaviestNonPlayer(SimB);
+            if (Root >= 0)
+            {
+                StealAndBack(SimB, Root);
+            }
+            while (!SimB.Finished())
+            {
+                SimA.Step();
+                SimB.Step();
+            }
+            Before += (SimB.Tally(kPlayerId) - SimA.Tally(kPlayerId)) / Total;
+            SimB.AuditSockpuppets();
+            After += (SimB.Tally(kPlayerId) - SimA.Tally(kPlayerId)) / Total;
+            ++N;
+        }
+        const double D = N > 0 ? static_cast<double>(N) : 1.0;
+        std::printf("jam %zu end game (steals at T-21 s and T-14 s): n %3d  gain before the audit %+5.2f%%, after %+5.2f%%\n", J + 1, N, 100.0 * Before / D, 100.0 * After / D);
+    }
+}
+
 } // namespace
 
 int main(int Argc, char** Argv)
@@ -510,6 +721,7 @@ int main(int Argc, char** Argv)
     if (A.command == "solve-interval") { CmdSolveInterval(Cfg, A); return 0; }
     if (A.command == "trace") { CmdTrace(Cfg, A); return 0; }
     if (A.command == "init") { CmdInit(Cfg, A); return 0; }
+    if (A.command == "snow") { CmdSnow(Cfg, A); return 0; }
     if (A.command == "all")
     {
         Tests::RunAll(Cfg);
