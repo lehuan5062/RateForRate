@@ -10,8 +10,8 @@ TUT08,8,FirstGateOpened,The gate opened because its followers came around. That 
 TUT09,9,ShiftUnlocked,"Hold SHIFT for the night shift: sockpuppets ignore gates, so you can crack a celebrity. Sticky Keys in the way? Press N."
 TUT10,10,FirstHeat,"Night shift is loud: each sockpuppet adds {sockheat} Heat and holding SHIFT adds {heatrate} a second. Heat cools only when you let go."
 TUT11,11,FirstModEye,"The Mod Eye sweeps every 12 to 35 seconds (see the countdown up top). Above the red tick when it passes, you take a strike."
-TUT12,12,FirstStrike,Strike! The mods undid your sockpuppets and shadowbanned you for {ban} seconds. {strikes} strikes and you are out.
-TUT13,13,BlameAvailable,Once per jam you can Shift the Blame and hand a strike to your rival.
+TUT12,12,FirstStrike,Strike! The mods undid your sockpuppets and shadowbanned you for {ban} seconds. {strikes} strikes and you are out; they do not wear off.
+TUT13,13,BlameRule,"One more strike ends you. Once per jam you can Shift the Blame (click up top or B), if its fake votes are under {blamefake}% of the vote."
 TUT14,14,KeysHint,Space pauses. M mutes. Esc opens the menu. The rest is up to you.
 TUT15,15,FirstLostVoter,A voter changed sides. A shaking ring means it is drifting; a closing coloured ring means another game is about to plug it.
 TUT16,16,FirstSockpuppet,Fake votes keep you hot while you hold them. A strike undoes them all and the audit the unbacked: plug one to {launder} to back it.

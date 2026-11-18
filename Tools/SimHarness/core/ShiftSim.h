@@ -169,6 +169,9 @@ namespace ShiftSim
 	public:
 		// Builds graph, entries and initial opinions from (jam, params, seed). Deterministic.
 		bool Init(const JamDef& Jam, const Params& P, uint32_t Seed);
+		// The same world (graph, layout, entries, opinions: everything Seed draws) with its own luck: the dynamics stream, the coin flips of undecided voters, is seeded from
+		// DynSeed instead. Init(Jam, P, Seed) is Init(Jam, P, Seed, Seed), so every existing hash is unchanged. The build screen's forecast replays one world under many DynSeeds.
+		bool Init(const JamDef& Jam, const Params& P, uint32_t Seed, uint32_t DynSeed);
 
 		// Advances Params::Dt seconds: Posts regen, Heat, locks, opinion dynamics.
 		void Step();
@@ -213,6 +216,7 @@ namespace ShiftSim
 		const JamDef& Jam() const { return Jam_; }
 		const Params& GetParams() const { return P_; }
 		uint32_t Seed() const { return Seed_; }
+		uint32_t DynSeed() const { return DynSeed_; }
 		int NodeCount() const { return Graph_.NodeCount(); }
 		int NumEntries() const { return NumEntries_; }
 		int RivalId() const { return RivalId_; }
@@ -307,6 +311,7 @@ namespace ShiftSim
 		Params P_;
 		Graph Graph_;
 		uint32_t Seed_ = 0;
+		uint32_t DynSeed_ = 0;
 		Rng Rng_;
 
 		int NumEntries_ = 9;

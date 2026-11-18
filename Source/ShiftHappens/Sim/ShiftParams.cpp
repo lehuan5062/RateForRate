@@ -43,6 +43,7 @@ namespace ShiftSim
 			SHIFT_P(PostsRegen), SHIFT_P(GatesApplyToAll),
 			SHIFT_P(HeatDecay), SHIFT_P(HeatNightRate), SHIFT_P(HeatRedZone), SHIFT_P(HeatMax),
 			SHIFT_P(HeatAfterStrike), SHIFT_P(ShadowbanSeconds), SHIFT_P(MaxStrikes),
+			SHIFT_P(BlameMaxFake), SHIFT_P(BlameWindow), SHIFT_P(BlameRivalConv), SHIFT_P(BlameRivalFreeze),
 			SHIFT_P(TargetFollowerCredit), SHIFT_P(HighValueV),
 		};
 

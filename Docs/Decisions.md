@@ -95,9 +95,10 @@ Harmonix, no `.wav`, no SoundWave asset** (S8). What the first probes got wrong,
   A scripted run (title click -> jam card -> slider drags -> upload) reached `Run started ... build=0/8/4`.
 - Build effects (`ShiftBuildRules::Apply`, retuned in M6): quality 0.45 quality points per hour over or under 4, thumbnail scales the player's clout by 1 + 0.5 per hour (floor
   0.15), network adds round(hours / 3) start nodes and 1% faster Post regeneration per hour. The build screen's "what the vote will do" list simulates a *casual* player
-  (greedy targets, one Plug every 2.5 s, four seeds) with this build against the stand-in rival and others, so the sliders visibly move your forecast.
+  (greedy targets, one Plug every 2.5 s, four seeds) with this build against the stand-in rival and others, so the sliders visibly move your forecast. (Superseded in M11: four seeds were four
+  different worlds, which is why the chart jittered.)
 - Shift the Blame: after a strike there is a 2.5 s window (once per run) to hand it to the rival; it forgives the strike and shadowban, drains rival conviction by 0.25 and
-  freezes the rival for 10 s. A third strike waits for the window before it disqualifies.
+  freezes the rival for 10 s. A third strike waits for the window before it disqualifies. (Superseded in M11: the Blame is offered only at the third strike and only for a small pile of fake votes.)
 - Tutorial coach cards (14 triggers from `Data/Tutorial.csv`) show once ever (seen mask in the user settings ini), one at a time, click to dismiss; off in QA runs unless
   `-ShiftTutorial`.
 - Tonemapper note: the filmic tonemapper darkens and desaturates, so the day paper colour is set above 1.0 in `MPC_Theme` (`PaperDay` = 1.40, 1.27, 1.06) to land on warm
@@ -134,7 +135,7 @@ ambient)`, `Tools/verify.ps1` asserts it, and the cook contains the four assets)
 - **Gameplay Tags (S9):** the rival tree's Mega Campaign and Defend gates are the stock `Has Tags` condition (`FGameplayTagContainerMatchCondition`) bound by the builder to the
   output of a small `FShiftEvaluator_GameTags` evaluator (tags in `Behavior/ShiftTags.h`: `Shift.Rival.MegaPending`, `Shift.Rival.HasWeakHub`, `Shift.Player.Strike.1..3`, ...).
   Gate passed: the full balance matrix (3 jams x 4 bots x 100 runs) is **identical** before and after.
-- The build-screen forecast stays on the native stand-ins (`ShiftBuildRules::Forecast`): it runs on every slider change and a tree run would add about 0.3 s each time.
+- The build-screen forecast stays on the native stand-ins: a tree run would add about 0.3 s to every play of it. (M11 replaced `ShiftBuildRules::Forecast` by `Game/ShiftForecast.h`, which plays the real world on `FShiftRun` without the trees.)
 - Why the trees are authored in C++ (corrected reasons): `UStateTreeEditorData`, `UStateTreeState` and `FStateTreeEditorNode` **are** Python-visible (Epic's own StateTree
   toolset uses them), but `UStateTreeEditingSubsystem::CompileStateTree`, the factory's schema class, `UStateTree::EditorData` and property bindings are not reachable from
   Python or MCP (runtime probe: `hasattr(unreal, "StateTreeEditingSubsystem")` is False), so creating and compiling a tree from scratch needs the small C++ builder.
@@ -417,3 +418,68 @@ the gate's limit is +30.
 **Gate.** `Data/BalanceTargets.csv` has 70 rows now (Build and RelativeBuild columns; castle, Rally alone, parrying alone, both tools, the final push's swing, the build matrix) and passes; its noisy cells were
 widened after a first run (Thumbnail 0 h can be +1, 16-hour levers up to +20, the final push's swing -7). Win rates carry about +-5 points of noise at 100 runs and the matrix compares two such cells, so use
 `-Seeds 1000,500000` when a row is borderline. Nothing here is validated by feel: it needs the tester's hands again.
+
+## M11 - playtest round 5 (issue #1, `646d233`)
+
+The tester's answers to the round-4 questions: parry reads fine ("Pass"); Rally "hard to tell, it seems fine"; the build screen's list and the lever descriptions "didn't match" ("Maxed in Network put the game on number 2
+while 0 put it on number 1") and the chart "just moves up and down when it feels like it"; the right-hand strip "was fine, but no one really pays attention to that area of the screen"; and "if Shift the Blame always
+succeeds then three strikes just mean nothing, as it relies on the player not seeing that tiny notification in the corner". Three changes, one tool, nothing else touched (the balance targets are unchanged and met).
+
+**The forecast was four different worlds.** `ShiftBuildRules::Forecast` averaged four sims on seeds `Seed + 0..3`, each its own random graph and entries, while the rows carried the real world's names; with a spread of
+12 to 16 points between worlds the average of four was good for +-7, against levers worth 10 to 17, so entries 2 to 8 reshuffled and Network could look worse at 8 hours than at 0. It also lacked the final push's
+Post refill, ran synchronously on the game thread and rescaled its bars to the longest one. What replaced it (`Game/ShiftForecast.h`, `Game/ShiftForecastService.h`):
+
+* **The real world.** `Sim::Init(Jam, P, Seed, DynSeed)` draws everything (graph, layout, entries, opinions) from `Seed` and only the dynamics stream (the dice of undecided voters) from `DynSeed`; the three-argument
+  `Init` is the four-argument one with `DynSeed = Seed`, so no existing hash moved (`TestDynSeed`; the greedy and reactor balance rows were identical before and after the first build). `FShiftRun::SetDynamicsSeed` feeds it.
+* **A steady player is not one future.** A play is one deterministic future and the sim is chaotic in the build: the plain greedy bot's expected share in a world is rough in the levers (a quadratic fit to its grid
+  averages is off by 6 to 12 points, against a sampling error of 1 to 2), while the average over a *varied* player is smooth (fit error 3.3 / 3.7 / 2.6 against a sampling error of 3.2 / 4.2 / 2.9). The variations
+  are the first click coming up to 0.7 s later and the bot missing the best target (`PolicyParams::BotStart`, `BotNoise` 0.2: every score jittered by up to 20%; both 0 = unchanged). Spread of one play of a steady
+  player in one world (study over 16 worlds x 29 builds x 24 samples, points): dynamics luck alone 4 / 8 / 6, a later start 11 / 14 / 13, missed targets 14 / 20 / 14 (jams 1 / 2 / 3).
+* **One surface, not a chart per slider tick.** 72 grid builds (every split in even hours that spends at most 12) x 8 plays = 576 plays per world on the worker pool (`ParallelFor`, background priority; 0.4 to
+  1.6 s on 16 threads, a progress bar while it runs), one quadratic fitted to each entry's grid averages, and the player's surface forced monotone in every lever (the mean of the least monotone surface above it and
+  the greatest below it), so more hours never lower the forecast. The sliders then only look the result up: no work per tick, no jitter, no contradiction of the descriptions. Rows are ordered by value (ties by entry
+  id), bars have a fixed scale, rows and bars glide, shares have one decimal, a rank within 1.5 points of another entry shows as a range ("2nd-3rd"), and the caption says what it is. The service computes one world at a
+  time, a new request cancels the running job, a pause costs nothing, and `Cancel()` waits (the controller cancels on leaving the build screen and in `EndPlay`).
+* **Checked** (`Tools\forecast_check.ps1`, `Data\ForecastTargets.csv`, 60 worlds): 0 drops of the player's share along 19 440 one-hour steps per jam, the rank gets worse in 0.1 / 0.1 / 0.2% of them (limit 3), Quality 0 -> 8 h
+  is worth +5 points or more in 80 / 100 / 95% of the worlds (+17 / +20 / +17 on average), Network in 95 / 95 / 90% (+21 / +28 / +18), Thumbnail +10 / +9 / +7 on average and never negative; the 99th percentile of a one-hour
+  step is 8 points; the even split's share averages 69 / 49 / 29%; the table is identical on a repeat to the last digit. (The worlds where a lever is worth less are the ones already won or lost at any build.)
+
+**Alerts that cannot be missed.** The right-hand strip is peripheral by nature. A strike, the Shift the Blame offer, the disqualification, the final push and the final audit now take over the middle of the top bar
+(x 150 to 880: not the MODS chip, the deadline or the mute button) for 2.5 to 4 s as a coloured band with a title, one line, a draining bar and, for the offer, the seconds left; a thin frame (14 px left, 9 px right,
+8 px bottom: the voters stay inside x 56..1080, so it never covers one) flashes once for a strike or a disqualification and pulses at 1.5 Hz while the offer is open. The offer owns the bar while it is open (priority
+disqualified > offer > blame taken > strike > final push, audit); the whole band is the button, and key B too. Sound reuses the existing effects, no new asset: the Strike thud, then the ModWarn on a 0.8 s cadence
+while the offer is open (the audio layer drops the same effect twice within 30 ms, so a cadence timer rather than a double play), the music steps back to half while it is, the DQ sound at the event (not at the results),
+the results screen waits 1.8 s after a disqualification so the alert is seen. A pause freezes the alert, the countdown and the sound, and B does nothing while paused (it used to give unlimited time). Strike 2 queues a
+new coach card, `BlameRule` (a new seen-bit, so testers who read the old card are taught the new rule; the old `BlameAvailable` row is retired).
+
+**Shift the Blame can fail now.** It always worked when it was seen (a 2.5 s window after every strike, forgiving the strike and the shadowban, and the bots never used it, so every disqualification figure in this
+file is Blame-free). Now (`Sim/ShiftBlameRules.h`, header only, mirrored into the harness and tested by `TestBlame`): it is offered only at the strike that would disqualify (strikes 1 and 2 keep every consequence),
+for `BlameWindow` 4 s (or what is left of the jam), once per run, and only if the fake votes the strike just took away were at most `BlameMaxFake` of all vote weight; over that the run ends at once and says why ("Blame
+refused: 15% of the vote was fake, too much to pin on the rival (the limit is 8%)"). It is deterministic, not a die, and the prompt shows both numbers. The rival's cost is unchanged but now a parameter
+(`BlameRivalConv` 0.25, `BlameRivalFreeze` 10). Bots answer a fatal strike with the Blame after `ReactDelay` (`BotBlame` 1; `-Set BotBlame=0` is the old Blame-free table, `BlameWindow=0` removes the rule).
+Cap sweep, sock bot (the reckless one), 100 runs per jam, share of its first fatal strikes that were offered / disqualified at the end (jams 1 / 2 / 3):
+
+| BlameMaxFake | offered | DQ |
+|---|---|---|
+| **0.08** | **14 / 36 / 31%** | **100 / 96 / 100%** |
+| 0.12 | 22 / 42 / 34% | 99 / 95 / 100% |
+| 0.14 | 24 / 58 / 35% | 99 / 92 / 100% |
+| 0.16 | 53 / 85 / 63% | 99 / 92 / 100% |
+| 0.20 | 81 / 93 / 94% | 99 / 92 / 100% |
+
+Its fatal strikes mostly take 12 to 20% of the vote in fake votes (bands of 4 points: 13 / 5 / 11 / 42 / 31 / 19 on jam 1); the bot is disqualified about as often as without the Blame (96 / 100 / 100 before)
+because one blame only postpones the same habit. Nobody else reaches a third strike. **The cap is 0.08, not the 0.12 first chosen.** The first gate run with 0.12 failed one row: the explorer's search found on GAME OFF a
+gambler (sockpuppet the big voters, burst at the end, no share cap of its own) at +31.2 points over greedy (limit +30; DQ 42.5%). It is a bet the Blame makes worth taking: on 200 other runs the same configuration wins
+49.5% (DQ 50.5%) against greedy's 30.5%, and with the bots not taking the Blame (`BotBlame=0`) 23.0% (DQ 77.0%), i.e. the old game, in which the bet lost. Sweeping the cap on that configuration (win %): 0.04 and
+0.06 23.5 (the Blame is offered 0.01 to 0.03 times a run, so it is effectively off), **0.08 42.0**, 0.10 48.0, 0.12 49.5. With 0.08 the explorer's best responses are **+7.5 / +17.5 / +25.0** points (the last still the
+gamble: 51% wins, 49% DQ on 40 runs, +11.5 on the 200 runs above), inside the gate's +30. 0.06 would remove the bet and the Blame together (a careful player who is struck holds more than the 6% that cooling can
+keep warm), so 0.08, a little over that, is the compromise; if the tester finds the Blame too stingy or the gamble too tempting, `BlameMaxFake` is the one number to move.
+
+**Gate.** `Tools\verify.ps1 -Balance -Forecast` passes all 14 checks: the harness (5032 tests, `TestDynSeed`, `TestBlame`), the audio assets and meters, the trees, determinism, the boot, the 70 balance rows
+(100 runs, seed set 1000; the greedy rows are 90 / 55 / 33 as before, the sock bot's DQ 99 / 95 / 100) and the 23 forecast rows (60 worlds). The explorer (30 samples + 10 climb steps, 40 runs, validated on fresh seeds):
+**+7.5 / +17.5 / +25.0** over greedy with the 0.08 cap. New knobs: `-Set BotBlame=0|1`, `BlameMaxFake`, `BlameWindow` (0 = no Blame), `BlameRivalConv`, `BlameRivalFreeze`, `BotStart`, `BotNoise`; the balance
+commandlet prints a `Balance: blame` line per jam and bot (strikes, fatal strikes, offered, taken, refused, lapsed, and the fatal strikes by fake share); `-ShiftSet=` does the same for a game run.
+
+**Not done / not known.** I cannot watch the playtest video. The alerts are checked by logs and screenshots (1280 x 720 and 1920 x 1080, day and night), not by a person who is looking at the board; whether a
+top-bar band with a frame and a repeating warning is enough for someone with their eyes on the voters is the question for the tester. The forecast describes a varied steady player (a Plug about every 0.7 s that sometimes
+misses the best target), which is more modest than the greedy bot on the hard jam (29% against its 44% at the even split); it is a forecast of play, not of skill.

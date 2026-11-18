@@ -44,6 +44,9 @@ enum class EShiftEventType : uint8
 	EyeAwayWarn,         // a Mod Eye window is coming: Value = seconds until it starts
 	EyeAwayStart,        // the Mod Eye looks away: Value = how long
 	EyeAwayEnd,          // the Mod Eye is back
+	// appended in round 5 so the numbering of the earlier events stays
+	BlameOffered,        // the strike that would disqualify the player can still be handed to the rival: Value = seconds the offer stays open, Share = the fake votes the strike took, Count = strikes
+	BlameRefused,        // ... but too many fake votes to blame on anyone, the run ends now: Share = the fake votes the strike took
 };
 
 struct FShiftEvent
@@ -77,6 +80,19 @@ struct FShiftFlipStats
 	double SockDwellSum = 0.0;
 };
 
+/** How Shift the Blame went during a run (QA and the balance table only). */
+struct FShiftBlameStats
+{
+	int32 Strikes = 0;           // strikes of any number
+	double StrikeFakeSum = 0.0;  // ... and the fake share each took, summed
+	int32 Fatal = 0;             // strikes that would disqualify
+	int32 Offered = 0;           // ... of which could be handed to the rival
+	int32 Taken = 0;             // ... of which were
+	int32 Refused = 0;           // ... of which had too many fake votes
+	int32 Lapsed = 0;            // ... of which the player let the window run out on
+	TArray<float> FatalFake;     // the fake share of every fatal strike
+};
+
 /** Drives the behaviour layer (rival, other entries, jam director) for one fixed step; the StateTree runner implements this. */
 class IShiftBehaviorDriver
 {
@@ -94,6 +110,10 @@ class FShiftRun
 public:
 	/** QA / balance only: overrides by field name (sim Params, JamDef or PolicyParams), applied by Start() after the build. Unknown names are logged as errors. */
 	void SetOverrides(const TMap<FString, double>& InOverrides) { Overrides = InOverrides; }
+
+	/** The build screen's forecast: seeds the sim's dynamics stream (the coin flips of undecided voters, and the bot's own jitter) apart from the world, so one world can be replayed
+	 *  with other luck. Call before Start(); without it the dynamics are seeded from the run seed, as always. */
+	void SetDynamicsSeed(uint32 InDynSeed) { DynSeed = InDynSeed; bHasDynSeed = true; }
 
 	/** Builds the sim and the behaviours. The build (hours split on the build screen) tunes the player's side. Returns false if the sim could not be built. */
 	bool Start(int32 InJamIndex, uint32 InSeed, const FShiftBuild& InBuild = FShiftBuild(), bool bInModsEnabled = true);
@@ -128,12 +148,16 @@ public:
 	void ResolveModSweep();
 	void EmitEvent(const FShiftEvent& Event) { Events.Add(Event); }
 
-	/** Shift the Blame: for a short window after a strike (once per run) the player can undo it and hit the rival instead. */
+	/** Shift the Blame (Sim/ShiftBlameRules.h): the strike that would disqualify the player can be handed to the rival for a few seconds, once per run, when the fake votes it took
+	 *  were few enough to pass for the rival's doing. Refused while paused. */
 	bool TakeBlame();
 	bool BlameAvailable() const { return BlameRemaining > 0.0 && !bBlameUsed; }
 	double BlameSecondsLeft() const { return BlameRemaining; }
-	double BlameWindowSeconds() const { return BlameWindow; }
+	double BlameWindowSeconds() const { return BlameWindowLength; }
+	/** The fake share the offered (or refused) strike took, for the prompt: "works: 8% fake, limit 12%". */
+	double BlameFakeShare() const { return BlameFake; }
 	bool BlameUsed() const { return bBlameUsed; }
+	const FShiftBlameStats& GetBlameStats() const { return BlameStats; }
 
 	void SetNightHeld(bool bHeld) { bNightHeld = bHeld; }
 	bool IsNightHeld() const { return bNightHeld; }
@@ -179,9 +203,13 @@ private:
 
 	int32 JamIndex = 0;
 	uint32 Seed = 0;
+	uint32 DynSeed = 0;
+	bool bHasDynSeed = false;
 	double NextSweep = 0.0;
 	double BlameRemaining = 0.0;
-	double BlameWindow = 2.5;
+	double BlameWindowLength = 0.0;
+	double BlameFake = 0.0;
+	FShiftBlameStats BlameStats;
 	double RivalFrozenUntil = 0.0;
 	bool bBlameUsed = false;
 	double Accumulator = 0.0;

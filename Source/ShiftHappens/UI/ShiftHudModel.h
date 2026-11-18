@@ -56,6 +56,7 @@ struct FShiftHudJamCard
 
 struct FShiftHudForecastRow
 {
+	int32 EntryId = 0;
 	FString Name;
 	float Value = 0.0f;        // quality (stars) or vote share, depending on the list
 	FLinearColor Color = FLinearColor::White;
@@ -70,8 +71,13 @@ struct FShiftHudBuild
 	FString JamTitle;
 	TArray<FShiftHudForecastRow> ByQuality;    // best quality first
 	TArray<FShiftHudForecastRow> ByForecast;   // best forecast share first
+	bool bForecastReady = false;               // the vote forecast is in (the quality list is always there)
+	float ForecastProgress = 0.0f;             // 0..1 of the plays while it is not
 	int32 ForecastRank = 0;                    // 1-based
+	int32 ForecastRankLo = 0;                  // the range of ranks the player could end in when entries are within a hair of its share (equal when nobody is)
+	int32 ForecastRankHi = 0;
 	float ForecastShare = 0.0f;
+	float ForecastSpread = 0.0f;               // how far one play of a steady player strays from the forecast (0..1)
 	int32 QualityRank = 0;                     // 1-based
 	FString RivalFollowers;                    // "1.2M"
 	FString Effects[3];                        // what each lever comes to in play (quality, thumbnail, network), with numbers, from the same rules the sim uses
@@ -84,6 +90,19 @@ struct FShiftHudFeedItem
 	FLinearColor Color = FLinearColor::White;
 	float Alpha = 1.0f;       // fades in and out
 	bool bNews = false;
+};
+
+/** An urgent event that takes over the middle of the top bar for a few seconds: a strike, the Shift the Blame offer, a disqualification. The right gutter is peripheral, this is not. */
+struct FShiftHudAlert
+{
+	int32 Kind = 0;                    // 0 = none (EAlertKind in the controller)
+	FString Title;
+	FString Detail;
+	FLinearColor Color = FLinearColor::White;
+	float Frac = -1.0f;                // the draining bar, 1 full .. 0 empty (< 0: none)
+	float Age = 0.0f;                  // seconds on screen, for the slide-in
+	float SecondsLeft = -1.0f;         // a countdown at the right end of the band (< 0: none)
+	bool bClickable = false;           // Shift the Blame: the whole band is the button (key B too)
 };
 
 /** One leaderboard row. */
@@ -179,6 +198,9 @@ struct FShiftHudModel
 	bool bBlameOffer = false;          // Shift the Blame prompt
 	float BlameSeconds = 0.0f;         // time left to take it
 	float BlameWindow = 2.0f;
+	FShiftHudAlert Alert;              // the urgent event on screen (Kind 0 = none): its offer is the Blame prompt
+	float EdgeFlash = 0.0f;            // 0..1: a thin frame at the left, right and bottom edge of the screen (never over the board's voters), for strikes, the offer and the disqualification
+	FLinearColor EdgeColor = FLinearColor::White;
 
 	// header
 	FString JamName;

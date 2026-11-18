@@ -256,6 +256,41 @@ void SShiftHud::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 		Anim.Y += (TargetY - Anim.Y) * Rate;
 		Anim.Share += (Row.Share - Anim.Share) * Rate;
 	}
+
+	// The build screen's lists: rows slide to their places and the bars glide to their values, so moving a slider reads as a smooth change and never as a flicker.
+	if (Model.Screen == EShiftScreen::Build)
+	{
+		const FShiftHudBuild& B = Model.Build;
+		auto Ease = [this, Rate](int32 List, const TArray<FShiftHudForecastRow>& Rows)
+		{
+			for (int32 r = 0; r < Rows.Num(); ++r)
+			{
+				FRowAnim& Anim = BuildAnims.FindOrAdd(List * 32 + Rows[r].EntryId);
+				const float TargetY = static_cast<float>(r);
+				if (!Anim.bInit)
+				{
+					Anim.Y = TargetY;
+					Anim.Share = Rows[r].Value;
+					Anim.bInit = true;
+				}
+				Anim.Y += (TargetY - Anim.Y) * Rate;
+				Anim.Share += (Rows[r].Value - Anim.Share) * Rate;
+			}
+		};
+		Ease(0, B.ByQuality);
+		Ease(1, B.ByForecast);
+		if (!B.bForecastReady)
+		{
+			for (TPair<int32, FRowAnim>& Pair : BuildAnims)
+			{
+				if (Pair.Key >= 32)
+				{
+					Pair.Value.bInit = false;   // a new world: its rows start where they belong instead of sliding in from the last one
+				}
+			}
+		}
+		ForecastFade += ((B.bForecastReady ? 1.0f : 0.0f) - ForecastFade) * FMath::Min(1.0f, InDeltaTime * 6.0f);
+	}
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -484,42 +519,58 @@ void SShiftHud::PaintBuild(FShiftPainter& P, const FPal& C) const
 		: FString::Printf(TEXT("%d unplanned hour%s: unspent hours are lost."), Left, Left == 1 ? TEXT("") : TEXT("s")),
 		60.0f, 534.0f, 14.0f, bAllSpent ? C.InkDim : C.Amber, EShiftAlign::Left, !bAllSpent);
 
-	// forecast lists
-	auto PaintList = [&](float X, const TCHAR* Title, const TArray<FShiftHudForecastRow>& Rows, bool bShares)
+	// The two lists. Both are laid out the same way every time: ordered by value (ties by entry), bars on a fixed scale (so a bar only moves when its own value does), one decimal,
+	// rows that slide and bars that glide. The quality list is exact and always there; the vote forecast fades in once the plays it averages are in.
+	auto Fade = [](FLinearColor Col, float A) { Col.A *= A; return Col; };
+	auto PaintList = [&](int32 List, float X, const TCHAR* Title, const TArray<FShiftHudForecastRow>& Rows, bool bShares, float Alpha, float BarScale)
 		{
 			P.Rect(X, 150.0f, 262.0f, 318.0f, C.PanelSolid, 14.0f);
 			P.Text(Title, X + 16.0f, 164.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
-			float MaxValue = 0.001f;
-			for (const FShiftHudForecastRow& R : Rows)
+			if (Alpha <= 0.01f)
 			{
-				MaxValue = FMath::Max(MaxValue, R.Value);
+				return;
 			}
 			for (int32 r = 0; r < Rows.Num(); ++r)
 			{
 				const FShiftHudForecastRow& R = Rows[r];
-				const float Y = 190.0f + 30.0f * static_cast<float>(r);
+				const FRowAnim* Anim = BuildAnims.Find(List * 32 + R.EntryId);
+				const float Place = Anim != nullptr && Anim->bInit ? Anim->Y : static_cast<float>(r);
+				const float Value = Anim != nullptr && Anim->bInit ? Anim->Share : R.Value;
+				const float Y = 190.0f + 30.0f * Place;
 				if (R.bPlayer)
 				{
-					P.Rect(X + 6.0f, Y - 3.0f, 250.0f, 28.0f, WithAlpha(C.Teal, 0.18f), 8.0f);
+					P.Rect(X + 6.0f, Y - 3.0f, 250.0f, 28.0f, WithAlpha(C.Teal, 0.18f * Alpha), 8.0f);
 				}
-				P.Text(FString::FromInt(r + 1), X + 22.0f, Y + 2.0f, 13.0f, R.bPlayer ? C.Teal : C.Ink, EShiftAlign::Center, true);
-				P.Disc(X + 42.0f, Y + 11.0f, 5.5f, R.Color);
-				P.Text(P.Fit(R.Name, 132.0f, 12.0f, R.bPlayer), X + 54.0f, Y + 1.0f, 12.0f, C.Ink, EShiftAlign::Left, R.bPlayer);
-				const FString ValueText = bShares ? (R.Value < 0.095f ? FString::Printf(TEXT("%.1f%%"), R.Value * 100.0f) : FString::Printf(TEXT("%.0f%%"), R.Value * 100.0f))
-					: FString::Printf(TEXT("%.1f"), R.Value);
-				P.Text(ValueText, X + 250.0f, Y + 1.0f, 12.0f, C.InkDim, EShiftAlign::Right);
-				P.Rect(X + 54.0f, Y + 19.0f, 150.0f, 3.0f, C.Track, 1.5f);
-				P.Rect(X + 54.0f, Y + 19.0f, 150.0f * FMath::Clamp(R.Value / MaxValue, 0.0f, 1.0f), 3.0f, R.Color, 1.5f);
+				P.Text(FString::FromInt(r + 1), X + 22.0f, Y + 2.0f, 13.0f, Fade(R.bPlayer ? C.Teal : C.Ink, Alpha), EShiftAlign::Center, true);
+				P.Disc(X + 42.0f, Y + 11.0f, 5.5f, Fade(R.Color, Alpha));
+				P.Text(P.Fit(R.Name, 132.0f, 12.0f, R.bPlayer), X + 54.0f, Y + 1.0f, 12.0f, Fade(C.Ink, Alpha), EShiftAlign::Left, R.bPlayer);
+				const FString ValueText = bShares ? FString::Printf(TEXT("%.1f%%"), Value * 100.0f) : FString::Printf(TEXT("%.1f"), Value);
+				P.Text(ValueText, X + 250.0f, Y + 1.0f, 12.0f, Fade(C.InkDim, Alpha), EShiftAlign::Right);
+				P.Rect(X + 54.0f, Y + 19.0f, 150.0f, 3.0f, Fade(C.Track, Alpha), 1.5f);
+				P.Rect(X + 54.0f, Y + 19.0f, 150.0f * FMath::Clamp(Value / BarScale, 0.0f, 1.0f), 3.0f, Fade(R.Color, Alpha), 1.5f);
 			}
 		};
-	PaintList(680.0f, TEXT("IF VOTERS JUDGED QUALITY"), B.ByQuality, false);
-	PaintList(958.0f, TEXT("WHAT THE VOTE WILL ACTUALLY DO"), B.ByForecast, true);
+	PaintList(0, 680.0f, TEXT("IF VOTERS JUDGED QUALITY"), B.ByQuality, false, 1.0f, 10.0f);
+	PaintList(1, 958.0f, TEXT("WHAT THE VOTE WILL ACTUALLY DO"), B.ByForecast, true, B.bForecastReady ? ForecastFade : 0.0f, 0.8f);
+	if (!B.bForecastReady)
+	{
+		const float Dots = FMath::Fmod(AnimTime * 3.0f, 4.0f);
+		P.Text(FString::Printf(TEXT("Playing out this jam%s"), Dots < 1.0f ? TEXT("") : (Dots < 2.0f ? TEXT(".") : (Dots < 3.0f ? TEXT("..") : TEXT("...")))), 958.0f + 131.0f, 290.0f, 14.0f, C.Ink, EShiftAlign::Center, true);
+		P.TextBlock(TEXT("with your build, against this rival and these entries."), 958.0f + 36.0f, 316.0f, 190.0f, 12.0f, 16.0f, C.InkDim);
+		P.Rect(958.0f + 36.0f, 366.0f, 190.0f, 4.0f, C.Track, 2.0f);
+		P.Rect(958.0f + 36.0f, 366.0f, 190.0f * FMath::Clamp(B.ForecastProgress, 0.0f, 1.0f), 4.0f, C.Teal, 2.0f);
+	}
 
-	P.Rect(680.0f, 484.0f, 540.0f, 92.0f, C.PanelSolid, 14.0f);
-	P.Text(FString::Printf(TEXT("Your game: %s on quality  ->  %s on votes"), *HudOrdinal(B.QualityRank), *HudOrdinal(B.ForecastRank)), 700.0f, 498.0f, 20.0f,
-		B.ForecastRank > B.QualityRank ? C.Red : C.Teal, EShiftAlign::Left, true);
-	P.TextBlock(FString::Printf(TEXT("Forecast for a steady player, a Plug about every second. The rival has %s followers; you have a few. Beat that with sharper clicks, and with the night shift."),
-		*B.RivalFollowers), 700.0f, 530.0f, 500.0f, 13.0f, 17.0f, C.InkDim);
+	P.Rect(680.0f, 484.0f, 540.0f, 112.0f, C.PanelSolid, 14.0f);
+	FString VoteRank = TEXT("...");
+	if (B.bForecastReady)
+	{
+		VoteRank = B.ForecastRankLo == B.ForecastRankHi ? HudOrdinal(B.ForecastRank) : FString::Printf(TEXT("%s-%s"), *HudOrdinal(B.ForecastRankLo), *HudOrdinal(B.ForecastRankHi));
+	}
+	P.Text(FString::Printf(TEXT("Your game: %s on quality  ->  %s on votes"), *HudOrdinal(B.QualityRank), *VoteRank), 700.0f, 498.0f, 20.0f,
+		!B.bForecastReady ? C.InkDim : (B.ForecastRankLo > B.QualityRank ? C.Red : C.Teal), EShiftAlign::Left, true);
+	P.TextBlock(FString::Printf(TEXT("The average of many plays of a steady player (a Plug about every 0.7 s) in this very jam. A single play swings about %.0f points around it. The rival has %s followers; you have a few."),
+		B.ForecastSpread * 100.0f, *B.RivalFollowers), 700.0f, 530.0f, 500.0f, 13.0f, 17.0f, C.InkDim);
 
 	Button(P, C, EShiftUi::Upload, 840.0f, 610.0f, 380.0f, 58.0f, TEXT("UPLOAD AND START VOTING"), true, 20.0f);
 	P.Text(TEXT("ENTER"), 820.0f, 631.0f, 12.0f, C.InkDim, EShiftAlign::Right);
@@ -587,6 +638,41 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 			P.Disc(900, 20, 3.0f + 1.5f * Pulse, EyeColor);   // the Eye looks away: no pupil
 		}
 		P.Text(bAway ? FString::Printf(TEXT("MODS AWAY %.0fs"), Model.EyeAwayLeft) : FString::Printf(TEXT("MODS %.0fs"), Model.NextSweepIn), 916, 13, 12, EyeColor, EShiftAlign::Left, bSoon || bAway);
+	}
+
+	// ------------------------------------------------------------------ the alert: urgent events take over the middle of the top bar (not the MODS chip, the deadline or the mute button)
+	if (Model.Alert.Kind != 0)
+	{
+		const FShiftHudAlert& A = Model.Alert;
+		const float X0 = 150.0f;
+		const float W = 730.0f;
+		const float Y0 = 2.0f;
+		const float H = 36.0f;
+		const float In = FMath::Clamp(A.Age / 0.14f, 0.0f, 1.0f);
+		const bool bLive = A.bClickable && !Model.bPaused;
+		const bool bHover = bLive && AddHit(X0, Y0, W, H, EShiftUi::Blame);
+		const float Pulse = A.bClickable ? 0.5f + 0.5f * FMath::Sin(AnimTime * 9.0f) : 0.0f;
+		FLinearColor Fill = A.Color;
+		Fill = Mix(Fill, FLinearColor::White, (bHover ? 0.18f : 0.0f) + 0.10f * Pulse);
+		if (Model.bPaused)
+		{
+			Fill = Mix(Fill, Hex(0x77777F), 0.7f);
+		}
+		P.Rect(X0, Y0 + 2.0f, W, H, Hex(0x000000, 0.22f * In), 9.0f);
+		P.Rect(X0, Y0 + (1.0f - In) * -6.0f, W, H, WithAlpha(Fill, In), 9.0f);
+		const float Dy = (1.0f - In) * -6.0f;
+		const FLinearColor Ink = WithAlpha(FLinearColor::White, In);
+		const float TextW = W - 28.0f - (A.SecondsLeft >= 0.0f ? 64.0f : 0.0f);
+		P.Text(P.Fit(A.Title, TextW, 15.0f, true), X0 + 14.0f, Y0 + 3.0f + Dy, 15.0f, Ink, EShiftAlign::Left, true);
+		P.Text(P.Fit(A.Detail, TextW, 11.0f), X0 + 14.0f, Y0 + 19.0f + Dy, 11.0f, WithAlpha(FLinearColor::White, 0.92f * In), EShiftAlign::Left);
+		if (A.SecondsLeft >= 0.0f)
+		{
+			P.Text(FString::Printf(TEXT("%.1fs"), A.SecondsLeft), X0 + W - 14.0f, Y0 + 8.0f + Dy, 18.0f, Ink, EShiftAlign::Right, true);
+		}
+		if (A.Frac >= 0.0f)
+		{
+			P.Rect(X0 + 14.0f, Y0 + H - 3.5f + Dy, (W - 28.0f) * FMath::Clamp(A.Frac, 0.0f, 1.0f), 2.0f, WithAlpha(FLinearColor::White, 0.85f * In), 1.0f);
+		}
 	}
 
 	// ------------------------------------------------------------------ leaderboard
@@ -722,26 +808,13 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 
 	// ------------------------------------------------------------------ the right gutter
 	// Everything that is not the board lives in the strip right of the voters (the layout keeps them left of x = 1084): under the leaderboard the states you are in, then the
-	// notification feed; at the bottom the coach card and the Blame button. Nothing here floats over the board.
+	// notification feed; at the bottom the coach card. Nothing here floats over the board.
 	{
 		const float GX = DesignW - 10.0f - CompactLeaderboardW;
 		const float GW = CompactLeaderboardW;
 		float BottomY = 668.0f;
 
-		// the bottom stack: the Blame button (rare, urgent) at the very bottom, the coach card above it
-		if (Model.bBlameOffer)
-		{
-			const float Frac = FMath::Clamp(Model.BlameSeconds / FMath::Max(0.1f, Model.BlameWindow), 0.0f, 1.0f);
-			const float H = 58.0f;
-			const float Y = BottomY - H;
-			const bool bHover = AddHit(GX, Y, GW, H, EShiftUi::Blame);
-			P.Rect(GX, Y + 3.0f, GW, H, Hex(0x000000, 0.2f), 14.0f);
-			P.Rect(GX, Y, GW, H, bHover ? Mix(C.Red, FLinearColor::White, 0.18f) : C.Red, 14.0f);
-			P.Text(TEXT("SHIFT THE BLAME  (B)"), GX + GW * 0.5f, Y + 8.0f, 14.0f, FLinearColor::White, EShiftAlign::Center, true);
-			P.Text(TEXT("hand this strike to the rival"), GX + GW * 0.5f, Y + 28.0f, 10.0f, WithAlpha(FLinearColor::White, 0.9f), EShiftAlign::Center);
-			P.Rect(GX + 14.0f, Y + 46.0f, (GW - 28.0f) * Frac, 3.0f, WithAlpha(FLinearColor::White, 0.85f), 1.5f);
-			BottomY = Y - 8.0f;
-		}
+		// the bottom stack: the coach card (the Blame prompt is in the top bar now, where it cannot be missed)
 		if (Model.CoachAlpha > 0.01f && !Model.CoachText.IsEmpty())
 		{
 			const TArray<FString> Lines = P.Wrap(Model.CoachText, GW - 36.0f, 12.0f, false);
@@ -863,6 +936,16 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	if (Model.Tooltip.bVisible && !Model.bOver && !Model.bPaused)
 	{
 		PaintTooltip(P, C);
+	}
+
+	// ------------------------------------------------------------------ the edge frame: a thin line along the left, right and bottom edges for a strike, the Blame offer and a disqualification
+	// (the voters stay inside x 56..1080, so it never covers one, and the top bar belongs to the alert)
+	if (Model.EdgeFlash > 0.01f)
+	{
+		const FLinearColor Edge = WithAlpha(Model.EdgeColor, 0.80f * FMath::Clamp(Model.EdgeFlash, 0.0f, 1.0f));
+		P.Rect(0.0f, 41.0f, 14.0f, DesignH - 41.0f, Edge);
+		P.Rect(DesignW - 9.0f, 41.0f, 9.0f, DesignH - 41.0f, Edge);
+		P.Rect(14.0f, DesignH - 8.0f, DesignW - 23.0f, 8.0f, Edge);
 	}
 }
 

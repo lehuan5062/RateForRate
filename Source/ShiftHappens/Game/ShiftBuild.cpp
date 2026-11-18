@@ -2,14 +2,13 @@
 
 #include "Game/ShiftBuild.h"
 
-#include "Behavior/ShiftPolicies.h"
 #include "Containers/UnrealString.h"
 #include "CoreGlobals.h"
 #include "HAL/Platform.h"
 #include "Math/UnrealMathUtility.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Sim/ShiftBuildRules.h"
 #include "Sim/ShiftParams.h"
-#include "Sim/ShiftSim.h"
 
 namespace
 {
@@ -31,67 +30,6 @@ ShiftSim::BuildSummary ShiftBuildRules::Summary(int32 JamIndex, const FShiftBuil
 	ShiftSim::JamDef Jam = ShiftSim::DefaultJam(FMath::Clamp(JamIndex, 0, 2));
 	ShiftBuildRules::Apply(Build, Params, Jam);
 	return ShiftSim::SummarizeBuild(Params, Jam);
-}
-
-FShiftForecast ShiftBuildRules::Forecast(int32 JamIndex, uint32 Seed, const FShiftBuild& Build, int32 Samples)
-{
-	FShiftForecast Out;
-	const int32 NumSamples = FMath::Clamp(Samples, 1, 8);
-	ShiftSim::PolicyParams Policy;
-	Policy.BotInterval = 0.7;   // a steady player: a Plug about every 0.7 s, so the Post economy (bank, refill, Plug cost) decides how many of them land
-
-	for (int32 S = 0; S < NumSamples; ++S)
-	{
-		ShiftSim::Params Params;
-		ShiftSim::JamDef Jam = ShiftSim::DefaultJam(FMath::Clamp(JamIndex, 0, 2));
-		ShiftBuildRules::Apply(Build, Params, Jam);
-
-		ShiftSim::Sim Sim;
-		if (!Sim.Init(Jam, Params, Seed + static_cast<uint32>(S)))
-		{
-			continue;
-		}
-		ShiftSim::StandInRival Rival;
-		ShiftSim::StandInOthers Others;
-		ShiftSim::PlayerBot Casual;                 // a steady player: greedy targets, a Plug about every 0.7 s
-		Rival.Reset(Sim, Policy);
-		Others.Reset(Sim, Policy);
-		Casual.Reset(ShiftSim::BotKind::Greedy, Seed + static_cast<uint32>(S));
-		while (!Sim.Finished())
-		{
-			Rival.Update(Sim, Policy);
-			Others.Update(Sim, Policy);
-			Casual.Update(Sim, Policy);
-			Sim.Step();
-		}
-
-		if (S == 0)
-		{
-			Out.Quality.SetNumZeroed(Sim.NumEntries());
-			Out.Share.SetNumZeroed(Sim.NumEntries());
-			for (int32 E = 0; E < Sim.NumEntries(); ++E)
-			{
-				Out.Quality[E] = static_cast<float>(Sim.GetEntry(E).quality);
-			}
-		}
-		for (int32 E = 0; E < Sim.NumEntries(); ++E)
-		{
-			Out.Share[E] += static_cast<float>(Sim.Share(E)) / static_cast<float>(NumSamples);
-		}
-	}
-
-	const int32 N = Out.Share.Num();
-	for (int32 E = 0; E < N; ++E)
-	{
-		Out.QualityOrder.Add(E);
-		Out.ShareOrder.Add(E);
-	}
-	Out.QualityOrder.Sort([&Out](int32 A, int32 B) { return Out.Quality[A] > Out.Quality[B]; });
-	Out.ShareOrder.Sort([&Out](int32 A, int32 B) { return Out.Share[A] > Out.Share[B]; });
-	Out.QualityRank = Out.QualityOrder.IndexOfByKey(ShiftSim::kPlayerId) + 1;
-	Out.PlayerRank = Out.ShareOrder.IndexOfByKey(ShiftSim::kPlayerId) + 1;
-	Out.PlayerShare = N > ShiftSim::kPlayerId ? Out.Share[ShiftSim::kPlayerId] : 0.0f;
-	return Out;
 }
 
 int32 ShiftSave::BestRank(int32 JamIndex)

@@ -10,6 +10,8 @@
 #include "Engine/EngineTypes.h"
 #include "Engine/TimerHandle.h"
 #include "Game/ShiftBuild.h"
+#include "Game/ShiftForecast.h"
+#include "Game/ShiftForecastService.h"
 #include "Game/ShiftRun.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/Platform.h"
@@ -30,6 +32,7 @@
  *   -ShiftScreen=title|jams|build|play   start on a screen (default: play if any run flag below is given, else the title)
  *   -ShiftJam=0..2 -ShiftSeed=N          which jam and seed (default jam 2, seed 7 for QA; random otherwise)
  *   -ShiftBuild=Q,T,N                    build hours (quality, thumbnail, network; default 4,4,4)
+ *   -ShiftSet=Name=Value,...             override sim Params, jam fields or policy fields by name, as the balance commandlet's -Set does (BotBlame=0 keeps a bot from taking Shift the Blame)
  *   -ShiftBot=idle|random|greedy|sock|finisher|late  scripted player; -ShiftSpeed=N fast-forwards the sim; -ShiftWarp=S runs S sim seconds first
  *   -ShiftNight=0..1                     force the night blend      -ShiftCursor=X,Y  fake cursor in design pixels
  *   -ShiftClicks="T,X,Y[,n];..."         scripted board clicks      -ShiftUi="T,Id[,V];..."  scripted UI actions
@@ -87,6 +90,23 @@ private:
 	void TickAudio(float DeltaTime);
 	void ShowHeadline(const FString& Event, const FString& EntryName);
 	void TickLostVoters(float DeltaTime);
+
+	// ---- alerts: the urgent events (strike, Shift the Blame offer, disqualification, final push and audit) take over the middle of the top bar for a few seconds (FShiftHudAlert)
+	enum EAlertKind : int32 { AlertNone = 0, AlertStrike, AlertBlameOffer, AlertBlameTaken, AlertDisqualified, AlertFinalPush, AlertFinalAudit };
+	struct FAlert
+	{
+		int32 Kind = AlertNone;
+		FString Title;
+		FString Detail;
+		FLinearColor Color = FLinearColor::White;
+		float Duration = 3.0f;
+		int32 Priority = 0;
+	};
+	void PushAlert(int32 Kind, const FString& Title, const FString& Detail, const FLinearColor& Color, float Duration, int32 Priority);
+	void TickAlerts(float DeltaTime);
+	void FillAlertModel(FShiftHudModel& M) const;
+	void ResetAlerts();
+	bool ResultsShown() const { return Run.IsValid() && Run->IsOver() && ResultsHold <= 0.0f; }
 	FString ExpandTutorialText(const FString& Text) const;
 	FString NodeHandle(int32 Node) const;
 	FString EntryName(int32 EntryId) const;
@@ -123,9 +143,11 @@ private:
 	EShiftScreen Screen = EShiftScreen::Title;
 	bool bAttract = true;
 	FShiftBuild Build;
-	FShiftForecast Forecast;
-	bool bForecastDirty = true;
-	float ForecastCooldown = 0.0f;
+	FShiftForecast Forecast;                       // what the build screen shows for the current build: the quality list at once, the vote forecast once the plays are in
+	FShiftForecastService ForecastService;         // plays the world off the game thread
+	TArray<float> WorldQuality;                    // the other entries' quality in this world, per entry id
+	bool bForecastReady = false;
+	float ForecastSpread = 0.0f;                   // how far one play of a steady player strays from the average (0..1)
 	TArray<FShiftHudJamCard> JamCards;
 	TArray<int32> CardJam;          // jam index behind each card
 	uint32 LastRegistryVersion = 0;
@@ -142,6 +164,16 @@ private:
 	bool bNightLatch = false;
 	bool bPaused = false;
 	bool bResultsBuilt = false;
+	FAlert AlertNow;                // the alert on screen (Kind AlertNone = none); the Blame offer is not queued, it is read from the run
+	TArray<FAlert> AlertQueue;      // lower priority ones waiting for it
+	float AlertAge = 0.0f;
+	float OfferAge = 0.0f;          // seconds the Shift the Blame offer has been open
+	float BlameCue = 0.0f;          // seconds to the next warning sound while it is
+	float EdgeFlash = 0.0f;         // 0..1, decays
+	FLinearColor EdgeColor = FLinearColor::White;
+	float ResultsHold = 0.0f;       // after a disqualification the results screen waits this long (real seconds) so the alert is seen first
+	bool bBlameRefused = false;     // the fatal strike took too many fake votes to blame on the rival
+	float BlameRefusedShare = 0.0f;
 	FShiftHudModel ResultsModel;
 	TArray<float> InitialShares;
 

@@ -130,6 +130,8 @@ private:
 	mutable TArray<FHit> Hits;
 	mutable bool bModal = false;
 	mutable TMap<int32, FRowAnim> RowAnims;
+	TMap<int32, FRowAnim> BuildAnims;      // the build screen's two lists: key = list * 32 + entry id, Y in rows (list 0 = quality, 1 = the vote forecast)
+	float ForecastFade = 0.0f;             // 0..1: the vote forecast fading in once its plays are in
 
 	FVector2f MouseDesign = FVector2f(-1000.0f, -1000.0f);
 	int32 DragId = -1;

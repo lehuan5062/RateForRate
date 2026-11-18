@@ -58,6 +58,14 @@ namespace
 		double MegaEndShare = 0.0;
 		int32 MegaLeadAtStart = 0;          // runs in which the player led when the final push began, and still led at the end
 		int32 MegaLeadKept = 0;
+		int32 BlameStrikes = 0;             // Shift the Blame, summed over the runs: strikes, their fake share, the fatal ones and what became of them
+		double BlameFakeSum = 0.0;
+		int32 BlameFatal = 0;
+		int32 BlameOffered = 0;
+		int32 BlameTaken = 0;
+		int32 BlameRefused = 0;
+		int32 BlameLapsed = 0;
+		int32 FatalFakeBins[6] = { 0, 0, 0, 0, 0, 0 };   // fatal strikes by the fake share they took: <4%, 4-8, 8-12, 12-16, 16-20, 20+
 	};
 
 	bool ParseBot(const FString& Name, ShiftSim::BotKind& Out)
@@ -261,6 +269,18 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				St.Flips.PlugDwellSum += Flips.PlugDwellSum;
 				St.Flips.SockDwellCount += Flips.SockDwellCount;
 				St.Flips.SockDwellSum += Flips.SockDwellSum;
+				const FShiftBlameStats& Blame = Run.GetBlameStats();
+				St.BlameStrikes += Blame.Strikes;
+				St.BlameFakeSum += Blame.StrikeFakeSum;
+				St.BlameFatal += Blame.Fatal;
+				St.BlameOffered += Blame.Offered;
+				St.BlameTaken += Blame.Taken;
+				St.BlameRefused += Blame.Refused;
+				St.BlameLapsed += Blame.Lapsed;
+				for (const float Fake : Blame.FatalFake)
+				{
+					St.FatalFakeBins[FMath::Clamp(FMath::FloorToInt(Fake * 100.0f / 4.0f), 0, 5)]++;
+				}
 				if (R % 40 == 39)
 				{
 					CollectGarbage(RF_NoFlags);
@@ -277,6 +297,11 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				St.Flips.PlugDwellCount > 0 ? St.Flips.PlugDwellSum / St.Flips.PlugDwellCount : 0.0, St.Flips.PlugDwellCount,
 				St.Flips.SockDwellCount > 0 ? St.Flips.SockDwellSum / St.Flips.SockDwellCount : 0.0, St.Flips.SockDwellCount,
 				St.Threats.queued / N, St.Threats.landed / N, St.Threats.flipped / N, St.Threats.blocked / N, St.Threats.fizzled / N, St.Threats.shieldBlocked / N, St.Threats.parried / N, St.Threats.postsRally / N, St.Threats.postsParry / N);
+			// Shift the Blame (a separate line, like the others): strikes per run and the fake share they took, the strikes that would disqualify and what became of them (offered, taken,
+			// refused for too many fake votes, let lapse), and how many fatal strikes fell in each band of fake share (the cap, Params::BlameMaxFake, sits between two of them).
+			UE_LOG(LogShift, Display, TEXT("Balance: blame jam=%d bot=%-8s per run: strikes %.2f (fake %.1f%% each)  fatal %.2f  offered %.2f  taken %.2f  refused %.2f  lapsed %.2f   fatal fake share <4%% %d  4-8 %d  8-12 %d  12-16 %d  16-20 %d  20+ %d"),
+				Jam, *BotName, St.BlameStrikes / N, St.BlameStrikes > 0 ? 100.0 * St.BlameFakeSum / St.BlameStrikes : 0.0, St.BlameFatal / N, St.BlameOffered / N, St.BlameTaken / N, St.BlameRefused / N, St.BlameLapsed / N,
+				St.FatalFakeBins[0], St.FatalFakeBins[1], St.FatalFakeBins[2], St.FatalFakeBins[3], St.FatalFakeBins[4], St.FatalFakeBins[5]);
 			// The rival's final push (the last MegaDays days): the player's share when it starts and when the run ends, and how often a lead at the start survives.
 			UE_LOG(LogShift, Display, TEXT("Balance: mega jam=%d bot=%-8s share at start %.1f%% at end %.1f%% swing %+.1f  led at start %d, kept %d"),
 				Jam, *BotName, 100.0 * St.MegaStartShare / N, 100.0 * St.MegaEndShare / N, 100.0 * (St.MegaEndShare - St.MegaStartShare) / N, St.MegaLeadAtStart, St.MegaLeadKept);

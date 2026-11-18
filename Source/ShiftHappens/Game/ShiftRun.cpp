@@ -12,6 +12,7 @@
 #include "Math/UnrealMathUtility.h"
 #include "ShiftBuild.h"
 #include "ShiftHappens.h"
+#include "Sim/ShiftBlameRules.h"
 #include "Sim/ShiftParams.h"
 #include "Sim/ShiftRng.h"
 #include "Sim/ShiftSim.h"
@@ -47,7 +48,7 @@ bool FShiftRun::Start(int32 InJamIndex, uint32 InSeed, const FShiftBuild& InBuil
 	}
 
 	Sim = MakeUnique<ShiftSim::Sim>();
-	if (!Sim->Init(Jam, Params, Seed))
+	if (!Sim->Init(Jam, Params, Seed, bHasDynSeed ? DynSeed : Seed))
 	{
 		UE_LOG(LogShift, Error, TEXT("FShiftRun: sim init failed (jam %d, seed %u)"), JamIndex, Seed);
 		Sim.Reset();
@@ -94,6 +95,9 @@ bool FShiftRun::Start(int32 InJamIndex, uint32 InSeed, const FShiftBuild& InBuil
 	Accumulator = 0.0;
 	LastDay = 0;
 	BlameRemaining = 0.0;
+	BlameWindowLength = 0.0;
+	BlameFake = 0.0;
+	BlameStats = FShiftBlameStats();
 	RivalFrozenUntil = 0.0;
 	bBlameUsed = false;
 	bFinalPushAnnounced = false;
@@ -125,7 +129,8 @@ void FShiftRun::Tick(double DeltaSeconds)
 void FShiftRun::SetBot(ShiftSim::BotKind Kind)
 {
 	bBotActive = Kind != ShiftSim::BotKind::Idle;
-	Bot.Reset(Kind, Seed);
+	Bot.Reset(Kind, bHasDynSeed ? DynSeed : Seed);
+	Bot.SetStart(Policy.BotStart);
 }
 
 void FShiftRun::QueueAction(int32 Node, bool bSock)
@@ -164,24 +169,53 @@ void FShiftRun::ApplyModStrike()
 	Event.Count = static_cast<int32>(Strike.revertedNodes.size());
 	Event.Share = static_cast<float>(FakeShareBefore);
 	Emit(Event);
-	if (!bBlameUsed)
+
+	// Shift the Blame is for the strike that would disqualify, and only for a few fake votes (Sim/ShiftBlameRules.h); the strikes before it keep every consequence.
+	++BlameStats.Strikes;
+	BlameStats.StrikeFakeSum += FakeShareBefore;
+	if (Strike.disqualified)
 	{
-		BlameRemaining = BlameWindow;   // a third strike waits this long for the player to hand it to the rival
+		++BlameStats.Fatal;
+		BlameStats.FatalFake.Add(static_cast<float>(FakeShareBefore));
 	}
-	// Disqualification is announced once, at the end of StepOnce, when the sim reports it.
+	const ShiftSim::BlameVerdict Verdict = ShiftSim::JudgeBlame(*Sim, FakeShareBefore, bBlameUsed);
+	const double Window = ShiftSim::BlameWindowFor(*Sim);
+	if (Verdict == ShiftSim::BlameVerdict::Offered && Window > 1.0e-9)
+	{
+		++BlameStats.Offered;
+		BlameFake = FakeShareBefore;
+		BlameWindowLength = Window;
+		BlameRemaining = Window;
+		FShiftEvent Offer;
+		Offer.Type = EShiftEventType::BlameOffered;
+		Offer.Value = static_cast<float>(Window);
+		Offer.Share = static_cast<float>(FakeShareBefore);
+		Offer.Count = Strike.strikes;
+		Emit(Offer);
+	}
+	else if (Verdict == ShiftSim::BlameVerdict::Refused)
+	{
+		++BlameStats.Refused;
+		BlameFake = FakeShareBefore;
+		FShiftEvent Refusal;
+		Refusal.Type = EShiftEventType::BlameRefused;
+		Refusal.Share = static_cast<float>(FakeShareBefore);
+		Refusal.Count = Strike.strikes;
+		Emit(Refusal);
+	}
+	// Disqualification is announced once, at the end of StepOnce, when the sim reports it: at once when nothing was offered, when the window has run out otherwise.
 }
 
 bool FShiftRun::TakeBlame()
 {
-	if (!Sim.IsValid() || !BlameAvailable())
+	if (!Sim.IsValid() || bPaused || bOver || !BlameAvailable())
 	{
 		return false;
 	}
 	bBlameUsed = true;
 	BlameRemaining = 0.0;
-	Sim->ForgiveStrike();
-	Sim->AddConvictionToEntry(Sim->RivalId(), -0.25);       // the mods pick on the rival instead
-	RivalFrozenUntil = Sim->Time() + 10.0;                  // and the rival is busy defending itself for a while
+	++BlameStats.Taken;
+	RivalFrozenUntil = Sim->Time() + ShiftSim::ApplyBlame(*Sim);   // the mods pick on the rival instead, and the rival is busy defending itself for a while
 	FShiftEvent Event;
 	Event.Type = EShiftEventType::BlameTaken;
 	Emit(Event);
@@ -340,7 +374,12 @@ void FShiftRun::StepOnce()
 {
 	ShiftSim::Sim& S = *Sim;
 
+	const bool bOfferWasOpen = BlameRemaining > 0.0;
 	BlameRemaining = FMath::Max(0.0, BlameRemaining - S.GetParams().Dt);
+	if (bOfferWasOpen && BlameRemaining <= 0.0 && !bBlameUsed)
+	{
+		++BlameStats.Lapsed;   // the player let the window run out
+	}
 	UpdateEyeWindows();
 	if (Driver.IsValid())
 	{
@@ -366,6 +405,11 @@ void FShiftRun::StepOnce()
 	else
 	{
 		S.SetNightHeld(bNightHeld);
+	}
+	// A bot that would be disqualified answers with Shift the Blame once it would have seen the prompt, like a player who did (PolicyParams::BotBlame 0 = never).
+	if (bBotActive && Policy.BotBlame > 0.5 && BlameAvailable() && BlameWindowLength - BlameRemaining >= Policy.ReactDelay - 1.0e-9)
+	{
+		TakeBlame();
 	}
 	for (const FPendingAction& Action : Pending)
 	{

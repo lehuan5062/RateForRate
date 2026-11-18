@@ -208,7 +208,7 @@ Coachmarks for the first jam (Tiny Jam #7). No placeholders.
 | FirstHeat | Heat first rises above 0. |
 | FirstModEye | The first Mod Eye telegraph. |
 | FirstStrike | The first strike lands. |
-| BlameAvailable | Shift the Blame becomes available and a strike is pending or likely. |
+| BlameRule | One strike from the end (the second strike lands): how Shift the Blame works as a last chance. The row used to be "BlameAvailable" (retired: its seen-bit 12 is never set again, the new card has its own, so players who read the old one are taught the new rule). May use `{blamefake}`. |
 | KeysHint | A calm moment after the other coachmarks (pause, mute, menu keys). |
 
 ## Validation

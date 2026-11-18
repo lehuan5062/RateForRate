@@ -13,11 +13,11 @@ Everything below is for **you** to do or paste; nothing here has been done on yo
 >
 > Nine games enter. Yours is fine. The rival's is fine too. The rival has 1.2 million followers; you have a few. You have 31 days of voting to change that.
 >
-> Click through the follower network to flip voters one by one: every hub you win drags its followers along. Or hold **SHIFT** and work the night shift: sockpuppets, bots, bribes. Powerful, fragile and risky. The Mod Eye is watching, three strikes and you are disqualified, and you can **shift the blame** onto your rival, once.
+> Click through the follower network to flip voters one by one: every hub you win drags its followers along. Or hold **SHIFT** and work the night shift: sockpuppets, bots, bribes. Powerful, fragile and risky. The Mod Eye is watching, three strikes and you are disqualified, and the last one can be **blamed on your rival**, once, if it was only a few fake votes. A big pile of them is too much to pin on anyone.
 >
 > Three jams, a build screen that asks how to spend your last 12 hours, and a results screen that computes, from your own run, how much of the vote was explained by quality and how much by fame.
 >
-> **Controls:** mouse = Plug (hover for details) · hold SHIFT (or N) = night shift · B = shift the blame · Space/Esc = pause · M = mute · R = retry
+> **Controls:** mouse = Plug (hover for details) · hold SHIFT (or N) = night shift · B = shift the blame (when offered) · Space/Esc = pause · M = mute · R = retry
 >
 > Windows 10/11 with a DirectX 12 GPU (Shader Model 6). Made with Unreal Engine 5.8 for GitHub Game Off 2026 (theme: SHIFT).
 

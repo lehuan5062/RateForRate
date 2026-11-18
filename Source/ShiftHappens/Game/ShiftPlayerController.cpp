@@ -60,6 +60,8 @@ namespace
 	FLinearColor AmberColor() { return FLinearColor::FromSRGBColor(FColor(0xF2, 0xB1, 0x34)); }
 	FLinearColor PurpleColor() { return FLinearColor::FromSRGBColor(FColor(0x7B, 0x5C, 0xF0)); }
 	FLinearColor RedColor() { return FLinearColor::FromSRGBColor(FColor(0xFF, 0x4D, 0x5A)); }
+	FLinearColor OrangeColor() { return FLinearColor::FromSRGBColor(FColor(0xE8, 0x68, 0x1C)); }
+	FLinearColor DeepRedColor() { return FLinearColor::FromSRGBColor(FColor(0xC8, 0x2A, 0x3C)); }
 
 	FString Ordinal(int32 N)
 	{
@@ -130,6 +132,8 @@ namespace
 		TutEyeAway,
 		TutFake,
 		TutPush,
+		// appended in round 5: the Blame is a last chance now (the old BlameAvailable card, bit 12, is retired and never shown)
+		TutBlameRule,
 		TutCount
 	};
 
@@ -137,7 +141,7 @@ namespace
 	{
 		TEXT("JamStart"), TEXT("FirstHover"), TEXT("FirstPlug"), TEXT("FirstConvictionRing"), TEXT("PostsLow"), TEXT("FirstReinforce"),
 		TEXT("FirstGateSeen"), TEXT("FirstGateOpened"), TEXT("ShiftUnlocked"), TEXT("FirstHeat"), TEXT("FirstModEye"), TEXT("FirstStrike"),
-		TEXT("BlameAvailable"), TEXT("KeysHint"), TEXT("FirstLostVoter"), TEXT("FirstSockpuppet"), TEXT("FinalAudit"), TEXT("RallyHint"), TEXT("ThreatRing"), TEXT("EyeAway"), TEXT("FirstFake"), TEXT("FinalPush"),
+		TEXT("BlameAvailable"), TEXT("KeysHint"), TEXT("FirstLostVoter"), TEXT("FirstSockpuppet"), TEXT("FinalAudit"), TEXT("RallyHint"), TEXT("ThreatRing"), TEXT("EyeAway"), TEXT("FirstFake"), TEXT("FinalPush"), TEXT("BlameRule"),
 	};
 
 	enum ETutEvent : uint32
@@ -150,6 +154,7 @@ namespace
 		EvSock = 1u << 5,
 		EvTelegraph = 1u << 6,
 		EvEyeAway = 1u << 7,
+		EvStrikeLast = 1u << 8,
 	};
 }
 
@@ -352,6 +357,7 @@ void AShiftPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 	Hud.Reset();
 	Run.Reset();
+	ForecastService.Cancel();
 	AudioMeter = nullptr;
 	if (Audio)
 	{
@@ -375,6 +381,23 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 	}
 
 	Run = MakeShared<FShiftRun>();
+	FString SetArg;
+	if (!bAttract && FParse::Value(FCommandLine::Get(), TEXT("ShiftSet="), SetArg, false))
+	{
+		// QA: -ShiftSet=Name=Value,Name=Value overrides a sim Param, jam field or policy field by name, like the balance commandlet's -Set (for example BotBlame=0, BlameMaxFake=0.01)
+		TMap<FString, double> Overrides;
+		TArray<FString> Parts;
+		SetArg.ParseIntoArray(Parts, TEXT(","));
+		for (const FString& Part : Parts)
+		{
+			FString Key, Value;
+			if (Part.Split(TEXT("="), &Key, &Value))
+			{
+				Overrides.Add(Key.TrimStartAndEnd(), FCString::Atod(*Value));
+			}
+		}
+		Run->SetOverrides(Overrides);
+	}
 	if (!Run->Start(RunJam, InSeed, bAttract ? FShiftBuild() : Build, /*bInModsEnabled*/ true))
 	{
 		Run.Reset();
@@ -438,6 +461,7 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 	Board->Build(S);
 
 	bResultsBuilt = false;
+	ResetAlerts();
 	bPaused = false;
 	bNightLatch = false;
 	NightBlend = 0.0f;
@@ -474,6 +498,7 @@ void AShiftPlayerController::StartAttract()
 
 void AShiftPlayerController::StartPlay()
 {
+	ForecastService.Cancel();   // the plays of the forecast must not take the CPU from the jam being played
 	Screen = EShiftScreen::Play;
 	StartRun(JamIndex, Seed, false);
 }
@@ -500,6 +525,7 @@ void AShiftPlayerController::EnterScreen(EShiftScreen NewScreen)
 	{
 	case EShiftScreen::Title:
 	case EShiftScreen::JamSelect:
+		ForecastService.Cancel();
 		if (!bAttract || !Run.IsValid() || Previous == EShiftScreen::Play || Previous == EShiftScreen::Build)
 		{
 			StartAttract();
@@ -510,8 +536,9 @@ void AShiftPlayerController::EnterScreen(EShiftScreen NewScreen)
 		}
 		break;
 	case EShiftScreen::Build:
-		bForecastDirty = true;
-		ForecastCooldown = 0.0f;
+		WorldQuality = ShiftForecastRun::WorldQualities(JamIndex, Seed);
+		Forecast = FShiftForecast();
+		bForecastReady = false;
 		RefreshForecast();
 		StartAttract();
 		break;
@@ -564,10 +591,25 @@ void AShiftPlayerController::RefreshJamCards()
 	}
 }
 
+/** The build screen's forecast of this world: the quality list is exact and instant, the vote list is the average of the plays the service makes in the background (the lists
+ *  show the progress until they are in) and is looked up, not recomputed, whenever the sliders move. */
 void AShiftPlayerController::RefreshForecast()
 {
-	Forecast = ShiftBuildRules::Forecast(JamIndex, Seed, Build, 4);
-	bForecastDirty = false;
+	ForecastService.Request(JamIndex, Seed);
+	ForecastService.Tick();
+	const TSharedPtr<const FShiftForecastModel> Model = ForecastService.Find(JamIndex, Seed);
+	bForecastReady = Model.IsValid();
+	if (Model.IsValid())
+	{
+		Forecast = Model->Evaluate(Build);
+		ForecastSpread = Model->PlayerSpread;
+	}
+	else
+	{
+		Forecast = FShiftForecast();
+		ShiftForecastRun::FillQuality(JamIndex, WorldQuality, Build, Forecast);
+		ForecastSpread = 0.0f;
+	}
 }
 
 void AShiftPlayerController::SetBuildHours(int32 Slider, float Value01)
@@ -584,7 +626,6 @@ void AShiftPlayerController::SetBuildHours(int32 Slider, float Value01)
 	if (NewValue != Field)
 	{
 		Field = NewValue;
-		bForecastDirty = true;
 		if (SliderSfxCooldown <= 0.0f)
 		{
 			PlaySfx(EShiftSfx::Slider);
@@ -838,7 +879,7 @@ void AShiftPlayerController::HandleHudKey(const FKey& Key)
 		else if (Key == EKeys::Escape || Key == EKeys::BackSpace) { HandleUi(EShiftUi::Back, 0.0f); }
 		break;
 	case EShiftScreen::Play:
-		if (Run.IsValid() && Run->IsOver())
+		if (ResultsShown())
 		{
 			if (Key == EKeys::R) { HandleUi(EShiftUi::Retry, 0.0f); }
 			else if (Key == EKeys::Enter) { HandleUi(EShiftUi::NextJam, 0.0f); }
@@ -949,7 +990,60 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			PlaySfx(EShiftSfx::Shadowban, 0.7f);
 			ShowToast(FString::Printf(TEXT("STRIKE %d of %d: the mods noticed. %d sockpuppet vote%s reverted (-%.1f%% of the vote)."), static_cast<int32>(E.Value),
 				static_cast<int32>(Run->GetSim().GetParams().MaxStrikes), E.Count, E.Count == 1 ? TEXT("") : TEXT("s"), E.Share * 100.0f), RedColor(), 3.2f);
+			{
+				const int32 Max = static_cast<int32>(Run->GetSim().GetParams().MaxStrikes);
+				const int32 Number = static_cast<int32>(E.Value);
+				if (Number == Max - 1)
+				{
+					TutEventMask |= EvStrikeLast;
+				}
+				PushAlert(AlertStrike, Number == Max - 1 ? FString::Printf(TEXT("STRIKE %d OF %d: ONE MORE AND YOU ARE OUT"), Number, Max) : FString::Printf(TEXT("STRIKE %d OF %d"), Number, Max),
+					E.Count > 0 ? FString::Printf(TEXT("%d sockpuppet vote%s reverted (-%.1f%% of the vote). Shadowbanned for %.0f s."), E.Count, E.Count == 1 ? TEXT("") : TEXT("s"), E.Share * 100.0f, Run->GetSim().GetParams().ShadowbanSeconds)
+						: FString::Printf(TEXT("The mods caught you in the red zone. Shadowbanned for %.0f s."), Run->GetSim().GetParams().ShadowbanSeconds),
+					RedColor(), 3.4f, 50);
+				EdgeFlash = 1.0f;
+				EdgeColor = RedColor();
+			}
 			break;
+		case EShiftEventType::BlameOffered:
+			// the offer itself is read from the run every frame (FillAlertModel); this starts its cues
+			OfferAge = 0.0f;
+			BlameCue = 0.5f;
+			EdgeFlash = 1.0f;
+			EdgeColor = OrangeColor();
+			UE_LOG(LogShift, Display, TEXT("Alert: t=%.1f kind=%d offer open %.1f s, fake %.1f%%"), Run->GetSim().Time(), AlertBlameOffer, E.Value, E.Share * 100.0f);
+			break;
+		case EShiftEventType::BlameRefused:
+			bBlameRefused = true;
+			BlameRefusedShare = E.Share;
+			break;
+		case EShiftEventType::Disqualified:
+		{
+			PlaySfx(EShiftSfx::DQ, 1.3f);
+			const ShiftSim::Params& DP = Run->GetSim().GetParams();
+			FString Reason;
+			if (bBlameRefused)
+			{
+				Reason = FString::Printf(TEXT("Blame refused: %.0f%% of the vote was fake, too much to pin on the rival (the limit is %.0f%%)."), BlameRefusedShare * 100.0f, DP.BlameMaxFake * 100.0f);
+			}
+			else if (Run->BlameUsed())
+			{
+				Reason = TEXT("Third strike again, and the blame was already used up.");
+			}
+			else if (Run->GetBlameStats().Lapsed > 0)
+			{
+				Reason = TEXT("You did not shift the blame in time.");
+			}
+			else
+			{
+				Reason = FString::Printf(TEXT("%d strikes."), static_cast<int32>(DP.MaxStrikes));
+			}
+			ResultsHold = 1.8f;
+			PushAlert(AlertDisqualified, TEXT("DISQUALIFIED"), Reason, DeepRedColor(), ResultsHold, 100);
+			EdgeFlash = 1.0f;
+			EdgeColor = RedColor();
+			break;
+		}
 		case EShiftEventType::PlayerLostVoter:
 			TutEventMask |= EvLost;
 			LostRecently.Add({ E.Node, E.NewOwner, static_cast<int32>(E.Value) });
@@ -985,6 +1079,7 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			break;
 		case EShiftEventType::FinalPushStart:
 			PlaySfx(EShiftSfx::ModWarn);
+			PushAlert(AlertFinalPush, TEXT("FINAL PUSH"), FString::Printf(TEXT("%s goes all-in for the last %.0f s: double attacks. Your Posts refill %.0f%% faster."), *EntryName(Run->GetSim().RivalId()), E.Value, E.Share * 100.0f), RedColor(), 3.6f, 20);
 			ShowToast(FString::Printf(TEXT("%s goes all-in for the last %.0f s: double attacks. Your Posts refill %.0f%% faster."), *EntryName(Run->GetSim().RivalId()), E.Value, E.Share * 100.0f), RedColor(), 4.0f);
 			break;
 		case EShiftEventType::EyeAwayWarn:
@@ -1002,6 +1097,8 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			break;
 		case EShiftEventType::FinalAudit:
 			PlaySfx(EShiftSfx::ModSweep);
+			PushAlert(AlertFinalAudit, TEXT("FINAL AUDIT"), E.Count > 0 ? FString::Printf(TEXT("%d sockpuppet vote%s purged (-%.1f%% of the vote)."), E.Count, E.Count == 1 ? TEXT("") : TEXT("s"), E.Value * 100.0f) : FString(TEXT("Clean: no sockpuppet votes left to purge.")),
+				E.Count > 0 ? DeepRedColor() : TealColor(), 3.0f, 30);
 			ShowToast(E.Count > 0 ? FString::Printf(TEXT("FINAL AUDIT: %d sockpuppet vote%s purged (%.1f%% of the vote)."), E.Count, E.Count == 1 ? TEXT("") : TEXT("s"), E.Value * 100.0f)
 				: FString(TEXT("FINAL AUDIT: no sockpuppet votes left to purge.")), E.Count > 0 ? RedColor() : TealColor(), 3.5f);
 			break;
@@ -1010,6 +1107,8 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			break;
 		case EShiftEventType::BlameTaken:
 			PlaySfx(EShiftSfx::Blame);
+			PushAlert(AlertBlameTaken, TEXT("BLAME SHIFTED"), FString::Printf(TEXT("Strike taken back. The mods are busy with %s now."), *EntryName(Run->GetSim().RivalId())), TealColor(), 2.8f, 60);
+			EdgeFlash = 0.0f;
 			ShowToast(TEXT("You shifted the blame. The mods are busy with the rival now."), TealColor(), 3.0f);
 			ShowHeadline(TEXT("RivalCollapses"), EntryName(Run->GetSim().RivalId()));
 			break;
@@ -1035,6 +1134,123 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 		default:
 			break;
 		}
+	}
+}
+
+void AShiftPlayerController::ResetAlerts()
+{
+	AlertNow = FAlert();
+	AlertQueue.Reset();
+	AlertAge = 0.0f;
+	OfferAge = 0.0f;
+	BlameCue = 0.0f;
+	EdgeFlash = 0.0f;
+	ResultsHold = 0.0f;
+	bBlameRefused = false;
+	BlameRefusedShare = 0.0f;
+}
+
+/** An urgent event takes over the top bar. The highest priority is on screen; a lower one waits its turn (three at most), and a higher one replaces it. */
+void AShiftPlayerController::PushAlert(int32 Kind, const FString& Title, const FString& Detail, const FLinearColor& Color, float Duration, int32 Priority)
+{
+	UE_LOG(LogShift, Display, TEXT("Alert: t=%.1f kind=%d '%s' / '%s'"), Run.IsValid() ? Run->GetSim().Time() : 0.0, Kind, *Title, *Detail);
+	FAlert Item;
+	Item.Kind = Kind;
+	Item.Title = Title;
+	Item.Detail = Detail;
+	Item.Color = Color;
+	Item.Duration = Duration;
+	Item.Priority = Priority;
+	if (AlertNow.Kind == AlertNone || Priority >= AlertNow.Priority)
+	{
+		AlertNow = Item;
+		AlertAge = 0.0f;
+		return;
+	}
+	AlertQueue.Add(Item);
+	AlertQueue.StableSort([](const FAlert& A, const FAlert& B) { return A.Priority > B.Priority; });
+	if (AlertQueue.Num() > 3)
+	{
+		AlertQueue.SetNum(3);
+	}
+}
+
+/** Once a frame. Everything here stands still while the game is paused: an alert does not run out, the Blame offer does not sound, and the frame does not fade. */
+void AShiftPlayerController::TickAlerts(float DeltaTime)
+{
+	ResultsHold = FMath::Max(0.0f, ResultsHold - DeltaTime);
+	if (Screen != EShiftScreen::Play || bAttract || !Run.IsValid() || bPaused)
+	{
+		return;
+	}
+	EdgeFlash = FMath::Max(0.0f, EdgeFlash - DeltaTime * 1.4f);
+	if (Run->BlameAvailable())
+	{
+		OfferAge += DeltaTime;
+		BlameCue -= DeltaTime;
+		if (BlameCue <= 0.0f)
+		{
+			PlaySfx(EShiftSfx::ModWarn, 1.8f);   // the repeating warning: the one sound the offer has, so it is not missed with the eyes elsewhere
+			BlameCue = 0.8f;
+		}
+	}
+	else
+	{
+		OfferAge = 0.0f;
+		BlameCue = 0.5f;
+	}
+	if (AlertNow.Kind != AlertNone)
+	{
+		AlertAge += DeltaTime;
+		if (AlertAge >= AlertNow.Duration)
+		{
+			if (AlertQueue.Num() > 0)
+			{
+				AlertNow = AlertQueue[0];
+				AlertQueue.RemoveAt(0);
+				AlertAge = 0.0f;
+			}
+			else
+			{
+				AlertNow = FAlert();
+			}
+		}
+	}
+}
+
+void AShiftPlayerController::FillAlertModel(FShiftHudModel& M) const
+{
+	M.EdgeFlash = EdgeFlash;
+	M.EdgeColor = EdgeColor;
+	FShiftHudAlert& A = M.Alert;
+	if (Run->BlameAvailable())
+	{
+		// The offer: while it is open it owns the bar, whatever else is queued. It is read from the run, so a pause or a take ends it at once.
+		const ShiftSim::Params& P = Run->GetSim().GetParams();
+		const float Left = static_cast<float>(Run->BlameSecondsLeft());
+		A.Kind = AlertBlameOffer;
+		A.Title = FString::Printf(TEXT("STRIKE %d OF %d: SHIFT THE BLAME?  (B)"), Run->GetSim().Strikes(), static_cast<int32>(P.MaxStrikes));
+		A.Detail = FString::Printf(TEXT("Click here or press B to hand the strike to the rival. It works: %.0f%% of the vote was fake, the limit is %.0f%%."), Run->BlameFakeShare() * 100.0, P.BlameMaxFake * 100.0);
+		A.Color = OrangeColor();
+		A.Frac = FMath::Clamp(Left / FMath::Max(0.1f, static_cast<float>(Run->BlameWindowSeconds())), 0.0f, 1.0f);
+		A.SecondsLeft = Left;
+		A.Age = OfferAge;
+		A.bClickable = true;
+		const float Pulse = 0.5f + 0.5f * FMath::Sin(OfferAge * 9.42478f);   // 1.5 Hz: slow enough to be safe, fast enough to be seen
+		if (!bPaused && 0.30f + 0.35f * Pulse > M.EdgeFlash)
+		{
+			M.EdgeFlash = 0.30f + 0.35f * Pulse;
+			M.EdgeColor = OrangeColor();
+		}
+	}
+	else if (AlertNow.Kind != AlertNone)
+	{
+		A.Kind = AlertNow.Kind;
+		A.Title = AlertNow.Title;
+		A.Detail = AlertNow.Detail;
+		A.Color = AlertNow.Color;
+		A.Frac = FMath::Clamp(1.0f - AlertAge / FMath::Max(0.1f, AlertNow.Duration), 0.0f, 1.0f);
+		A.Age = AlertAge;
 	}
 }
 
@@ -1113,6 +1329,7 @@ FString AShiftPlayerController::ExpandTutorialText(const FString& Text) const
 	Out.ReplaceInline(TEXT("{pushpct}"), *FString::Printf(TEXT("%.0f"), 100.0 * FMath::Max(0.0, Run->GetPolicy().FinalPushRegen - 1.0)));
 	Out.ReplaceInline(TEXT("{review}"), *FString::Printf(TEXT("%.0f"), P.SockReview));
 	Out.ReplaceInline(TEXT("{launder}"), *FString::Printf(TEXT("%.0f%%"), P.SockLaunderConv * 100.0));
+	Out.ReplaceInline(TEXT("{blamefake}"), *FString::Printf(TEXT("%.0f"), P.BlameMaxFake * 100.0));
 	return Out;
 }
 
@@ -1247,7 +1464,10 @@ void AShiftPlayerController::TickTutorial(float DeltaTime)
 	if ((TutEventMask & EvStrike) != 0)
 	{
 		QueueCoach(TutFirstStrike);
-		QueueCoach(TutBlameAvailable);
+	}
+	if ((TutEventMask & EvStrikeLast) != 0)
+	{
+		QueueCoach(TutBlameRule);   // one strike from the end: how the last chance works
 	}
 	if (RunClock > 80.0f)
 	{
@@ -1542,12 +1762,18 @@ void AShiftPlayerController::BuildMenuModel(FShiftHudModel& M)
 	B.TotalHours = FShiftBuild::TotalHours;
 	B.JamTitle = FString(UTF8_TO_TCHAR(ShiftSim::DefaultJam(JamIndex).name.c_str()));
 	B.RivalFollowers = RivalFollowers(JamIndex);
+	B.bForecastReady = bForecastReady;
+	B.ForecastProgress = ForecastService.Progress();
 	B.ForecastRank = Forecast.PlayerRank;
+	B.ForecastRankLo = Forecast.RankLo;
+	B.ForecastRankHi = Forecast.RankHi;
 	B.ForecastShare = Forecast.PlayerShare;
+	B.ForecastSpread = ForecastSpread;
 	B.QualityRank = Forecast.QualityRank;
 	for (const int32 E : Forecast.QualityOrder)
 	{
 		FShiftHudForecastRow Row;
+		Row.EntryId = E;
 		Row.Name = EntryName(E);
 		Row.Value = Forecast.Quality.IsValidIndex(E) ? Forecast.Quality[E] : 0.0f;
 		Row.Color = ShiftPalette::Entry(E);
@@ -1557,6 +1783,7 @@ void AShiftPlayerController::BuildMenuModel(FShiftHudModel& M)
 	for (const int32 E : Forecast.ShareOrder)
 	{
 		FShiftHudForecastRow Row;
+		Row.EntryId = E;
 		Row.Name = EntryName(E);
 		Row.Value = Forecast.Share.IsValidIndex(E) ? Forecast.Share[E] : 0.0f;
 		Row.Color = ShiftPalette::Entry(E);
@@ -1626,7 +1853,7 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 	M.bNightActive = bNight;
 	M.bPaused = bPaused;
 	FillBuildEffects(M.Build);
-	M.bOver = Run->IsOver();
+	M.bOver = ResultsShown();   // after a disqualification the results wait a moment, so the alert is seen
 	M.Feed.Reset();
 	for (const FFeedItem& Item : Feed)
 	{
@@ -1683,6 +1910,7 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 	M.bBlameOffer = Run->BlameAvailable();
 	M.BlameSeconds = static_cast<float>(Run->BlameSecondsLeft());
 	M.BlameWindow = static_cast<float>(Run->BlameWindowSeconds());
+	FillAlertModel(M);
 	BuildHoverTooltip(M.Tooltip);
 
 	if (M.bOver)
@@ -1691,7 +1919,10 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 		{
 			BuildResults(ResultsModel);
 			bResultsBuilt = true;
-			PlaySfx(S.Disqualified() ? EShiftSfx::DQ : (S.Leader() == ShiftSim::kPlayerId ? EShiftSfx::Win : EShiftSfx::Lose));
+			if (!S.Disqualified())
+			{
+				PlaySfx(S.Leader() == ShiftSim::kPlayerId ? EShiftSfx::Win : EShiftSfx::Lose);   // the disqualification sounded when it happened
+			}
 		}
 		M.OutcomeTitle = ResultsModel.OutcomeTitle;
 		M.OutcomeLine1 = ResultsModel.OutcomeLine1;
@@ -1839,16 +2070,12 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 	Feed.RemoveAll([](const FFeedItem& Item) { return Item.Remaining <= 0.0f; });
 	SliderSfxCooldown = FMath::Max(0.0f, SliderSfxCooldown - DeltaTime);
 	TickTutorial(DeltaTime);
+	TickAlerts(DeltaTime);
 	TickAudio(DeltaTime);
 
-	if (Screen == EShiftScreen::Build && bForecastDirty)
+	if (Screen == EShiftScreen::Build)
 	{
-		ForecastCooldown -= DeltaTime;
-		if (ForecastCooldown <= 0.0f)
-		{
-			RefreshForecast();
-			ForecastCooldown = 0.1f;
-		}
+		RefreshForecast();
 	}
 
 	const ShiftSim::Sim& S = Run->GetSim();
@@ -1899,6 +2126,10 @@ void AShiftPlayerController::TickAudio(float DeltaTime)
 		{
 			Volume = 0.55f;
 			Intensity = 0.0f;
+		}
+		else if (Run->BlameAvailable())
+		{
+			Volume = 0.5f;   // the music steps back while the Blame offer is open, so its warning is heard
 		}
 	}
 	Audio->Tick(DeltaTime, NightBlend, Intensity, Volume);

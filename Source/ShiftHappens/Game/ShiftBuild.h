@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "Containers/Array.h"
 #include "HAL/Platform.h"
 #include "Sim/ShiftBuildRules.h"
 #include "Sim/ShiftParams.h"
@@ -17,18 +16,6 @@ struct FShiftBuild
 	int32 Spent() const { return Quality + Thumbnail + Network; }
 };
 
-/** Predicted standings for a casual player (a Plug every couple of seconds) with this build, against the stand-in rival and other entries. */
-struct FShiftForecast
-{
-	int32 PlayerRank = 0;                 // 1-based by forecast share
-	float PlayerShare = 0.0f;
-	int32 QualityRank = 0;                // 1-based by quality
-	TArray<float> Quality;                // per entry id
-	TArray<int32> QualityOrder;           // entry ids, best quality first
-	TArray<float> Share;                  // per entry id, average over the samples
-	TArray<int32> ShareOrder;             // entry ids, best forecast first
-};
-
 namespace ShiftBuildRules
 {
 	/** Applies the build to the sim parameters (neutral at 4/4/4): see Sim/ShiftBuildRules.h for what each lever does. */
@@ -36,9 +23,6 @@ namespace ShiftBuildRules
 
 	/** What the build comes to for a jam, in the terms the player feels (Post bank and refill, start voters, Plug cost, voter loyalty, appeal, clout). */
 	ShiftSim::BuildSummary Summary(int32 JamIndex, const FShiftBuild& Build);
-
-	/** Casual-player forecast: a few full sims with the stand-in rival and others (milliseconds each). */
-	FShiftForecast Forecast(int32 JamIndex, uint32 Seed, const FShiftBuild& Build, int32 Samples = 4);
 }
 
 /** Progress and settings, stored in the user settings ini. */

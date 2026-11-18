@@ -67,9 +67,15 @@ namespace ShiftSim
 
 	bool Sim::Init(const JamDef& Jam, const Params& P, uint32_t Seed)
 	{
+		return Init(Jam, P, Seed, Seed);
+	}
+
+	bool Sim::Init(const JamDef& Jam, const Params& P, uint32_t Seed, uint32_t DynSeed)
+	{
 		Jam_ = Jam;
 		P_ = P;
 		Seed_ = Seed;
+		DynSeed_ = DynSeed;
 		NumEntries_ = Jam.entries < 3 ? 3 : (Jam.entries > kMaxEntries ? kMaxEntries : Jam.entries);
 		RivalId_ = (Jam.rivalId >= 1 && Jam.rivalId < NumEntries_) ? Jam.rivalId : 1;
 
@@ -105,7 +111,7 @@ namespace ShiftSim
 		Rng R(Rng::Derive(Seed, 2u));
 		InitEntries(R);
 		InitOpinions(R);
-		Rng_.Seed(Rng::Derive(Seed, 4u));
+		Rng_.Seed(Rng::Derive(DynSeed, 4u));
 
 		Time_ = 0.0;
 		StepCount_ = 0;

@@ -39,6 +39,9 @@ namespace ShiftSim
 		double ModFirstSweepMin = 0.0;       // the Eye's cycle is already running at t=0: first sweep ~ U[this, jam ModIntervalMax]
 		// player bots
 		double BotInterval = 0.2;            // minimum seconds between bot clicks
+		double BotStart = 0.0;               // seconds before the bot's first click (the build screen's forecast replays one world with a few different rhythms)
+		double BotBlame = 1.0;               // 1: a bot answers the strike that would disqualify it with Shift the Blame (after ReactDelay, like a player who saw the prompt); 0 = never (the Blame-free baseline)
+		double BotNoise = 0.0;               // greedy bot: every target's score is jittered by up to +-this fraction before the best is picked, a player who does not find the optimum every time (0 = off)
 		double SockMaxHeat = 45.0;           // greedy+sock socks only when Heat <= this
 		double SockWindup = 0.5;             // seconds the bot holds night before the sock click
 		double ReactDelay = 0.6;             // reactor / explorer: seconds a human needs to notice an announced attack before answering it
@@ -366,6 +369,8 @@ namespace ShiftSim
 		}
 
 		BotKind Kind() const { return Kind_; }
+		// The first click is not before this sim time.
+		void SetStart(double Seconds) { Next_ = Seconds; }
 
 		// NextSweep: sim time of the next Mod Eye sweep. The Eye's countdown is on the HUD, so a human player knows it too; 1e30 when there is none.
 		void Update(Sim& S, const PolicyParams& PP, double NextSweep = 1.0e30, double NextWindow = 1.0e30)
@@ -490,7 +495,7 @@ namespace ShiftSim
 
 			TargetFilter F;
 			Target T;
-			if (S.BestTarget(kPlayerId, F, &T))
+			if (PickTarget(S, PP, F, &T))
 			{
 				LastOutcome = S.Plug(kPlayerId, T.node, 1.0);
 				++Actions;
@@ -501,6 +506,30 @@ namespace ShiftSim
 		int Actions = 0;
 
 	private:
+		// The best target by score, or with PP.BotNoise the best after every score was jittered by up to +-BotNoise (from the bot's own stream: with no noise nothing is drawn).
+		bool PickTarget(const Sim& S, const PolicyParams& PP, const TargetFilter& F, Target* Out)
+		{
+			if (!(PP.BotNoise > 0.0))
+			{
+				return S.BestTarget(kPlayerId, F, Out);
+			}
+			std::vector<Target> All;
+			S.CollectTargets(kPlayerId, F, &All);
+			bool bHave = false;
+			double BestScore = 0.0;
+			for (const Target& C : All)
+			{
+				const double Jittered = C.score * (1.0 + PP.BotNoise * (2.0 * R_.NextDouble() - 1.0));
+				if (!bHave || Jittered > BestScore)
+				{
+					*Out = C;
+					BestScore = Jittered;
+					bHave = true;
+				}
+			}
+			return bHave;
+		}
+
 		struct BotStyle
 		{
 			bool React = false;
@@ -989,7 +1018,7 @@ namespace ShiftSim
 				SHIFT_PP(RivalDefendBelow), SHIFT_PP(RivalPlayerMult), SHIFT_PP(RivalCapShare), SHIFT_PP(RivalBandBase),
 				SHIFT_PP(RivalBandSlope), SHIFT_PP(RivalBandThreshold), SHIFT_PP(MegaDays), SHIFT_PP(MegaConvBoost),
 				SHIFT_PP(MegaAttackMult), SHIFT_PP(FinalPushRegen), SHIFT_PP(EyeAwayCount), SHIFT_PP(EyeAwaySeconds), SHIFT_PP(EyeAwayEndMargin), SHIFT_PP(EyeAwayWarn), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV), SHIFT_PP(OthersTargetsPlayer),
-				SHIFT_PP(ModFirstSweepMin), SHIFT_PP(BotInterval), SHIFT_PP(SockMaxHeat), SHIFT_PP(SockWindup), SHIFT_PP(LateSeconds), SHIFT_PP(RallyMinRisk), SHIFT_PP(ReactDelay), SHIFT_PP(ReactReserve), SHIFT_PP(ReactMinValue), SHIFT_PP(ReactRallyThreats), SHIFT_PP(ReactRallyValue), SHIFT_PP(XReact), SHIFT_PP(XRally), SHIFT_PP(XSock), SHIFT_PP(XBurst),
+				SHIFT_PP(ModFirstSweepMin), SHIFT_PP(BotInterval), SHIFT_PP(BotStart), SHIFT_PP(BotNoise), SHIFT_PP(BotBlame), SHIFT_PP(SockMaxHeat), SHIFT_PP(SockWindup), SHIFT_PP(LateSeconds), SHIFT_PP(RallyMinRisk), SHIFT_PP(ReactDelay), SHIFT_PP(ReactReserve), SHIFT_PP(ReactMinValue), SHIFT_PP(ReactRallyThreats), SHIFT_PP(ReactRallyValue), SHIFT_PP(XReact), SHIFT_PP(XRally), SHIFT_PP(XSock), SHIFT_PP(XBurst),
 				SHIFT_PP(XIdle), SHIFT_PP(XReinforceBelow), SHIFT_PP(XPlugMinV), SHIFT_PP(XSockMinV), SHIFT_PP(XSockShare), SHIFT_PP(XParry), SHIFT_PP(XWindow), SHIFT_PP(XWindowBank), SHIFT_PP(XValueFirst), SHIFT_PP(XKeepRally),
 			};
 			*Count = static_cast<int>(sizeof(kFields) / sizeof(kFields[0]));

@@ -12,6 +12,7 @@
 #include "runner.h"
 #include "ShiftDetMath.h"
 #include "ShiftSim.h"
+#include "ShiftBlameRules.h"
 #include "ShiftBuildRules.h"
 
 namespace ShiftSim
@@ -254,10 +255,18 @@ inline std::vector<LogAction> MakeActionLog(uint32_t Seed, int Nodes, int Steps,
     return L;
 }
 
-inline std::vector<uint64_t> ReplayLog(const JamDef& Jam, const Params& P, uint32_t Seed, const std::vector<LogAction>& Log, int Steps)
+// DynSeed < 0: the plain three-argument Init; otherwise the four-argument one with this dynamics seed.
+inline std::vector<uint64_t> ReplayLog(const JamDef& Jam, const Params& P, uint32_t Seed, const std::vector<LogAction>& Log, int Steps, int64_t DynSeed = -1)
 {
     Sim S;
-    S.Init(Jam, P, Seed);
+    if (DynSeed < 0)
+    {
+        S.Init(Jam, P, Seed);
+    }
+    else
+    {
+        S.Init(Jam, P, Seed, static_cast<uint32_t>(DynSeed));
+    }
     std::vector<uint64_t> Hashes;
     size_t Next = 0;
     for (int Step = 0; Step < Steps; ++Step)
@@ -310,6 +319,51 @@ inline void TestDeterminism(const Config& Cfg)
     for (size_t I = 0; I < One.results.size(); ++I) { SameBatch = SameBatch && One.results[I].hash == Many.results[I].hash; }
     T_CHECK(SameBatch);
     std::printf("  golden: jam2 seed 31337 greedy+sock final hash %016llx\n", static_cast<unsigned long long>(A.hash));
+}
+
+// ------------------------------------------------------------------------------------------
+// One world, many lucks: Init(Jam, P, Seed, DynSeed) draws the world from Seed and only the coin flips of undecided voters from DynSeed.
+inline void TestDynSeed(const Config& Cfg)
+{
+    std::printf("[dynamics seed]\n");
+    const int Steps = 2400; // 120 s
+    for (size_t J = 0; J < Cfg.jams.size(); ++J)
+    {
+        const JamDef& Jam = Cfg.jams[J];
+        for (uint32_t Seed = 21; Seed <= 23; ++Seed)
+        {
+            const std::vector<LogAction> Log = MakeActionLog(Seed, Jam.nodes, Steps, Jam.entries);
+            // The three-argument Init is the four-argument one with DynSeed = Seed: every hash along the run is the same, so no existing number moves.
+            const std::vector<uint64_t> Plain = ReplayLog(Jam, Cfg.params, Seed, Log, Steps);
+            const std::vector<uint64_t> Same = ReplayLog(Jam, Cfg.params, Seed, Log, Steps, static_cast<int64_t>(Seed));
+            T_CHECK(Plain == Same);
+            // Another DynSeed is the same world with other luck: identical at the start, apart after a few seconds, and reproducible.
+            const uint32_t Other = Rng::Derive(Seed, 100u);
+            const std::vector<uint64_t> Luck = ReplayLog(Jam, Cfg.params, Seed, Log, Steps, static_cast<int64_t>(Other));
+            const std::vector<uint64_t> Again = ReplayLog(Jam, Cfg.params, Seed, Log, Steps, static_cast<int64_t>(Other));
+            T_CHECK(Luck == Again);
+            bool Diverged = false;
+            for (size_t H = 0; H < Luck.size() && !Diverged; ++H) { Diverged = Luck[H] != Plain[H]; }
+            T_CHECK(Diverged);   // the luck shows in the state for a while (it washes out later: an undecided voter adopts whoever pushes it, the dice only decide when)
+            Sim A, B;
+            A.Init(Jam, Cfg.params, Seed);
+            B.Init(Jam, Cfg.params, Seed, Other);
+            T_CHECK(A.StateHash() == B.StateHash());
+            T_CHECK(A.Seed() == Seed && B.Seed() == Seed && A.DynSeed() == Seed && B.DynSeed() == Other);
+            bool SameWorld = A.NodeCount() == B.NodeCount() && A.NumEntries() == B.NumEntries();
+            for (int I = 0; SameWorld && I < A.NodeCount(); ++I)
+            {
+                const GraphNode& Na = A.GetGraph().nodes[static_cast<size_t>(I)];
+                const GraphNode& Nb = B.GetGraph().nodes[static_cast<size_t>(I)];
+                SameWorld = Na.follows == Nb.follows && Na.weight == Nb.weight && Na.x == Nb.x && Na.y == Nb.y && A.Opinion(I) == B.Opinion(I) && A.Conviction(I) == B.Conviction(I);
+            }
+            for (int E = 0; SameWorld && E < A.NumEntries(); ++E)
+            {
+                SameWorld = A.GetEntry(E).quality == B.GetEntry(E).quality && A.GetEntry(E).clout == B.GetEntry(E).clout && A.GetEntry(E).seedWeight == B.GetEntry(E).seedWeight;
+            }
+            T_CHECK(SameWorld);
+        }
+    }
 }
 
 // ------------------------------------------------------------------------------------------
@@ -703,6 +757,133 @@ inline void TestStrike(const Config& Cfg)
     for (int I = 0; I < S.NodeCount(); ++I) { S.SetNodeState(I, kPlayerId, 0.9, 0.0); }
     T_CHECK(S.RankOf(kPlayerId) == 0);
     T_CHECK(S.Leader() != kPlayerId);
+}
+
+// ------------------------------------------------------------------------------------------
+// Shift the Blame (Sim/ShiftBlameRules.h): offered only at the strike that would disqualify, and only for a small enough share of fake votes.
+inline void TestBlame(const Config& Cfg)
+{
+    std::printf("[shift the blame]\n");
+    const Params& P = Cfg.params;
+    T_CHECK(P.BlameMaxFake > P.HeatDecay / P.SockHeldHeat && P.BlameMaxFake < 0.5 && P.BlameWindow > 0.0 && P.BlameRivalConv > 0.0 && P.BlameRivalFreeze >= 0.0);
+    // Strikes before the fatal one are never offered, whatever the fake share; the fatal one is offered up to the cap (inclusive) and refused over it.
+    {
+        Sim S;
+        S.Init(Cfg.jams[1], P, 777);
+        S.ApplyStrike();
+        T_CHECK(!S.Disqualified());
+        T_CHECK(JudgeBlame(S, 0.0, false) == BlameVerdict::NotOffered);
+        S.ApplyStrike();
+        T_CHECK(!S.Disqualified() && S.Strikes() == 2);
+        T_CHECK(JudgeBlame(S, 0.0, false) == BlameVerdict::NotOffered);
+        T_CHECK(JudgeBlame(S, 0.5, false) == BlameVerdict::NotOffered);
+        S.ApplyStrike();
+        T_CHECK(S.Disqualified() && S.Strikes() == 3);
+        T_CHECK(JudgeBlame(S, 0.0, false) == BlameVerdict::Offered);
+        T_CHECK(JudgeBlame(S, P.BlameMaxFake - 0.001, false) == BlameVerdict::Offered);
+        T_CHECK(JudgeBlame(S, P.BlameMaxFake, false) == BlameVerdict::Offered);
+        T_CHECK(JudgeBlame(S, P.BlameMaxFake + 0.001, false) == BlameVerdict::Refused);
+        T_CHECK(JudgeBlame(S, 0.5, false) == BlameVerdict::Refused);
+        T_CHECK(JudgeBlame(S, 0.0, true) == BlameVerdict::NotOffered);   // once per run: a second fatal strike stands
+    }
+    // BlameWindow 0 is the Blame-free game: nothing is offered or refused, the strike simply disqualifies.
+    {
+        Params Off = P;
+        Off.BlameWindow = 0.0;
+        Sim S;
+        S.Init(Cfg.jams[1], Off, 777);
+        S.ApplyStrike(); S.ApplyStrike(); S.ApplyStrike();
+        T_CHECK(S.Disqualified());
+        T_CHECK(JudgeBlame(S, 0.0, false) == BlameVerdict::NotOffered && JudgeBlame(S, 0.9, false) == BlameVerdict::NotOffered);
+    }
+    // "Fatal" follows MaxStrikes.
+    for (int Max = 2; Max <= 4; ++Max)
+    {
+        Params Q = P;
+        Q.MaxStrikes = static_cast<double>(Max);
+        Sim S;
+        S.Init(Cfg.jams[1], Q, 778);
+        for (int K = 1; K < Max; ++K)
+        {
+            S.ApplyStrike();
+            T_CHECK(JudgeBlame(S, 0.0, false) == BlameVerdict::NotOffered);
+        }
+        S.ApplyStrike();
+        T_CHECK(S.Disqualified() && JudgeBlame(S, 0.0, false) == BlameVerdict::Offered && JudgeBlame(S, 0.9, false) == BlameVerdict::Refused);
+    }
+    // ApplyBlame: the strike and the shadowban are taken back, the rival's voters lose BlameRivalConv (not below 0), nobody else changes, and the rival's freeze is reported.
+    {
+        Sim S;
+        S.Init(Cfg.jams[1], P, 779);
+        const int Rival = S.RivalId();
+        std::vector<double> Before;
+        std::vector<int> OwnerBefore;
+        for (int I = 0; I < S.NodeCount(); ++I)
+        {
+            Before.push_back(S.Conviction(I));
+            OwnerBefore.push_back(S.Opinion(I));
+        }
+        S.ApplyStrike(); S.ApplyStrike(); S.ApplyStrike();
+        T_CHECK(S.Disqualified() && S.ShadowbanRemaining() > 0.0);
+        const double Freeze = ApplyBlame(S);
+        T_CHECK(Near(Freeze, P.BlameRivalFreeze));
+        T_CHECK(S.Strikes() == 2 && !S.Disqualified() && Near(S.ShadowbanRemaining(), 0.0));
+        bool Ok = true;
+        int Lowered = 0;
+        for (int I = 0; I < S.NodeCount(); ++I)
+        {
+            const double Want = OwnerBefore[static_cast<size_t>(I)] == Rival ? (Before[static_cast<size_t>(I)] - P.BlameRivalConv > 0.0 ? Before[static_cast<size_t>(I)] - P.BlameRivalConv : 0.0) : Before[static_cast<size_t>(I)];
+            Ok = Ok && S.Opinion(I) == OwnerBefore[static_cast<size_t>(I)] && Near(S.Conviction(I), Want);
+            Lowered += (OwnerBefore[static_cast<size_t>(I)] == Rival && S.Conviction(I) < Before[static_cast<size_t>(I)] - 1.0e-12) ? 1 : 0;
+        }
+        T_CHECK(Ok && Lowered > 0);
+        // a later fatal strike is offered again by the rules only if the caller has not used the Blame (the run layer tracks that)
+        S.ApplyStrike();
+        T_CHECK(S.Disqualified() && JudgeBlame(S, 0.0, true) == BlameVerdict::NotOffered);
+    }
+    // The strike's reverted sockpuppet votes stay reverted when the blame lands.
+    {
+        Params Q = P;
+        Q.AttackTelegraph = 0.0;
+        Sim S;
+        S.Init(Cfg.jams[1], Q, 780);
+        S.SetNightHeld(true);
+        S.SetPosts(5.0);
+        int Node = -1;
+        for (int I = 0; I < S.NodeCount() && Node < 0; ++I)
+        {
+            if (S.Opinion(I) >= 0 && S.Opinion(I) != kPlayerId && S.LockRemaining(I) == 0.0) { Node = I; }
+        }
+        const int Prev = S.Opinion(Node);
+        T_CHECK(S.Sock(Node).result == ActionResult::Flipped && S.IsSockpuppet(Node));
+        const double Fake = S.SockBoughtWeight() / S.TotalWeight();
+        T_CHECK(Fake > 0.0);
+        S.ApplyStrike(); S.ApplyStrike(); S.ApplyStrike();
+        T_CHECK(S.Opinion(Node) == Prev);
+        ApplyBlame(S);
+        T_CHECK(S.Opinion(Node) == Prev && !S.IsSockpuppet(Node));
+    }
+    // The window is the BlameWindow, or what is left of the jam when that is less.
+    {
+        Sim S;
+        S.Init(Cfg.jams[1], P, 781);
+        T_CHECK(Near(BlameWindowFor(S), P.BlameWindow));
+        const int ToLeft2 = static_cast<int>((S.TotalSeconds() - 2.0) / P.Dt + 0.5);
+        for (int I = 0; I < ToLeft2; ++I) { S.Step(); }
+        T_CHECK(Near(BlameWindowFor(S), 2.0, 1.0e-6));
+        while (!S.Finished()) { S.Step(); }
+        T_CHECK(BlameWindowFor(S) < 1.0e-6 && BlameWindowFor(S) >= 0.0);
+    }
+    // The numbers are reachable by name (-Set).
+    {
+        Params Q = P;
+        double V = 0.0;
+        T_CHECK(SetParam(Q, "BlameMaxFake", 0.2) && Near(Q.BlameMaxFake, 0.2));
+        T_CHECK(SetParam(Q, "BlameWindow", 0.0) && Near(Q.BlameWindow, 0.0));
+        T_CHECK(SetParam(Q, "BlameRivalConv", 0.1) && Near(Q.BlameRivalConv, 0.1));
+        T_CHECK(SetParam(Q, "BlameRivalFreeze", 3.0) && Near(Q.BlameRivalFreeze, 3.0));
+        T_CHECK(GetParam(Q, "BlameMaxFake", &V) && Near(V, 0.2));
+    }
 }
 
 // ------------------------------------------------------------------------------------------
@@ -1692,6 +1873,7 @@ inline void RunAll(const Config& Cfg)
     TestPlugAndSock(Legacy);
     TestGates(Legacy);
     TestStrike(Legacy);
+    TestBlame(Legacy);
     TestOverheatAndAudit(Legacy);
     TestRallyAndAttribution(Legacy);
     TestTelegraph(Cfg);
@@ -1704,6 +1886,7 @@ inline void RunAll(const Config& Cfg)
     TestEconomy(Legacy);
     TestQueries(Legacy);
     TestDeterminism(Cfg);
+    TestDynSeed(Cfg);
     TestInvariants(Cfg);
     std::printf("tests: %d passed, %d failed\n", Count().Passed, Count().Failed);
 }

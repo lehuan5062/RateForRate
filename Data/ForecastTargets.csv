@@ -1,0 +1,24 @@
+Id,Jam,Metric,Min,Max,Why
+fc_monotone_0,0,monotone_drops,,0,more hours in a lever never lower the forecast of the player's share (the surface is forced monotone)
+fc_monotone_1,1,monotone_drops,,0,same
+fc_monotone_2,2,monotone_drops,,0,same
+fc_rank_worse_0,0,rank_worse_pct,,3,adding an hour to a lever almost never makes the forecast rank worse (percent of one-hour steps)
+fc_rank_worse_1,1,rank_worse_pct,,3,same
+fc_rank_worse_2,2,rank_worse_pct,,3,same
+fc_quality_0,0,quality_effect_pct,80,,Quality 0 -> 8 hours (others at 2) is worth at least +5 points in most worlds (some worlds are already won or lost at any build)
+fc_quality_1,1,quality_effect_pct,80,,same
+fc_quality_2,2,quality_effect_pct,80,,same
+fc_network_0,0,network_effect_pct,85,,Network 0 -> 8 hours is worth at least +5 points in most worlds
+fc_network_1,1,network_effect_pct,85,,same
+fc_network_2,2,network_effect_pct,85,,same
+fc_thumb_0,0,thumbnail_effect_mean,4,,Thumbnail 0 -> 8 hours is worth a few points on average (weaker than the other two levers; never negative)
+fc_thumb_1,1,thumbnail_effect_mean,4,,same
+fc_thumb_2,2,thumbnail_effect_mean,3,,same
+fc_step_0,0,step_p99,,10,one hour of one lever never moves the forecast by a jump (99th percentile of the step, points)
+fc_step_1,1,step_p99,,10,same
+fc_step_2,2,step_p99,,10,same
+fc_neutral_0,0,neutral_share_mean,55,80,the even split's forecast share is in a plausible band for the jam (mean over the worlds, percent)
+fc_neutral_1,1,neutral_share_mean,35,60,same
+fc_neutral_2,2,neutral_share_mean,18,42,same
+fc_time,all,ms_per_world_max,,4000,a world's forecast (576 plays on the worker pool) is ready within a few seconds
+fc_repeat,all,deterministic,1,,the same world gives the same forecast to the last digit

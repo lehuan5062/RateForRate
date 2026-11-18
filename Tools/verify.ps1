@@ -2,6 +2,7 @@
 #   .\Tools\verify.ps1                 everything below
 #   .\Tools\verify.ps1 -SkipMeters     skip the ~3 minute audio meter run
 #   .\Tools\verify.ps1 -Balance        also run the balance gate (Tools\balance_gate.ps1: every row of Data\BalanceTargets.csv, about 8 minutes)
+#   .\Tools\verify.ps1 -Forecast       also run the forecast gate (Tools\forecast_check.ps1: every row of Data\ForecastTargets.csv, about 1.5 minutes)
 #
 #   0. sim core       the standalone harness copy (Tools\SimHarness\core) is identical to the numeric core the game compiles (Source\ShiftHappens\Sim)
 #   1. audio assets   no .wav anywhere, no SoundWave assets or dependencies, every MetaSound source and patch present (editor, Tools\py\verify_audio.py)
@@ -16,7 +17,8 @@
 #                     first real case, as a busy game thread does on a cold first run): the warm-up is replayed, the case retried, and both still pass
 param(
 	[switch]$SkipMeters,
-	[switch]$Balance
+	[switch]$Balance,
+	[switch]$Forecast
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -105,6 +107,18 @@ if ($Balance) {
 }
 else {
 	Write-Host '[skip] balance gate (-Balance)'
+}
+
+# ---- 7. forecast gate (opt-in) ---------------------------------------------------------------------------------------------------
+if ($Forecast) {
+	$fc = & (Join-Path $PSScriptRoot 'forecast_check.ps1')
+	$fcExit = $LASTEXITCODE
+	$fc | Write-Host
+	$fcSummary = @($fc | Where-Object { $_ -match 'forecast gate:' }) -join ' '
+	Check 'forecast gate: every target in Data\ForecastTargets.csv is met' ($fcExit -eq 0) $fcSummary
+}
+else {
+	Write-Host '[skip] forecast gate (-Forecast)'
 }
 
 Write-Host ''
