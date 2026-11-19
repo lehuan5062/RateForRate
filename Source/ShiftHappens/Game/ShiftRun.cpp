@@ -101,6 +101,7 @@ bool FShiftRun::Start(int32 InJamIndex, uint32 InSeed, const FShiftBuild& InBuil
 	RivalFrozenUntil = 0.0;
 	bBlameUsed = false;
 	bFinalPushAnnounced = false;
+	PushStart = FShiftPushSnapshot();
 	bNightHeld = false;
 	bPaused = false;
 	bOver = false;
@@ -316,6 +317,7 @@ void FShiftRun::TrackOwnership()
 				const int32 Flipper = S.LastFlipper(i);
 				const int32 Cause = Flipper == ShiftSim::kFlipNatural ? 0 : (Flipper == S.RivalId() ? 1 : 2);
 				(Cause == 0 ? FlipStats.LossHerd : (Cause == 1 ? FlipStats.LossRival : FlipStats.LossOthers))++;
+				FlipStats.LossRivalPush += (Cause == 1 && bFinalPushAnnounced) ? 1 : 0;
 				FShiftEvent Event;
 				Event.Value = static_cast<float>(Cause);
 				Event.Type = EShiftEventType::PlayerLostVoter;
@@ -478,6 +480,11 @@ void FShiftRun::StepOnce()
 		if (bPush && !bFinalPushAnnounced)
 		{
 			bFinalPushAnnounced = true;
+			PushStart.bSet = true;
+			PushStart.RivalAttacks = Rival.Attacks;
+			PushStart.RivalDefends = Rival.Defends;
+			PushStart.RivalStarved = Rival.Starved;
+			PushStart.Threats = S.Attacks();
 			FShiftEvent Push;
 			Push.Type = EShiftEventType::FinalPushStart;
 			Push.Value = static_cast<float>(S.TotalSeconds() - S.Time());

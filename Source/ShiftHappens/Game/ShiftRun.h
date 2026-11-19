@@ -69,6 +69,7 @@ struct FShiftFlipStats
 	int32 Losses = 0;           // nodes the player lost to the dynamics or to an attack (the three counts below add up to it)
 	int32 LossHerd = 0;         // ... voters that changed their mind under opinion pressure
 	int32 LossRival = 0;        // ... voters the rival plugged away
+	int32 LossRivalPush = 0;    // ... of which during the rival's final push
 	int32 LossOthers = 0;       // ... voters another entry (or an ambient event) plugged away
 	int32 StrikeReverts = 0;    // sockpuppet flips undone by a strike
 	int32 Laundered = 0;        // sockpuppet votes that were backed until they became real
@@ -92,6 +93,16 @@ struct FShiftBlameStats
 	int32 Lapsed = 0;            // ... of which the player let the window run out on
 	TArray<float> FatalFake;     // the fake share of every fatal strike
 	TArray<float> FatalBasis;    // ... and the share the Blame's cap was measured on (the same, or all strikes added up: Params::BlameBasis)
+};
+
+/** The rival's and the sim's counters when the final push began, so the balance table can tell the push from the rest of the run (QA only). */
+struct FShiftPushSnapshot
+{
+	bool bSet = false;
+	int32 RivalAttacks = 0;
+	int32 RivalDefends = 0;
+	int32 RivalStarved = 0;
+	ShiftSim::AttackCounters Threats;
 };
 
 /** Drives the behaviour layer (rival, other entries, jam director) for one fixed step; the StateTree runner implements this. */
@@ -186,6 +197,7 @@ public:
 	bool EyeWindowAnnounced() const { return bEyeWarned || bEyeActive; }
 
 	const FShiftFlipStats& GetFlipStats() const { return FlipStats; }
+	const FShiftPushSnapshot& GetPushStart() const { return PushStart; }
 
 private:
 	void StepOnce();
@@ -243,6 +255,7 @@ private:
 	TArray<int32> PurgedNow;        // nodes the final audit purged during the current step
 	bool bAuditDone = false;
 	bool bFinalPushAnnounced = false;
+	FShiftPushSnapshot PushStart;
 
 	// the Mod Eye looks away (round 4): windows scheduled at Start with their own RNG, announced ahead
 	TArray<double> EyeWindowStart;

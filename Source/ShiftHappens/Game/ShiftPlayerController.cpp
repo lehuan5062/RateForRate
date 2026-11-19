@@ -1080,8 +1080,8 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			break;
 		case EShiftEventType::FinalPushStart:
 			PlaySfx(EShiftSfx::ModWarn);
-			PushAlert(AlertFinalPush, TEXT("FINAL PUSH"), FString::Printf(TEXT("%s goes all-in for %.0f s: double attacks. Your Posts refill +%.0f%%."), *EntryName(Run->GetSim().RivalId()), E.Value, E.Share * 100.0f), RedColor(), 3.6f, 20);
-			ShowToast(FString::Printf(TEXT("%s goes all-in for the last %.0f s: double attacks. Your Posts refill %.0f%% faster."), *EntryName(Run->GetSim().RivalId()), E.Value, E.Share * 100.0f), RedColor(), 4.0f);
+			PushAlert(AlertFinalPush, TEXT("FINAL PUSH"), FString::Printf(TEXT("%s goes all-in for %.0f s: a burst of attacks. Your Posts refill +%.0f%%."), *EntryName(Run->GetSim().RivalId()), E.Value, E.Share * 100.0f), RedColor(), 3.6f, 20);
+			ShowToast(FString::Printf(TEXT("%s goes all-in for the last %.0f s: a burst of attacks until it runs low on Posts. Your Posts refill %.0f%% faster."), *EntryName(Run->GetSim().RivalId()), E.Value, E.Share * 100.0f), RedColor(), 4.0f);
 			break;
 		case EShiftEventType::EyeAwayWarn:
 			TutEventMask |= EvEyeAway;

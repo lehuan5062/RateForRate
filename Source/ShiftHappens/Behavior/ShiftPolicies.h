@@ -24,8 +24,8 @@ namespace ShiftSim
 		double RivalBandBase = 1.0;          // strength = base + slope * max(0, playerShare - threshold)
 		double RivalBandSlope = 4.0;
 		double RivalBandThreshold = 0.15;
-		double RivalPostsMax = 4.0;          // the rival's Post bank: every action (a plug on a voter, or a re-plug of a weak hub of its own) costs a Post, so the final push is not unlimited (0 = no bank, no limit)
-		double RivalPostsRegen = 0.48;       // ... Posts a second it refills (before the push the rival acts 0.30 times a second, so the bank stays full; in the push it drains a little: 0.40 weakened the push enough to move the honest rows out of their bands)
+		double RivalPostsMax = 3.0;          // the rival's Post bank: every action (a plug on a voter, or a re-plug of a weak hub of its own) costs a Post, so the final push is not unlimited (0 = no bank, no limit)
+		double RivalPostsRegen = 0.30;       // ... Posts a second it refills (the rival acts 0.30 times a second before the push, so the bank stays full; the push drains it and the rival falls back to its normal pace: about 37% fewer attacks in the push)
 		double RivalDefendCost = 1.0;        // ... Posts a re-plug of a weak hub of its own costs
 		double MegaDays = 3.0;               // last N days: Mega Campaign
 		double MegaConvBoost = 0.3;          // +conviction on all rival nodes at Mega start
@@ -33,7 +33,7 @@ namespace ShiftSim
 		double EyeAwaySeconds = 9.0;         // length of one window
 		double EyeAwayEndMargin = 25.0;      // the last window ends at least this long before the jam does (past SockReview, so a burst cannot hide in it)
 		double EyeAwayWarn = 5.0;            // seconds of notice before a window starts
-		double FinalPushRegen = 1.25;        // the player's Post refill multiplier in the rival's final push (the last MegaDays days), 1 = off
+		double FinalPushRegen = 1.10;        // the player's Post refill multiplier in the rival's final push (the last MegaDays days), 1 = off
 		double MegaAttackMult = 2.0;         // actions per rival tick during Mega
 		// stand-in others
 		double OthersInterval = 10.0;        // each other entry acts this often

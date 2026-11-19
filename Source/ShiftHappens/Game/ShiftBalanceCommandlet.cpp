@@ -61,6 +61,17 @@ namespace
 		int32 RivalAttacks = 0;             // what the rival did, summed over the runs: attacks, re-plugs of its own weak hubs, and actions its Post bank refused
 		int32 RivalDefends = 0;
 		int32 RivalStarved = 0;
+		int32 PushAttacks = 0;              // the rival's final push alone, summed over the runs: its attacks, the announced attacks on the player and how they ended, voters lost, Posts spent
+		int32 PushStarved = 0;
+		int32 PushQueued = 0;
+		int32 PushLanded = 0;
+		int32 PushFlipped = 0;
+		int32 PushParried = 0;
+		int32 PushBlocked = 0;
+		int32 PushLost = 0;
+		double PushPostsRally = 0.0;
+		double PushPostsParry = 0.0;
+		int32 PushRuns = 0;
 		int32 BlameStrikes = 0;             // Shift the Blame, summed over the runs: strikes, their fake share, the fatal ones and what became of them
 		double BlameFakeSum = 0.0;
 		int32 BlameFatal = 0;
@@ -292,6 +303,22 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				St.RivalAttacks += Run.RivalPolicy().Attacks;
 				St.RivalDefends += Run.RivalPolicy().Defends;
 				St.RivalStarved += Run.RivalPolicy().Starved;
+				if (Run.GetPushStart().bSet)
+				{
+					const FShiftPushSnapshot& Start = Run.GetPushStart();
+					const ShiftSim::AttackCounters& Now = S.Attacks();
+					++St.PushRuns;
+					St.PushAttacks += Run.RivalPolicy().Attacks - Start.RivalAttacks;
+					St.PushStarved += Run.RivalPolicy().Starved - Start.RivalStarved;
+					St.PushQueued += Now.queued - Start.Threats.queued;
+					St.PushLanded += Now.landed - Start.Threats.landed;
+					St.PushFlipped += Now.flipped - Start.Threats.flipped;
+					St.PushParried += Now.parried - Start.Threats.parried;
+					St.PushBlocked += Now.blocked - Start.Threats.blocked;
+					St.PushLost += Run.GetFlipStats().LossRivalPush;
+					St.PushPostsRally += Now.postsRally - Start.Threats.postsRally;
+					St.PushPostsParry += Now.postsParry - Start.Threats.postsParry;
+				}
 				const FShiftBlameStats& Blame = Run.GetBlameStats();
 				St.BlameStrikes += Blame.Strikes;
 				St.BlameFakeSum += Blame.StrikeFakeSum;
@@ -323,6 +350,13 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				St.Threats.queued / N, St.Threats.landed / N, St.Threats.flipped / N, St.Threats.blocked / N, St.Threats.fizzled / N, St.Threats.shieldBlocked / N, St.Threats.parried / N, St.Threats.postsRally / N, St.Threats.postsParry / N);
 			// The rival (a separate line): per run, its attacks, its re-plugs of weak hubs and the actions its Post bank refused (the final push drains it).
 			UE_LOG(LogShift, Display, TEXT("Balance: rival jam=%d bot=%-8s per run: attacks %.1f  defends %.1f  starved %.1f"), Jam, *BotName, St.RivalAttacks / N, St.RivalDefends / N, St.RivalStarved / N);
+			// The rival's final push alone (a separate line): per run, its attacks, the announced attacks on the player (queued; landed, of which flipped; parried; blocked by a shield or a fresh flip),
+			// the voters it took, and the Posts the player spent on Rallies and parries.
+			{
+				const double R = FMath::Max(1, St.PushRuns);
+				UE_LOG(LogShift, Display, TEXT("Balance: push jam=%d bot=%-8s per run: rival attacks %.1f (starved %.1f)  announced on you %.1f: landed %.1f (flipped %.1f) parried %.1f blocked %.1f  voters lost to the rival %.1f  your Posts: rally %.1f parry %.1f"),
+					Jam, *BotName, St.PushAttacks / R, St.PushStarved / R, St.PushQueued / R, St.PushLanded / R, St.PushFlipped / R, St.PushParried / R, St.PushBlocked / R, St.PushLost / R, St.PushPostsRally / R, St.PushPostsParry / R);
+			}
 			// Shift the Blame (a separate line, like the others): strikes per run and the fake share they took, the strikes that would disqualify and what became of them (offered, taken,
 			// refused for too many fake votes, let lapse), and how many fatal strikes fell in each band of fake share (the cap, Params::BlameMaxFake, sits between two of them).
 			UE_LOG(LogShift, Display, TEXT("Balance: blame jam=%d bot=%-8s per run: strikes %.2f (fake %.1f%% each)  fatal %.2f  offered %.2f  taken %.2f  refused %.2f  lapsed %.2f   fatal fake share <4%% %d  4-8 %d  8-12 %d  12-16 %d  16-20 %d  20-30 %d  30-40 %d  40+ %d"),

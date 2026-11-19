@@ -20,4 +20,4 @@ TUT18,18,RallyHint,Right-click a voter you hold to Rally it: {rallycost} Post sh
 TUT19,19,ThreatRing,"A ring closing in on your voter is an attack, in the attacker's colour. Click the voter to parry it, or Rally it and its neighbours."
 TUT20,20,EyeAway,"The Mod Eye looks away! For {eyeaway}s night shift adds no Heat: hold SHIFT, sockpuppet a big voter, then plug it to back it."
 TUT21,21,FirstFake,Votes bought with sockpuppets are fake: they heat you up while you hold them. Keep them under {fakelimit}% or a strike takes them all.
-TUT22,22,FinalPush,"The rival goes all-in for the last days: double attacks. Your Posts refill {pushpct}% faster, so spend them."
+TUT22,22,FinalPush,"The rival goes all-in for the last days: a burst of attacks, then it runs low on Posts. Yours refill {pushpct}% faster, so spend them."

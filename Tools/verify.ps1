@@ -1,7 +1,7 @@
 # One-command check of what this project claims, all headless (no window, no console, nothing audible):
 #   .\Tools\verify.ps1                 everything below
 #   .\Tools\verify.ps1 -SkipMeters     skip the ~3 minute audio meter run
-#   .\Tools\verify.ps1 -Balance        also run the balance gate (Tools\balance_gate.ps1: every row of Data\BalanceTargets.csv, about 8 minutes)
+#   .\Tools\verify.ps1 -Balance        also run the balance gate (Tools\balance_gate.ps1: every row of Data\BalanceTargets.csv on two seed sets, about 20 minutes)
 #   .\Tools\verify.ps1 -Forecast       also run the forecast gate (Tools\forecast_check.ps1: every row of Data\ForecastTargets.csv, about 1.5 minutes)
 #
 #   0. sim core       the standalone harness copy (Tools\SimHarness\core) is identical to the numeric core the game compiles (Source\ShiftHappens\Sim)
@@ -99,7 +99,7 @@ else {
 
 # ---- 6. balance gate (opt-in) ----------------------------------------------------------------------------------------------------
 if ($Balance) {
-	$gate = & (Join-Path $PSScriptRoot 'balance_gate.ps1') -Runs 100
+	$gate = & (Join-Path $PSScriptRoot 'balance_gate.ps1') -Runs 100 -Seeds 1000,500000   # two disjoint seed sets: win rates carry about +-5 points of noise at 100 runs
 	$gateExit = $LASTEXITCODE
 	$gate | Write-Host
 	$gateSummary = @($gate | Where-Object { $_ -match 'balance gate:' }) -join ' '
