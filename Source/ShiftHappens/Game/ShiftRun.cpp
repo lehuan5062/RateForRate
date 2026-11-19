@@ -282,6 +282,41 @@ void FShiftRun::TrackOwnership()
 			continue;
 		}
 		StatOwner[i] = Now;
+		if (!RevertedNow.Contains(i) && !PurgedNow.Contains(i))
+		{
+			// who moved the vote: an entry's action, or opinion pressure (QA only)
+			const int32 Flipper = S.LastFlipper(i);
+			if (Flipper >= 0 || Flipper == ShiftSim::kFlipNatural)
+			{
+				const auto OwnerClass = [&S](int32 Owner) { return Owner < 0 ? 3 : (Owner == ShiftSim::kPlayerId ? 0 : (Owner == S.RivalId() ? 1 : 2)); };
+				const double Weight = S.GetGraph().nodes[static_cast<size_t>(i)].weight / FMath::Max(1.0, S.TotalWeight());
+				if (Flipper == ShiftSim::kFlipNatural)
+				{
+					++FlowStats.HerdMoves[OwnerClass(Was)][OwnerClass(Now)];
+					FlowStats.HerdWeight[OwnerClass(Was)][OwnerClass(Now)] += Weight;
+				}
+				else
+				{
+					++FlowStats.PlugMoves[OwnerClass(Was)][OwnerClass(Now)];
+					FlowStats.PlugWeight[OwnerClass(Was)][OwnerClass(Now)] += Weight;
+					if (S.GetGraph().nodes[static_cast<size_t>(i)].weight >= S.GetParams().HighValueV)
+					{
+						++FlowStats.BigMoves[OwnerClass(Was)][OwnerClass(Now)];
+						if (OwnerClass(Now) == 2 && OwnerClass(Was) == 1)
+						{
+							// another entry took a hub or a celebrity from the rival: the board should say so (a skirmish between two nobodies, and the player's own losses, have no note of this kind)
+							FShiftEvent Big;
+							Big.Type = EShiftEventType::EntryTookBig;
+							Big.Node = i;
+							Big.PrevOwner = Was;
+							Big.NewOwner = Now;
+							Big.Value = static_cast<float>(S.GetGraph().nodes[static_cast<size_t>(i)].weight);
+							Emit(Big);
+						}
+					}
+				}
+			}
+		}
 		if (Now == ShiftSim::kPlayerId)
 		{
 			const bool bSock = S.IsSockpuppet(i);

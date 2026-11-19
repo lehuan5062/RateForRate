@@ -21,12 +21,13 @@ namespace ShiftSim
 		double RivalDefendBelow = 0.75;      // defend the weakest high-value rival node when its conviction is below this
 		double RivalPlayerMult = 2.0;        // attack score multiplier for player-owned nodes
 		double RivalCapShare = 0.65;         // at/above this share the rival only attacks player-owned nodes (1 = never complacent)
-		double RivalBandBase = 1.0;          // strength = base + slope * max(0, playerShare - threshold)
+		double RivalBandBase = 1.5;          // strength = base + slope * max(0, playerShare - threshold). 1.5 (was 1.0) since round 8: the rival no longer stacks plugs on one voter (RivalNodeCooldown), so one plug has to do the job: a fresh voter of the player's (80% sure) flips in one plug from 1.44 up
 		double RivalBandSlope = 4.0;
 		double RivalBandThreshold = 0.15;
 		double RivalPostsMax = 3.0;          // the rival's Post bank: every action (a plug on a voter, or a re-plug of a weak hub of its own) costs a Post, so the final push is not unlimited (0 = no bank, no limit)
 		double RivalPostsRegen = 0.30;       // ... Posts a second it refills (the rival acts 0.30 times a second before the push, so the bank stays full; the push drains it and the rival falls back to its normal pace: about 37% fewer attacks in the push)
 		double RivalDefendCost = 1.0;        // ... Posts a re-plug of a weak hub of its own costs
+		double RivalNodeCooldown = 30.0;     // seconds a voter the rival has just attacked is left alone, when anything else is worth a Post: it does not hammer one voter all game (0 = it does: the best target every time)
 		double MegaDays = 3.0;               // last N days: Mega Campaign
 		double MegaConvBoost = 0.3;          // +conviction on all rival nodes at Mega start
 		double EyeAwayCount = 0.0;           // scheduled "the Mod Eye looks away" windows per run (0 = none)
@@ -39,6 +40,9 @@ namespace ShiftSim
 		double OthersInterval = 10.0;        // each other entry acts this often
 		double OthersMaxV = 100.0;           // weak: only low-weight nodes
 		double OthersTargetsPlayer = 1.0;    // how readily another entry plugs a voter the player holds (1 = like any other voter, 0 = never)
+		double OthersLeaderMult = 2.0;       // how much likelier another entry is to pick a voter of whoever leads the board (1 = no preference: any voter alike): the pack piles onto the front-runner, the rival most of the time, you when you lead
+		double OthersHubs = 1.0;             // 1: another entry may also go for a local hub (gated like the rival when Params::GatesApplyToAll is on)
+		double OthersHubMaxV = 600.0;        // ... of at most this vote weight
 		// stand-in Mod Eye (director)
 		double ModFirstSweepMin = 0.0;       // the Eye's cycle is already running at t=0: first sweep ~ U[this, jam ModIntervalMax]
 		// player bots
@@ -146,6 +150,8 @@ namespace ShiftSim
 			MegaStarted_ = false;
 			Bank_.Reset(PP.RivalPostsMax, S.Time());
 			Starved = 0;
+			AttacksOn.assign(static_cast<size_t>(S.NodeCount()), 0);
+			AttackedAt_.assign(static_cast<size_t>(S.NodeCount()), -1.0e9);
 		}
 
 		// The rival's Post bank as of now (0 when there is none: PP.RivalPostsMax = 0), and paying for an action out of it (false: nothing left, the action does not happen).
@@ -210,8 +216,28 @@ namespace ShiftSim
 				}
 				F.undecidedMult = 0.0;
 			}
+			// A voter the rival attacked a moment ago is left alone for RivalNodeCooldown seconds, when anything else is worth a Post: it does not hammer one voter all game.
+			const bool bCooldown = PP.RivalNodeCooldown > 0.0 && AttackedAt_.size() == static_cast<size_t>(S.NodeCount());
+			if (bCooldown)
+			{
+				NodeMult_.assign(AttackedAt_.size(), 1.0);
+				for (size_t I = 0; I < AttackedAt_.size(); ++I)
+				{
+					if (S.Time() - AttackedAt_[I] < PP.RivalNodeCooldown)
+					{
+						NodeMult_[I] = 0.0;
+					}
+				}
+				F.nodeMult = NodeMult_.data();
+			}
 			Target T;
-			if (S.BestTarget(Rival, F, &T))
+			bool bFound = S.BestTarget(Rival, F, &T);
+			if (!bFound && bCooldown)
+			{
+				F.nodeMult = nullptr;   // nothing else is worth a plug: the voter it just attacked is fair game again
+				bFound = S.BestTarget(Rival, F, &T);
+			}
+			if (bFound)
 			{
 				if (!Pay(S, PP, 1.0))
 				{
@@ -220,6 +246,11 @@ namespace ShiftSim
 				}
 				const ActionOutcome O = S.Plug(Rival, T.node, Strength);
 				++Attacks;
+				if (static_cast<size_t>(T.node) < AttackedAt_.size())
+				{
+					AttackedAt_[static_cast<size_t>(T.node)] = S.Time();
+					++AttacksOn[static_cast<size_t>(T.node)];
+				}
 				if (O.flipped)
 				{
 					++Flips;
@@ -252,11 +283,14 @@ namespace ShiftSim
 		int Attacks = 0;
 		int Flips = 0;
 		int Starved = 0;   // actions that did not happen for want of a Post
+		std::vector<int> AttacksOn;   // statistics: the rival's attacks on each voter
 
 	private:
 		double Next_ = 0.0;
 		bool MegaStarted_ = false;
 		RivalBank Bank_;
+		std::vector<double> AttackedAt_;   // per voter: sim time of the rival's last attack on it
+		std::vector<double> NodeMult_;     // scratch: the target filter's per-voter multiplier
 	};
 
 	// ---------------------------------------------------------------------------------------
@@ -283,15 +317,37 @@ namespace ShiftSim
 			}
 		}
 
-		// One action of one other entry: the best low-weight target (what the StateTree task calls).
+		// One action of one other entry: the best low-weight target (what the StateTree task calls). With OthersLeaderMult the pack goes after whoever leads the board, and with
+		// OthersHubs it may also take a local hub (under the gates: an entry needs a foothold among a hub's followers, like the player and the rival).
 		static void Act(Sim& S, const PolicyParams& PP, int Entry)
 		{
 			TargetFilter F;
 			F.maxV = PP.OthersMaxV;
 			F.ownerMult[kPlayerId] = PP.OthersTargetsPlayer;
 			F.roleMask = (1u << static_cast<uint32_t>(NodeRole::Member)) | (1u << static_cast<uint32_t>(NodeRole::Bridge));
+			if (PP.OthersLeaderMult != 1.0)
+			{
+				const int Leader = S.Leader();
+				if (Leader >= 0 && Leader != Entry)
+				{
+					F.ownerMult[Leader] *= PP.OthersLeaderMult;
+				}
+			}
 			Target T;
-			if (S.BestTarget(Entry, F, &T))
+			bool bFound = S.BestTarget(Entry, F, &T);
+			if (PP.OthersHubs > 0.5)
+			{
+				TargetFilter H = F;
+				H.maxV = PP.OthersHubMaxV;
+				H.roleMask = 1u << static_cast<uint32_t>(NodeRole::LocalHub);
+				Target Hub;
+				if (S.BestTarget(Entry, H, &Hub) && (!bFound || Hub.score > T.score))
+				{
+					T = Hub;
+					bFound = true;
+				}
+			}
+			if (bFound)
 			{
 				S.Plug(Entry, T.node, 1.0);
 			}
@@ -1038,8 +1094,8 @@ namespace ShiftSim
 		{
 			static const Field kFields[] = {
 				SHIFT_PP(RivalDefendBelow), SHIFT_PP(RivalPlayerMult), SHIFT_PP(RivalCapShare), SHIFT_PP(RivalBandBase),
-				SHIFT_PP(RivalBandSlope), SHIFT_PP(RivalBandThreshold), SHIFT_PP(RivalPostsMax), SHIFT_PP(RivalPostsRegen), SHIFT_PP(RivalDefendCost), SHIFT_PP(MegaDays), SHIFT_PP(MegaConvBoost),
-				SHIFT_PP(MegaAttackMult), SHIFT_PP(FinalPushRegen), SHIFT_PP(EyeAwayCount), SHIFT_PP(EyeAwaySeconds), SHIFT_PP(EyeAwayEndMargin), SHIFT_PP(EyeAwayWarn), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV), SHIFT_PP(OthersTargetsPlayer),
+				SHIFT_PP(RivalBandSlope), SHIFT_PP(RivalBandThreshold), SHIFT_PP(RivalPostsMax), SHIFT_PP(RivalPostsRegen), SHIFT_PP(RivalDefendCost), SHIFT_PP(RivalNodeCooldown), SHIFT_PP(MegaDays), SHIFT_PP(MegaConvBoost),
+				SHIFT_PP(MegaAttackMult), SHIFT_PP(FinalPushRegen), SHIFT_PP(EyeAwayCount), SHIFT_PP(EyeAwaySeconds), SHIFT_PP(EyeAwayEndMargin), SHIFT_PP(EyeAwayWarn), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV), SHIFT_PP(OthersTargetsPlayer), SHIFT_PP(OthersLeaderMult), SHIFT_PP(OthersHubs), SHIFT_PP(OthersHubMaxV),
 				SHIFT_PP(ModFirstSweepMin), SHIFT_PP(BotInterval), SHIFT_PP(BotStart), SHIFT_PP(BotNoise), SHIFT_PP(BotBlame), SHIFT_PP(SockMaxHeat), SHIFT_PP(SockWindup), SHIFT_PP(LateSeconds), SHIFT_PP(RallyMinRisk), SHIFT_PP(ReactDelay), SHIFT_PP(ReactReserve), SHIFT_PP(ReactMinValue), SHIFT_PP(ReactRallyThreats), SHIFT_PP(ReactRallyValue), SHIFT_PP(XReact), SHIFT_PP(XRally), SHIFT_PP(XSock), SHIFT_PP(XBurst),
 				SHIFT_PP(XIdle), SHIFT_PP(XReinforceBelow), SHIFT_PP(XPlugMinV), SHIFT_PP(XSockMinV), SHIFT_PP(XSockShare), SHIFT_PP(XParry), SHIFT_PP(XWindow), SHIFT_PP(XWindowBank), SHIFT_PP(XValueFirst), SHIFT_PP(XKeepRally),
 			};

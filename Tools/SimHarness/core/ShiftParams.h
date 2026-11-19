@@ -131,7 +131,7 @@ namespace ShiftSim
 		double PostsStart = 5.0;
 		double PostsRegen = 0.5;                // per second; Jams.csv Regen overrides per jam
 
-		double GatesApplyToAll = 0.0;           // 1: rival and other entries are gated by hubs too (player is always gated)
+		double GatesApplyToAll = 1.0;           // 1: the rival and the other entries are gated by hubs too, like the player: a hub or a celebrity listens to an entry only once enough of its own followers back that entry (round 8; the playtester: "red can just flip anyone it like"); 0 = only the player is gated
 
 		// ---- heat / moderation (the Mod Eye schedule itself is NOT in the core) -----------
 		double HeatDecay = 3.0;                 // per second while night is not held

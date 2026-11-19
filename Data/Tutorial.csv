@@ -5,7 +5,7 @@ TUT03,3,FirstPlug,Click a voter to Plug your game at them. Each Plug costs one P
 TUT04,4,FirstConvictionRing,The ring is conviction. Plug until it drains and the voter flips to you.
 TUT05,5,PostsLow,"Posts refill slowly. Spend them on voters with many followers, not on lurkers."
 TUT06,6,FirstReinforce,Plug your own voters to reinforce them. Even fans need a little love.
-TUT07,7,FirstGateSeen,A padlock marks a gate. The hub ignores you until enough of its followers back you.
+TUT07,7,FirstGateSeen,A padlock marks a gate. A hub ignores you until enough of its followers back you. The rival and the other games play by the same rule.
 TUT08,8,FirstGateOpened,The gate opened because its followers came around. That is the honest way.
 TUT09,9,ShiftUnlocked,"Hold SHIFT for the night shift: sockpuppets ignore gates, so you can crack a celebrity. Sticky Keys in the way? Press N."
 TUT10,10,FirstHeat,"Night shift is loud: each sockpuppet adds {sockheat} Heat and holding SHIFT adds {heatrate} a second. Heat cools only when you let go."
@@ -21,3 +21,5 @@ TUT19,19,ThreatRing,"A ring closing in on your voter is an attack, in the attack
 TUT20,20,EyeAway,"The Mod Eye looks away! For {eyeaway}s night shift adds no Heat: hold SHIFT, sockpuppet a big voter, then plug it to back it."
 TUT21,21,FirstFake,Votes bought with sockpuppets are fake: they heat you up while you hold them. Keep them under {fakelimit}% or a strike takes them all.
 TUT22,22,FinalPush,"The rival goes all-in for the last days: a burst of attacks, then it runs low on Posts. Yours refill {pushpct}% faster, so spend them."
+TUT23,23,FirstLead,"You lead the board. The other games pile onto whoever is first, so expect closing rings in every colour."
+TUT24,24,PackHit,The other games fight too: they pile onto the leader and can take a hub from it. A note says who took what.

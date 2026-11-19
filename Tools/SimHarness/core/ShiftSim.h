@@ -145,7 +145,8 @@ namespace ShiftSim
 		double undecidedMult = 1.0;         // score multiplier for undecided nodes
 		double ownerMult[kMaxEntries];      // score multiplier by current owner (0 excludes)
 		uint32_t roleMask = 0xFu;           // bit (1 << NodeRole) set = role allowed
-		bool respectGates = true;           // gates only ever block the player
+		bool respectGates = true;           // gates block the player, and every other entry too when Params::GatesApplyToAll is set
+		const double* nodeMult = nullptr;   // optional score multiplier per voter id (0 excludes the voter): one value per voter, alive for the query
 
 		TargetFilter()
 		{

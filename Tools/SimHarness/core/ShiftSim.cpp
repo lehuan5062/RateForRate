@@ -1160,6 +1160,11 @@ namespace ShiftSim
 			{
 				continue;
 			}
+			const double NodeFactor = F.nodeMult != nullptr ? F.nodeMult[i] : 1.0;
+			if (!(NodeFactor > 0.0))
+			{
+				continue;
+			}
 			const int Plugs = PlugsNeeded(Who, i, F.strength, F.respectGates);
 			if (Plugs >= kUnreachable)
 			{
@@ -1169,7 +1174,7 @@ namespace ShiftSim
 			T.node = i;
 			T.value = NodeValue(Who, i);
 			T.plugs = Plugs;
-			T.score = T.value * Mult / static_cast<double>(Plugs);
+			T.score = T.value * Mult * NodeFactor / static_cast<double>(Plugs);
 			Out->push_back(T);
 		}
 		std::sort(Out->begin(), Out->end(), [](const Target& A, const Target& B) {
@@ -1206,13 +1211,18 @@ namespace ShiftSim
 			{
 				continue;
 			}
+			const double NodeFactor = F.nodeMult != nullptr ? F.nodeMult[i] : 1.0;
+			if (!(NodeFactor > 0.0))
+			{
+				continue;
+			}
 			const int Plugs = PlugsNeeded(Who, i, F.strength, F.respectGates);
 			if (Plugs >= kUnreachable)
 			{
 				continue;
 			}
 			const double Value = NodeValue(Who, i);
-			const double Score = Value * Mult / static_cast<double>(Plugs);
+			const double Score = Value * Mult * NodeFactor / static_cast<double>(Plugs);
 			if (!Found || Score > Best.score)
 			{
 				Found = true;

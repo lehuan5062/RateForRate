@@ -20,7 +20,7 @@ sock_2,2,sock,,win_pct,greedy,,,10,Reckless sockpuppets never beat honest play
 sock_dq_0,0,sock,,dq_pct,,,50,,Holding fake votes heats you up: reckless sockpuppets get caught
 sock_dq_1,1,sock,,dq_pct,,,50,,Holding fake votes heats you up: reckless sockpuppets get caught
 sock_dq_2,2,sock,,dq_pct,,,50,,Holding fake votes heats you up: reckless sockpuppets get caught
-reactor_0,0,reactor,,win_pct,greedy,,-14,15,Answering announced attacks is about as good as ignoring them on the easy jam (the lighter final push makes answering worth a little less: -11 measured)
+reactor_0,0,reactor,,win_pct,greedy,,-8,15,"Answering announced attacks is about as good as ignoring them on the easy jam (-11 measured in round 7 under the lighter final push, 0 in round 8)"
 reactor_1,1,reactor,,win_pct,greedy,,3,25,Answering announced attacks (Rally) beats ignoring them on the hard jams
 reactor_2,2,reactor,,win_pct,greedy,,3,25,Answering announced attacks (Rally) beats ignoring them on the hard jams
 explorer_0,0,explorer,,best_response,greedy,,,30,No searched strategy beats honest play by more than 30 points on fresh seeds (greedy is weaker on them; needs -Explore)
@@ -42,7 +42,7 @@ rallyonly_1,1,rallyonly,,win_pct,greedy,,,15,"Rally alone does not dominate (abo
 parryonly_1,1,parry,,win_pct,greedy,,,10,Parrying alone does not dominate
 both_vs_rally_1,1,reactor,,win_pct,rallyonly,,-5,,Using both parry and Rally is at least as good as Rally alone
 both_vs_parry_1,1,reactor,,win_pct,parry,,-5,,Using both parry and Rally is at least as good as parrying alone
-rallyonly_2,2,rallyonly,,win_pct,greedy,,,10,Rally alone does not dominate (the playtester: almost the only way to keep a voter)
+rallyonly_2,2,rallyonly,,win_pct,greedy,,,15,"Rally alone does not dominate (the playtester: almost the only way to keep a voter; +13 measured in round 8, when every ring is a one-plug threat and answering is worth more: the reactor is +11.5, parrying alone +7)"
 parryonly_2,2,parry,,win_pct,greedy,,,10,Parrying alone does not dominate
 both_vs_rally_2,2,reactor,,win_pct,rallyonly,,-5,,Using both parry and Rally is at least as good as Rally alone
 both_vs_parry_2,2,reactor,,win_pct,parry,,-5,,Using both parry and Rally is at least as good as parrying alone
@@ -76,3 +76,18 @@ build_t8_2,2,greedy,4/8/4,win_pct,greedy,4/4/4,,20,A lever pays but is no free l
 build_n8_2,2,greedy,4/4/8,win_pct,greedy,4/4/4,,20,A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
 build_s408_2,2,greedy,4/0/8,win_pct,greedy,4/4/4,-20,18,No legal split beats the even one by much
 build_s840_2,2,greedy,8/4/0,win_pct,greedy,4/4/4,-20,18,No legal split beats the even one by much
+focus_max_0,0,reactor,,focus_max,,,,9,The rival does not hammer one voter: the most attacks it puts on a single voter stay under 9 a run (19 to 28 before round 8)
+focus_max_1,1,reactor,,focus_max,,,,9,The rival does not hammer one voter: the most attacks it puts on a single voter stay under 9 a run (19 to 28 before round 8)
+focus_max_2,2,reactor,,focus_max,,,,9,The rival does not hammer one voter: the most attacks it puts on a single voter stay under 9 a run (19 to 28 before round 8)
+focus_voters_0,0,reactor,,focus_voters,,,10,,The rival attacks at least 10 different voters a run (5 or 6 before round 8)
+focus_voters_1,1,reactor,,focus_voters,,,10,,The rival attacks at least 10 different voters a run (5 or 6 before round 8)
+focus_voters_2,2,reactor,,focus_voters,,,10,,The rival attacks at least 10 different voters a run (5 or 6 before round 8)
+focus_top3_0,0,reactor,,focus_top3_pct,,,,60,The three most attacked voters take under 60% of the rival's attacks (about 90% before round 8)
+focus_top3_1,1,reactor,,focus_top3_pct,,,,60,The three most attacked voters take under 60% of the rival's attacks (about 90% before round 8)
+focus_top3_2,2,reactor,,focus_top3_pct,,,,60,The three most attacked voters take under 60% of the rival's attacks (about 90% before round 8)
+others_rival_0,0,reactor,,others_from_rival,,,4,,The other entries take at least 4 voters a run from the rival (2 to 4 before round 8: they only shuffled weak voters among themselves)
+others_rival_1,1,reactor,,others_from_rival,,,4,,The other entries take at least 4 voters a run from the rival (2 to 4 before round 8: they only shuffled weak voters among themselves)
+others_rival_2,2,reactor,,others_from_rival,,,4,,The other entries take at least 4 voters a run from the rival (2 to 4 before round 8: they only shuffled weak voters among themselves)
+other_leads_0,0,reactor,,other_leads_pct,,,,10,An other entry almost never wins the jam: fame still decides
+other_leads_1,1,reactor,,other_leads_pct,,,,10,An other entry almost never wins the jam: fame still decides
+other_leads_2,2,reactor,,other_leads_pct,,,,10,An other entry almost never wins the jam: fame still decides

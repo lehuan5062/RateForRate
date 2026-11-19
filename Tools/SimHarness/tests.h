@@ -594,10 +594,13 @@ inline void TestGates(const Config& Cfg)
         T_CHECK(Near(S.Posts(), 5.0));            // refusal is free
         T_CHECK(Near(S.Conviction(Hub), 0.7));    // untouched
         T_CHECK(S.PlugsNeeded(kPlayerId, Hub) >= kUnreachable);
-        // The rival is not gated.
+        // The rival is gated like the player since round 8 (GatesApplyToAll, on by default): none of its own followers back it here. So is every other entry.
         S.SetNodeState(Hub, 3, 0.7, 0.0);
+        T_CHECK(P.GatesApplyToAll > 0.5);
+        T_CHECK(S.IsGated(Hub, S.RivalId()) && S.IsGated(Hub, 5));
         O = S.Plug(S.RivalId(), Hub);
-        T_CHECK(O.result != ActionResult::Gated);
+        T_CHECK(O.result == ActionResult::Gated);
+        T_CHECK(Near(S.Conviction(Hub), 0.7));    // untouched, and the refusal costs nothing
 
         // Flip followers to the player one by one until the gate opens exactly when progress >= needed.
         S.SetNodeState(Hub, 3, 0.7, 0.0);
@@ -659,6 +662,25 @@ inline void TestGates(const Config& Cfg)
     for (size_t K = 0; K < H2.followers.size(); ++K) { S2.SetNodeState(H2.followers[K], Rv, 0.6, 0.0); }
     T_CHECK(!S2.IsGated(Hub, Rv));
     T_CHECK(S2.Plug(Rv, Hub).Accepted());
+
+    // The old asymmetric rule (GatesApplyToAll = 0): only the player is gated, the rival and the other entries plug any hub.
+    Params P3 = P;
+    P3.GatesApplyToAll = 0.0;
+    Sim S3;
+    S3.Init(Cfg.jams[0], P3, 55);
+    int Hub3 = -1;
+    for (int I = 0; I < S3.NodeCount() && Hub3 < 0; ++I)
+    {
+        const GraphNode& N = S3.GetGraph().nodes[static_cast<size_t>(I)];
+        if (N.role == NodeRole::LocalHub && N.followers.size() >= 4) { Hub3 = I; }
+    }
+    T_CHECK(Hub3 >= 0);
+    const GraphNode& H3 = S3.GetGraph().nodes[static_cast<size_t>(Hub3)];
+    S3.SetNodeState(Hub3, 3, 0.7, 0.0);
+    for (size_t K = 0; K < H3.followers.size(); ++K) { S3.SetNodeState(H3.followers[K], 4, 0.6, 0.0); }
+    T_CHECK(S3.IsGated(Hub3));                                    // the player still is
+    T_CHECK(!S3.IsGated(Hub3, S3.RivalId()) && !S3.IsGated(Hub3, 5));
+    T_CHECK(S3.Plug(S3.RivalId(), Hub3).result != ActionResult::Gated);
 }
 
 // ------------------------------------------------------------------------------------------
@@ -1842,6 +1864,33 @@ inline void TestQueries(const Config& Cfg)
     T_CHECK(!All.empty() && All[0].node == Best.node && Near(All[0].score, Best.score));
     for (size_t I = 1; I < All.size(); ++I) { T_CHECK(All[I - 1].score >= All[I].score); }
     T_CHECK(!S2.IsGated(Best.node));
+
+    // A per-voter multiplier (TargetFilter::nodeMult): 0 leaves a voter out, a factor scales its score, and the best target is still the head of the list.
+    {
+        T_CHECK(F.nodeMult == nullptr);
+        std::vector<double> Mult(static_cast<size_t>(S2.NodeCount()), 1.0);
+        Mult[static_cast<size_t>(Best.node)] = 0.0;
+        TargetFilter G = F;
+        G.nodeMult = Mult.data();
+        Target Second;
+        T_CHECK(S2.BestTarget(kPlayerId, G, &Second));
+        T_CHECK(Second.node != Best.node);
+        std::vector<Target> Rest;
+        S2.CollectTargets(kPlayerId, G, &Rest);
+        T_CHECK(!Rest.empty() && Rest[0].node == Second.node && Near(Rest[0].score, Second.score));
+        T_CHECK(Rest.size() + 1 == All.size());
+        for (const Target& Cand : Rest) { T_CHECK(Cand.node != Best.node); }
+        Mult[static_cast<size_t>(Best.node)] = 0.25;
+        Target Scaled;
+        T_CHECK(S2.BestTarget(kPlayerId, G, &Scaled));
+        std::vector<Target> ScaledAll;
+        S2.CollectTargets(kPlayerId, G, &ScaledAll);
+        T_CHECK(ScaledAll.size() == All.size() && ScaledAll[0].node == Scaled.node && Near(ScaledAll[0].score, Scaled.score));
+        for (const Target& Cand : ScaledAll)
+        {
+            if (Cand.node == Best.node) { T_CHECK(Near(Cand.score, 0.25 * Best.score)); }
+        }
+    }
 
     // Value = V + 0.5 * V(non-owned followers).
     const int Hub = S2.GetGraph().hubOfCommunity[0];

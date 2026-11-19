@@ -132,7 +132,7 @@ namespace ShiftSim
 		{
 			J.name = "48h Pixel Rumble";
 			J.nodes = 52; J.communities = 7; J.bridges = 3; J.celebs = 2;
-			J.days = 31; J.secPerDay = 6.0; J.regen = 0.428;
+			J.days = 31; J.secPerDay = 6.0; J.regen = 0.420;
 			J.localGate = 0.25; J.celebGate = 0.20;
 			J.celebExtraFollowers = 8.0;
 			J.modIntervalMin = 15.0; J.modIntervalMax = 25.0;
@@ -141,7 +141,7 @@ namespace ShiftSim
 		{
 			J.name = "GAME OFF 2026";
 			J.nodes = 72; J.communities = 9; J.bridges = 4; J.celebs = 2;
-			J.days = 31; J.secPerDay = 8.0; J.regen = 0.466;
+			J.days = 31; J.secPerDay = 8.0; J.regen = 0.455;
 			J.localGate = 0.25; J.celebGate = 0.25;
 			J.celebExtraFollowers = 14.0;
 			J.modIntervalMin = 12.0; J.modIntervalMax = 20.0;

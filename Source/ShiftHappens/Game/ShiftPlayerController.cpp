@@ -134,6 +134,9 @@ namespace
 		TutPush,
 		// appended in round 5: the Blame is a last chance now (the old BlameAvailable card, bit 12, is retired and never shown)
 		TutBlameRule,
+		// appended in round 8: the other entries fight too
+		TutFirstLead,
+		TutPackHit,
 		TutCount
 	};
 
@@ -141,7 +144,7 @@ namespace
 	{
 		TEXT("JamStart"), TEXT("FirstHover"), TEXT("FirstPlug"), TEXT("FirstConvictionRing"), TEXT("PostsLow"), TEXT("FirstReinforce"),
 		TEXT("FirstGateSeen"), TEXT("FirstGateOpened"), TEXT("ShiftUnlocked"), TEXT("FirstHeat"), TEXT("FirstModEye"), TEXT("FirstStrike"),
-		TEXT("BlameAvailable"), TEXT("KeysHint"), TEXT("FirstLostVoter"), TEXT("FirstSockpuppet"), TEXT("FinalAudit"), TEXT("RallyHint"), TEXT("ThreatRing"), TEXT("EyeAway"), TEXT("FirstFake"), TEXT("FinalPush"), TEXT("BlameRule"),
+		TEXT("BlameAvailable"), TEXT("KeysHint"), TEXT("FirstLostVoter"), TEXT("FirstSockpuppet"), TEXT("FinalAudit"), TEXT("RallyHint"), TEXT("ThreatRing"), TEXT("EyeAway"), TEXT("FirstFake"), TEXT("FinalPush"), TEXT("BlameRule"), TEXT("FirstLead"), TEXT("PackHit"),
 	};
 
 	enum ETutEvent : uint32
@@ -155,6 +158,7 @@ namespace
 		EvTelegraph = 1u << 6,
 		EvEyeAway = 1u << 7,
 		EvStrikeLast = 1u << 8,
+		EvPackHit = 1u << 9,
 	};
 }
 
@@ -1083,6 +1087,15 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			PushAlert(AlertFinalPush, TEXT("FINAL PUSH"), FString::Printf(TEXT("%s goes all-in for %.0f s: a burst of attacks. Your Posts refill +%.0f%%."), *EntryName(Run->GetSim().RivalId()), E.Value, E.Share * 100.0f), RedColor(), 3.6f, 20);
 			ShowToast(FString::Printf(TEXT("%s goes all-in for the last %.0f s: a burst of attacks until it runs low on Posts. Your Posts refill %.0f%% faster."), *EntryName(Run->GetSim().RivalId()), E.Value, E.Share * 100.0f), RedColor(), 4.0f);
 			break;
+		case EShiftEventType::EntryTookBig:
+			TutEventMask |= EvPackHit;
+			UE_LOG(LogShift, Log, TEXT("Pack: t=%.1f %s took @%s (weight %.0f) from %s"), Run.IsValid() ? Run->GetSim().Time() : 0.0, *EntryName(E.NewOwner), *NodeHandle(E.Node), E.Value, *EntryName(E.PrevOwner));
+			ShowToast(FString::Printf(TEXT("%s took @%s (weight %.0f) from %s"), *EntryName(E.NewOwner), *NodeHandle(E.Node), E.Value, *EntryName(E.PrevOwner)), ShiftPalette::Entry(E.NewOwner), 3.5f);
+			if (Board)
+			{
+				Board->FlashNode(E.Node);
+			}
+			break;
 		case EShiftEventType::EyeAwayWarn:
 			TutEventMask |= EvEyeAway;
 			PlaySfx(EShiftSfx::Tip);
@@ -1471,6 +1484,14 @@ void AShiftPlayerController::TickTutorial(float DeltaTime)
 	{
 		QueueCoach(TutBlameRule);   // one strike from the end: how the last chance works
 	}
+	if ((TutEventMask & EvPackHit) != 0)
+	{
+		QueueCoach(TutPackHit);
+	}
+	if (RunClock > 12.0f && !S.Disqualified() && S.Leader() == ShiftSim::kPlayerId)
+	{
+		QueueCoach(TutFirstLead);   // the other entries pile onto whoever leads
+	}
 	if (RunClock > 80.0f)
 	{
 		QueueCoach(TutKeysHint);
@@ -1588,7 +1609,16 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 		}
 		else
 		{
-			T.Status = TEXT("Yours: click to reinforce, right-click to Rally");
+			// The gates bind the rival too (Params::GatesApplyToAll): a hub of yours whose followers mostly back someone else is out of its reach.
+			const ShiftSim::GateInfo RivalGate = S.Gate(HoverNode, S.RivalId());
+			if (RivalGate.applies && !RivalGate.open)
+			{
+				T.Status = FString::Printf(TEXT("Rival locked out: %.0f%% back it, needs %.0f%%"), RivalGate.progress * 100.0, RivalGate.needed * 100.0);   // short: the card's status line fits about 45 characters
+			}
+			else
+			{
+				T.Status = TEXT("Yours: click to reinforce, right-click to Rally");
+			}
 			T.StatusColor = TealColor();
 		}
 	}

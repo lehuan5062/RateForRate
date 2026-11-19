@@ -47,6 +47,8 @@ enum class EShiftEventType : uint8
 	// appended in round 5 so the numbering of the earlier events stays
 	BlameOffered,        // the strike that would disqualify the player can still be handed to the rival: Value = seconds the offer stays open, Share = the fake votes the strike took, Count = strikes
 	BlameRefused,        // ... but too many fake votes to blame on anyone, the run ends now: Share = the fake votes the strike took
+	// appended in round 8
+	EntryTookBig,        // another entry took a hub or a celebrity from the rival by a plug (the player's own losses have their own event): Node, PrevOwner, NewOwner, Value = its vote weight
 };
 
 struct FShiftEvent
@@ -79,6 +81,18 @@ struct FShiftFlipStats
 	double PlugDwellSum = 0.0;
 	int32 SockDwellCount = 0;
 	double SockDwellSum = 0.0;
+};
+
+/** Who moved the votes during a run (QA only; it never feeds back into the sim): every change of owner by the owner class it left and the one it went to, for the votes an entry moved
+ *  with a Plug, a Sock or an ambient event (Plug...) and for the votes that changed their mind under opinion pressure (Herd...). Classes: 0 the player, 1 the rival, 2 another entry,
+ *  3 nobody (undecided). Strike reverts and the audit are left out. The weights are shares of all vote weight, summed over the changes. */
+struct FShiftFlowStats
+{
+	int32 PlugMoves[4][4] = {};      // [class the voter left][class it went to]
+	double PlugWeight[4][4] = {};
+	int32 HerdMoves[4][4] = {};
+	double HerdWeight[4][4] = {};
+	int32 BigMoves[4][4] = {};       // the plug moves of voters worth Params::HighValueV or more (hubs, celebrities)
 };
 
 /** How Shift the Blame went during a run (QA and the balance table only). */
@@ -197,6 +211,7 @@ public:
 	bool EyeWindowAnnounced() const { return bEyeWarned || bEyeActive; }
 
 	const FShiftFlipStats& GetFlipStats() const { return FlipStats; }
+	const FShiftFlowStats& GetFlowStats() const { return FlowStats; }
 	const FShiftPushSnapshot& GetPushStart() const { return PushStart; }
 
 private:
@@ -248,6 +263,7 @@ private:
 
 	// ownership tracking for FShiftFlipStats
 	FShiftFlipStats FlipStats;
+	FShiftFlowStats FlowStats;
 	TArray<int32> StatOwner;        // owner of every node after the previous step
 	TArray<double> StatGainTime;    // when the player last took the node
 	TArray<uint8> StatGainSock;     // ... and whether it was a sockpuppet flip

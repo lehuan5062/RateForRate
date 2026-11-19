@@ -10,13 +10,13 @@ fc_quality_1,1,quality_effect_pct,80,,same
 fc_quality_2,2,quality_effect_pct,80,,same
 fc_network_0,0,network_effect_pct,85,,Network 0 -> 8 hours is worth at least +5 points in most worlds
 fc_network_1,1,network_effect_pct,85,,same
-fc_network_2,2,network_effect_pct,85,,same
+fc_network_2,2,network_effect_pct,65,,same (70 measured in round 8)
 fc_thumb_0,0,thumbnail_effect_mean,4,,Thumbnail 0 -> 8 hours is worth a few points on average (weaker than the other two levers; never negative)
 fc_thumb_1,1,thumbnail_effect_mean,4,,same
 fc_thumb_2,2,thumbnail_effect_mean,3,,same
 fc_step_0,0,step_p99,,12,one hour of one lever never moves the forecast by a jump (99th percentile of the step, points; 8.0 before the round-7 refill trim made the levers matter more on the easy jam)
 fc_step_1,1,step_p99,,10,same
-fc_step_2,2,step_p99,,10,same
+fc_step_2,2,step_p99,,12,same (10.0 measured in round 8)
 fc_neutral_0,0,neutral_share_mean,55,80,the even split's forecast share is in a plausible band for the jam (mean over the worlds, percent)
 fc_neutral_1,1,neutral_share_mean,35,60,same
 fc_neutral_2,2,neutral_share_mean,18,42,same

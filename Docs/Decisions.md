@@ -535,3 +535,43 @@ low on Posts". The first 100-run gate had four rows out of band; pooled with a s
 
 **Not done.** The other colours are unchanged (the tester has no opinion). I cannot watch the playtest, so whether a push 37% lighter reads as "red does not flip a ton any more" is for the next round; if it does not,
 the next lever is the lethality of a landed attack (the rubber band, `RivalBandSlope`), not the count.
+
+## M14 - playtest round 8 (issue #1, `2007b84`)
+
+The tester's answers to the round-7 questions: the final push no longer feels like a flood ("Pass"); the other colours should matter more ("Yes. It's obvious that only red matter currently"); and two new observations:
+red "will try to plug that voter for the entire game" when you take a voter it wants, and "player can't flip a big voter if they don't have nearby voter flipped but red can just flip anyone it like".
+
+**Measured first** (100 runs per cell, seed set 1000, greedy / reactor, jams 1 / 2 / 3; new `Balance: focus`, `flow`, `big` and `field` lines, see `Docs/QA.md`).
+- *Fixation was real.* The reactor's 42 / 39 / 59 rival attacks a run fell on only 5.0 / 5.6 / 6.4 different voters, 22 / 19 / 28 of them on the single most attacked one and 88 to 92% on the three most; 93 to 99 runs of 100
+  put ten or more attacks on one voter. It was also most of the rival's lethality: two plugs stacked on one voter 3.3 s apart flip a loyal voter, the same two on two voters flip neither (conviction regains 0.08 a second).
+- *One-sided gates.* `GatesApplyToAll` (an old, tested switch, off) alone: greedy 82 / 61 / 35 (92 / 55 / 29), reactor 81 / 68 / 41 (78 / 55 / 37), the rival's end share 4 to 5 points lower on the middle and hard jams.
+- *The others already acted, as noise.* Without them (`OthersInterval` huge) the careful player wins 12 / 10 / 10 points more and greedy -3 / +1 / +6: about a third of the rings on the player were theirs (21 / 8 / 25 a run), all on voters of at most 100 weight
+  (they never touch a hub), 90 to 140 of their plugs a run shuffled voters between the other entries, and they took 1.9 / 2.5 / 3.9 voters a run from the rival and no big voter at all.
+
+**What was built** (all `Params` / `PolicyParams` fields, so each can be switched off with `-Set`).
+1. *One gate rule for everyone* (`GatesApplyToAll` 1): the rival and every other entry need a foothold among a hub's or a celebrity's followers before they can plug it. A hub of yours whose followers back you is out of the rival's reach; hovering it says
+   "Rival locked out: 12% back it, needs 20%" (the status line fits about 45 characters; a longer first version was cut off).
+2. *The rival does not hammer one voter* (`RivalNodeCooldown` 30 s): a voter it attacked is left alone for 30 s while anything else is worth a Post (`TargetFilter::nodeMult`, a per-voter score multiplier, 0 excludes). Cooldown 20 s: max on one voter 7 / 7 / 10, but half the GAME OFF runs
+   still put ten on one; 40 s: 5 / 4 / 6, 31 to 33% of the attacks on the three most. Shipped 30.
+3. *The pack goes after the leader* (`OthersLeaderMult` 2, `OthersHubs` 1, `OthersHubMaxV` 600): another entry's targets are weighted towards the voters of whoever leads the board (the rival most of the time, the player when first) and it may also go for a local hub, under the gates.
+   Without the gates a hub-capable pack took 17 points of the player's share on the easy jam; with them it is mild. Leader x3 and an interval of 7 s instead of 10 changed nothing beyond noise and added rings (105 to 118 a run instead of 94 to 99): not shipped.
+4. *Compensation.* The cooldown alone made the game 4 to 20 points easier (greedy 96 / 64 / 49 at 20 s, 95 / 75 / 48 at 40 s), the gates 4 to 13, the pack more. A plug that cannot stack has to do the job alone, so the rival's base strength went 1.0 -> **1.5** (a fresh voter of the player's, 80% sure, flips in one plug
+   from strength 1.44; before, only above a 26% share). With gates + cooldown 30 + pack: base 1.0 greedy 94 / 80 / 59, 1.5 -> 88 / 64 / 34 (shipped), 2.0 -> 74 / 41 / 11; base 1.5 with a 2.6 s rival interval 82 / 58 / 43. The Post refill moved
+   0.447 / 0.428 / 0.466 -> **0.447 / 0.420 / 0.455** (the pooled gate read 53 / 33 against 51-61 / 25-35 at 0.418 / 0.458).
+5. *Display.* A note when another entry takes a hub or a celebrity from the rival ("Bitwise Brawl took @jam_juice_jen (weight 599) from LEGEND OF DEV", in that entry's colour, board flash; a skirmish between two nobodies has none), two coach cards (`FirstLead`: the other games
+   pile onto whoever is first; `PackHit`), TUT07 now says the rival and the other games play by the same rule. README, `Data/Tutorial.csv` (`DT_Tutorial` regenerated: 24 rows).
+
+**Result.** The ablation, with the new rules: without the other entries greedy wins 78 / 46 / 18% instead of 88 / 64 / 34 (+10 / +18 / +16), and the rival ends higher without them (GAME OFF 51.5% against 43.3%, 48h Pixel Rumble 41.4% against 27.1%, greedy); the careful player moves 0 / +7 / +5. They take 6.5 / 13.1 / 23.4 voters a run
+from the rival (1.9 / 2.5 / 3.9 before), 0.2 to 0.6 big voters a run from it and 0.5 to 1.8 from each other. The rival's attacks: 15 / 16 / 16 different voters, at most 5.3 / 5.3 / 7.0 on one, 35% on the three most (22 / 19 / 28 and 90%). Pooled over two seed sets (200 runs) `verify.ps1 -Balance -Forecast` is green
+(12 of 12 with `-SkipMeters`): greedy 86.0 / 58.5 / 31.0, reactor 0 / +10 / +12 over it, final push swing +4.4 / +2.6 / +0.5, Rally alone +7 / +13 (GAME OFF band 10 -> 15: with every ring a one-plug threat answering is worth more, the reactor is +12, parrying alone -1), `reactor_0` band -14 -> -8 (0.0 measured).
+New gate rows: the rival's attack spread (`focus_max` under 9, `focus_voters` over 10, `focus_top3_pct` under 60), what the pack takes from the rival (`others_from_rival` at least 4) and that an other entry almost never wins (`other_leads_pct`, 0 of 100 in every cell). Forecast: `fc_network_2` 85 -> 65 (70 measured: 14 of 20 worlds gain 5 points from the
+Network lever on GAME OFF) and `fc_step_2` 10 -> 12 (10.0 measured). The harness has 5130 tests (the rival-gated default, the old one-sided rule, `nodeMult`).
+
+**Honest consequences.**
+- Every red ring is now a one-plug threat: greedy (ignores rings) loses 50 / 42 / 54 voters a run (29 / 25 / 40), the reactor 10 / 11 / 18 (5 / 9 / 17). The siege is gone, the pressure is spread and sharper.
+- Leading costs rings in every colour: the reactor sees 98 / 80 / 99 announced attacks a run (67 / 50 / 83), mostly from the pack on weak voters. A ring clutter risk; leader x2 is the milder setting, the interval stays 10 s.
+- The pack's big catches are rare (the gates see to that) and nobody but the rival or the player leads: the best other entry ends at 6 to 7%. By design (fame decides); "matter" here means voters, rings and the leader's share, not a rival for first place.
+- The forecast's Network effect on GAME OFF is weaker (two rows relaxed with their measured values).
+- The first-lead coach card queues behind the others and may come late in a run.
+
+**Not done.** No second contender with its own bank and final push, no personalities for the other seven. If the tester still says the others do not matter, that is the next lever (a contender among them that plays like a small rival), not more rings.

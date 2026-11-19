@@ -79,6 +79,15 @@ namespace
 		int32 BlameTaken = 0;
 		int32 BlameRefused = 0;
 		int32 BlameLapsed = 0;
+		int32 FocusAttacks = 0;             // the rival's attacks per voter, summed over the runs: all of them, on how many different voters, the most on one voter, the three most, and the runs that put 10 or more on one voter
+		int32 FocusDistinct = 0;
+		int32 FocusMax = 0;
+		int32 FocusTop3 = 0;
+		int32 FocusHeavyRuns = 0;
+		FShiftFlowStats Flow;               // who moved the votes, summed over the runs
+		double BestOtherShare = 0.0;        // the board at the end: the best other entry's share, how many other entries hold a top-3 place, the runs an other entry led
+		int32 OthersOnPodium = 0;
+		int32 OtherLeads = 0;
 		int32 FatalFakeBins[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };   // fatal strikes by the share the Blame's cap is measured on: <4%, 4-8, 8-12, 12-16, 16-20, 20-30, 30-40, 40+
 	};
 
@@ -300,6 +309,46 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				St.Flips.PlugDwellSum += Flips.PlugDwellSum;
 				St.Flips.SockDwellCount += Flips.SockDwellCount;
 				St.Flips.SockDwellSum += Flips.SockDwellSum;
+				{
+					TArray<int32> On;
+					for (const int Count : Run.RivalPolicy().AttacksOn)
+					{
+						On.Add(Count);
+					}
+					On.Sort([](const int32 A, const int32 B) { return A > B; });
+					for (const int32 Count : On)
+					{
+						St.FocusAttacks += Count;
+						St.FocusDistinct += Count > 0 ? 1 : 0;
+					}
+					St.FocusMax += On.Num() > 0 ? On[0] : 0;
+					St.FocusTop3 += (On.Num() > 0 ? On[0] : 0) + (On.Num() > 1 ? On[1] : 0) + (On.Num() > 2 ? On[2] : 0);
+					St.FocusHeavyRuns += (On.Num() > 0 && On[0] >= 10) ? 1 : 0;
+					const FShiftFlowStats& Flow = Run.GetFlowStats();
+					for (int32 From = 0; From < 4; ++From)
+					{
+						for (int32 To = 0; To < 4; ++To)
+						{
+							St.Flow.PlugMoves[From][To] += Flow.PlugMoves[From][To];
+							St.Flow.PlugWeight[From][To] += Flow.PlugWeight[From][To];
+							St.Flow.HerdMoves[From][To] += Flow.HerdMoves[From][To];
+							St.Flow.HerdWeight[From][To] += Flow.HerdWeight[From][To];
+							St.Flow.BigMoves[From][To] += Flow.BigMoves[From][To];
+						}
+					}
+					double BestOther = 0.0;
+					for (int32 E = 0; E < S.NumEntries(); ++E)
+					{
+						if (E != ShiftSim::kPlayerId && E != S.RivalId())
+						{
+							BestOther = FMath::Max(BestOther, S.Share(E));
+							St.OthersOnPodium += S.RankOf(E) < 3 ? 1 : 0;
+						}
+					}
+					St.BestOtherShare += BestOther;
+					const int32 Leader = S.Leader();
+					St.OtherLeads += (Leader != ShiftSim::kPlayerId && Leader != S.RivalId()) ? 1 : 0;
+				}
 				St.RivalAttacks += Run.RivalPolicy().Attacks;
 				St.RivalDefends += Run.RivalPolicy().Defends;
 				St.RivalStarved += Run.RivalPolicy().Starved;
@@ -350,6 +399,32 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				St.Threats.queued / N, St.Threats.landed / N, St.Threats.flipped / N, St.Threats.blocked / N, St.Threats.fizzled / N, St.Threats.shieldBlocked / N, St.Threats.parried / N, St.Threats.postsRally / N, St.Threats.postsParry / N);
 			// The rival (a separate line): per run, its attacks, its re-plugs of weak hubs and the actions its Post bank refused (the final push drains it).
 			UE_LOG(LogShift, Display, TEXT("Balance: rival jam=%d bot=%-8s per run: attacks %.1f  defends %.1f  starved %.1f"), Jam, *BotName, St.RivalAttacks / N, St.RivalDefends / N, St.RivalStarved / N);
+			// Where the rival's attacks went (a separate line): per run, how many, on how many different voters, the most on one voter, the three most (and their share of the attacks), and in how many runs
+			// one voter took 10 or more (the playtester: "it'll try to plug that voter for the entire game").
+			UE_LOG(LogShift, Display, TEXT("Balance: focus jam=%d bot=%-8s per run: rival attacks %.1f on %.1f different voters, the most on one voter %.1f, the three most %.1f (%.0f%% of its attacks)  runs with 10 or more on one voter %d"),
+				Jam, *BotName, St.FocusAttacks / N, St.FocusDistinct / N, St.FocusMax / N, St.FocusTop3 / N, St.FocusAttacks > 0 ? 100.0 * St.FocusTop3 / St.FocusAttacks : 0.0, St.FocusHeavyRuns);
+			// Who moved the votes (a separate line): per run, voters and (in brackets) points of all vote weight. The other entries' plugs, the rival's, the player's, and opinion pressure.
+			{
+				const auto Plugs = [&St, N](const int32 To, const int32 From) { return FString::Printf(TEXT("%.1f (%.1f)"), St.Flow.PlugMoves[From][To] / N, 100.0 * St.Flow.PlugWeight[From][To] / N); };
+				const auto Herd = [&St, N](const int32 To) {
+					int32 Count = 0;
+					double Weight = 0.0;
+					for (int32 From = 0; From < 4; ++From)
+					{
+						Count += From != To ? St.Flow.HerdMoves[From][To] : 0;
+						Weight += From != To ? St.Flow.HerdWeight[From][To] : 0.0;
+					}
+					return FString::Printf(TEXT("%.1f (%.1f)"), Count / N, 100.0 * Weight / N);
+				};
+				UE_LOG(LogShift, Display, TEXT("Balance: flow jam=%d bot=%-8s per run, voters (points of the vote): other entries' plugs took from you %s, from the rival %s, from each other %s, from undecided %s | rival's plugs took from you %s, from others %s, from undecided %s | your plugs took from the rival %s, from others %s, from undecided %s | opinion pressure moved to the rival %s, to others %s, to you %s"),
+					Jam, *BotName, *Plugs(2, 0), *Plugs(2, 1), *Plugs(2, 2), *Plugs(2, 3), *Plugs(1, 0), *Plugs(1, 2), *Plugs(1, 3), *Plugs(0, 1), *Plugs(0, 2), *Plugs(0, 3), *Herd(1), *Herd(2), *Herd(0));
+			}
+			// The big voters (hubs and celebrities, Params::HighValueV and up) moved by plugs (a separate line), per run: what the other entries, the rival and you took from whom.
+			UE_LOG(LogShift, Display, TEXT("Balance: big jam=%d bot=%-8s per run, voters worth %.0f+ moved by plugs: other entries took from the rival %.2f, from you %.2f, from each other %.2f | the rival took from you %.2f, from others %.2f | you took from the rival %.2f, from others %.2f"),
+				Jam, *BotName, ShiftSim::Params().HighValueV, St.Flow.BigMoves[1][2] / N, St.Flow.BigMoves[0][2] / N, St.Flow.BigMoves[2][2] / N, St.Flow.BigMoves[0][1] / N, St.Flow.BigMoves[2][1] / N, St.Flow.BigMoves[1][0] / N, St.Flow.BigMoves[2][0] / N);
+			// The board at the end (a separate line): the player's and the rival's share, the best other entry's, how many other entries hold a top-3 place on average, and in how many runs an other entry leads.
+			UE_LOG(LogShift, Display, TEXT("Balance: field jam=%d bot=%-8s final share: you %.1f%%  rival %.1f%%  best other %.1f%%   other entries in the top 3: %.2f   an other entry leads: %d of %d runs"),
+				Jam, *BotName, 100.0 * St.ShareSum / N, 100.0 * St.RivalShare / N, 100.0 * St.BestOtherShare / N, St.OthersOnPodium / N, St.OtherLeads, St.Runs);
 			// The rival's final push alone (a separate line): per run, its attacks, the announced attacks on the player (queued; landed, of which flipped; parried; blocked by a shield or a fresh flip),
 			// the voters it took, and the Posts the player spent on Rallies and parries.
 			{

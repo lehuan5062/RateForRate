@@ -102,7 +102,7 @@ ParryCost,1
 PostsMax,5
 PostsStart,5
 PostsRegen,0.5
-GatesApplyToAll,0
+GatesApplyToAll,1
 HeatDecay,3
 HeatNightRate,4
 HeatRedZone,60
