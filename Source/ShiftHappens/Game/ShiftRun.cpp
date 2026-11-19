@@ -55,6 +55,13 @@ bool FShiftRun::Start(int32 InJamIndex, uint32 InSeed, const FShiftBuild& InBuil
 		return false;
 	}
 
+	if (Policy.QaGiveCelebs > 0.5)
+	{
+		for (const int Celeb : Sim->GetGraph().celebrities)
+		{
+			Sim->SetNodeState(Celeb, ShiftSim::kPlayerId, 0.9, 0.0);
+		}
+	}
 	FlipStats = FShiftFlipStats();
 	StatOwner.SetNum(Sim->NodeCount());
 	StatGainTime.Init(0.0, Sim->NodeCount());

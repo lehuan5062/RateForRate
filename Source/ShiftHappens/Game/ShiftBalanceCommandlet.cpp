@@ -88,6 +88,15 @@ namespace
 		double BestOtherShare = 0.0;        // the board at the end: the best other entry's share, how many other entries hold a top-3 place, the runs an other entry led
 		int32 OthersOnPodium = 0;
 		int32 OtherLeads = 0;
+		int32 CelebAny = 0;                 // the celebrities (the big circles in the middle): runs in which the player held one at some point and when it first did (summed) ...
+		double CelebFirstSum = 0.0;
+		int32 CelebEndRuns[3] = { 0, 0, 0 };    // ... runs by how many of them the player held at the end (0 / 1 / 2), their wins and final shares ...
+		int32 CelebEndWins[3] = { 0, 0, 0 };
+		double CelebEndShare[3] = { 0.0, 0.0, 0.0 };
+		int32 CelebRivalBoth = 0;           // ... runs in which the rival kept both, and the share of the run the player held a celebrity (summed) ...
+		double CelebHeldFraction = 0.0;
+		int32 CelebMidRuns[3] = { 0, 0, 0 };    // ... and the same by what the player held half way through the run (the end is a result, half way is a position)
+		int32 CelebMidWins[3] = { 0, 0, 0 };
 		int32 FatalFakeBins[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };   // fatal strikes by the share the Blame's cap is measured on: <4%, 4-8, 8-12, 12-16, 16-20, 20-30, 30-40, 40+
 	};
 
@@ -257,9 +266,30 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				const double MegaStartTime = S.TotalSeconds() - Run.GetPolicy().MegaDays * S.Jam().secPerDay;
 				bool bMegaSeen = false;
 				bool bMegaLead = false;
+				double FirstCeleb = -1.0;
+				double CelebTime = 0.0;
+				double CelebPrevTime = 0.0;
+				int32 CelebMid = -1;
 				while (!Run.IsOver())
 				{
 					Run.Tick(0.25);
+					{
+						int32 Held = 0;
+						for (const int Celeb : S.GetGraph().celebrities)
+						{
+							Held += S.Opinion(Celeb) == ShiftSim::kPlayerId ? 1 : 0;
+						}
+						if (Held > 0 && FirstCeleb < 0.0)
+						{
+							FirstCeleb = S.Time();
+						}
+						CelebTime += Held > 0 ? S.Time() - CelebPrevTime : 0.0;
+						CelebPrevTime = S.Time();
+						if (CelebMid < 0 && S.Time() >= 0.5 * S.TotalSeconds())
+						{
+							CelebMid = FMath::Min(Held, 2);
+						}
+					}
 					if (!bMegaSeen && S.Time() >= MegaStartTime)
 					{
 						bMegaSeen = true;
@@ -267,6 +297,28 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 						bMegaLead = !S.Disqualified() && S.Leader() == ShiftSim::kPlayerId;
 						St.MegaLeadAtStart += bMegaLead ? 1 : 0;
 					}
+				}
+				{
+					int32 HeldEnd = 0;
+					int32 RivalEnd = 0;
+					for (const int Celeb : S.GetGraph().celebrities)
+					{
+						HeldEnd += S.Opinion(Celeb) == ShiftSim::kPlayerId ? 1 : 0;
+						RivalEnd += S.Opinion(Celeb) == S.RivalId() ? 1 : 0;
+					}
+					HeldEnd = FMath::Min(HeldEnd, 2);
+					St.CelebAny += FirstCeleb >= 0.0 ? 1 : 0;
+					St.CelebFirstSum += FirstCeleb >= 0.0 ? FirstCeleb : 0.0;
+					++St.CelebEndRuns[HeldEnd];
+					St.CelebEndWins[HeldEnd] += (!S.Disqualified() && S.Leader() == ShiftSim::kPlayerId) ? 1 : 0;
+					St.CelebEndShare[HeldEnd] += S.Share(ShiftSim::kPlayerId);
+					St.CelebRivalBoth += (RivalEnd >= 2) ? 1 : 0;
+					if (CelebMid >= 0)
+					{
+						++St.CelebMidRuns[CelebMid];
+						St.CelebMidWins[CelebMid] += (!S.Disqualified() && S.Leader() == ShiftSim::kPlayerId) ? 1 : 0;
+					}
+					St.CelebHeldFraction += CelebTime / FMath::Max(1.0, S.TotalSeconds());
 				}
 				St.MegaEndShare += S.Share(ShiftSim::kPlayerId);
 				St.MegaLeadKept += (bMegaLead && !S.Disqualified() && S.Leader() == ShiftSim::kPlayerId) ? 1 : 0;
@@ -418,6 +470,16 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				};
 				UE_LOG(LogShift, Display, TEXT("Balance: flow jam=%d bot=%-8s per run, voters (points of the vote): other entries' plugs took from you %s, from the rival %s, from each other %s, from undecided %s | rival's plugs took from you %s, from others %s, from undecided %s | your plugs took from the rival %s, from others %s, from undecided %s | opinion pressure moved to the rival %s, to others %s, to you %s"),
 					Jam, *BotName, *Plugs(2, 0), *Plugs(2, 1), *Plugs(2, 2), *Plugs(2, 3), *Plugs(1, 0), *Plugs(1, 2), *Plugs(1, 3), *Plugs(0, 1), *Plugs(0, 2), *Plugs(0, 3), *Herd(1), *Herd(2), *Herd(0));
+			}
+			// The celebrities (a separate line): how often the player holds one, how soon, and what holding them is worth (wins and final share by how many it holds at the end).
+			{
+				const auto Pct = [&St](const int32 Count) { return 100.0 * Count / FMath::Max(1, St.Runs); };
+				const auto Won = [&St](const int32 Held) { return St.CelebEndRuns[Held] > 0 ? 100.0 * St.CelebEndWins[Held] / St.CelebEndRuns[Held] : -1.0; };
+				const auto Share = [&St](const int32 Held) { return St.CelebEndRuns[Held] > 0 ? 100.0 * St.CelebEndShare[Held] / St.CelebEndRuns[Held] : -1.0; };
+				UE_LOG(LogShift, Display, TEXT("Balance: celeb jam=%d bot=%-8s player held a celebrity at some point in %.0f%% of runs (first at %.0f s, held %.0f%% of the run), at the end both %.0f%% one %.0f%% none %.0f%% | wins with both %.0f%% one %.0f%% none %.0f%% | final share with both %.1f%% one %.1f%% none %.1f%% | the rival keeps both in %.0f%% | half way both %.0f%% (wins %.0f%%) none %.0f%% (wins %.0f%%)"),
+					Jam, *BotName, Pct(St.CelebAny), St.CelebAny > 0 ? St.CelebFirstSum / St.CelebAny : 0.0, 100.0 * St.CelebHeldFraction / N, Pct(St.CelebEndRuns[2]), Pct(St.CelebEndRuns[1]), Pct(St.CelebEndRuns[0]),
+					Won(2), Won(1), Won(0), Share(2), Share(1), Share(0), Pct(St.CelebRivalBoth), Pct(St.CelebMidRuns[2]), St.CelebMidRuns[2] > 0 ? 100.0 * St.CelebMidWins[2] / St.CelebMidRuns[2] : -1.0,
+					Pct(St.CelebMidRuns[0]), St.CelebMidRuns[0] > 0 ? 100.0 * St.CelebMidWins[0] / St.CelebMidRuns[0] : -1.0);
 			}
 			// The big voters (hubs and celebrities, Params::HighValueV and up) moved by plugs (a separate line), per run: what the other entries, the rival and you took from whom.
 			UE_LOG(LogShift, Display, TEXT("Balance: big jam=%d bot=%-8s per run, voters worth %.0f+ moved by plugs: other entries took from the rival %.2f, from you %.2f, from each other %.2f | the rival took from you %.2f, from others %.2f | you took from the rival %.2f, from others %.2f"),

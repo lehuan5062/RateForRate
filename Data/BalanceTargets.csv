@@ -5,7 +5,7 @@ idle_2,2,idle,,win_pct,,,,0,Doing nothing must never win
 random_0,0,random,,win_pct,,,,5,Random clicking must not win (noise allowance)
 random_1,1,random,,win_pct,,,,5,Random clicking must not win (noise allowance)
 random_2,2,random,,win_pct,,,,5,Random clicking must not win (noise allowance)
-greedy_0,0,greedy,,win_pct,,,83,93,Honest play on the easy jam wins about 88%
+greedy_0,0,greedy,,win_pct,,,74,93,"Honest play on the easy jam wins about 80% (88% before round 9: a lead of more than 25 points now bleeds, and honest play that never reinforces feels it most)"
 greedy_1,1,greedy,,win_pct,,,51,61,Honest play on the middle jam wins about 56%
 greedy_2,2,greedy,,win_pct,,,25,35,Honest play on GAME OFF wins about 30%
 finisher_0,0,finisher,,win_pct,greedy,,,5,Honest play then a last-moment sockpuppet burst must not beat honest play
@@ -52,7 +52,7 @@ mega_greedy_2,2,greedy,,mega_swing,,,-7,,The rival final push takes at most 7 po
 build_zero_0,0,greedy,0/0/0,win_pct,greedy,4/4/4,,-15,Spending nothing is clearly worse than an even split
 build_q0_0,0,greedy,0/4/4,win_pct,greedy,4/4/4,,-2,Neglecting a lever costs real points
 build_t0_0,0,greedy,4/0/4,win_pct,greedy,4/4/4,,4,Neglecting the thumbnail never helps (its effect is small: a Plug costs 3% more Posts)
-build_n0_0,0,greedy,4/4/0,win_pct,greedy,4/4/4,,-2,Neglecting a lever costs real points
+build_n0_0,0,greedy,4/4/0,win_pct,greedy,4/4/4,,3,"Neglecting the network never helps (-1.5 measured in round 9: on the easy jam a big lead bleeds anyway, so Posts are worth less)"
 build_q8_0,0,greedy,8/4/4,win_pct,greedy,4/4/4,,20,A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
 build_t8_0,0,greedy,4/8/4,win_pct,greedy,4/4/4,,20,A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
 build_n8_0,0,greedy,4/4/8,win_pct,greedy,4/4/4,,20,A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
@@ -70,7 +70,7 @@ build_s840_1,1,greedy,8/4/0,win_pct,greedy,4/4/4,-20,18,No legal split beats the
 build_zero_2,2,greedy,0/0/0,win_pct,greedy,4/4/4,,-20,Spending nothing is clearly worse than an even split
 build_q0_2,2,greedy,0/4/4,win_pct,greedy,4/4/4,,-8,Neglecting a lever costs real points
 build_t0_2,2,greedy,4/0/4,win_pct,greedy,4/4/4,,4,Neglecting the thumbnail never helps (its effect is small: a Plug costs 3% more Posts)
-build_n0_2,2,greedy,4/4/0,win_pct,greedy,4/4/4,,-8,Neglecting a lever costs real points
+build_n0_2,2,greedy,4/4/0,win_pct,greedy,4/4/4,,-2,"Neglecting a lever costs points (-4 measured in round 9, -12 before)"
 build_q8_2,2,greedy,8/4/4,win_pct,greedy,4/4/4,,20,A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
 build_t8_2,2,greedy,4/8/4,win_pct,greedy,4/4/4,,20,A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
 build_n8_2,2,greedy,4/4/8,win_pct,greedy,4/4/4,,20,A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
@@ -91,3 +91,9 @@ others_rival_2,2,reactor,,others_from_rival,,,4,,The other entries take at least
 other_leads_0,0,reactor,,other_leads_pct,,,,10,An other entry almost never wins the jam: fame still decides
 other_leads_1,1,reactor,,other_leads_pct,,,,10,An other entry almost never wins the jam: fame still decides
 other_leads_2,2,reactor,,other_leads_pct,,,,10,An other entry almost never wins the jam: fame still decides
+runaway_0,0,reactor,,share_pct,,,,64,"Nobody runs away with the jam: the player's mean final share stays under 64% (round 9: voters root for the underdog past a 25-point lead)"
+runaway_1,1,reactor,,share_pct,,,,58,"Nobody runs away with the jam: the player's mean final share stays under 58% (round 9: voters root for the underdog past a 25-point lead)"
+runaway_2,2,reactor,,share_pct,,,,52,"Nobody runs away with the jam: the player's mean final share stays under 52% (round 9: voters root for the underdog past a 25-point lead)"
+rival_keeps_0,0,reactor,,rival_end_pct,,,24,,The rival keeps a real share at the end of the jam: at least 24% (it ended at 16 to 20% on the easy jam before round 9)
+rival_keeps_1,1,reactor,,rival_end_pct,,,26,,The rival keeps a real share at the end of the jam: at least 26% (it ended at 16 to 20% on the easy jam before round 9)
+rival_keeps_2,2,reactor,,rival_end_pct,,,30,,The rival keeps a real share at the end of the jam: at least 30% (it ended at 16 to 20% on the easy jam before round 9)

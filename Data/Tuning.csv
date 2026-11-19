@@ -51,6 +51,8 @@ BuildBankPerHour,0.5
 BuildRegenPerHour,0.003
 PlayerStartConv,0.6
 PlayerStartMaxFollowers,1
+Backlash,100
+BacklashLead,0.25
 Capture,0.35
 ConvBase,0.4
 ConvWeight,0.6

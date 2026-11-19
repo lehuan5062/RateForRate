@@ -32,7 +32,7 @@ namespace ShiftSim
 			SHIFT_P(RivalFollowerConvMin), SHIFT_P(RivalFollowerConvMax), SHIFT_P(PlayerStartNodes), SHIFT_P(PlayerPlugCost), SHIFT_P(BuildBelowSlope), SHIFT_P(BuildQualityPerHour), SHIFT_P(BuildFlipConvPerHour), SHIFT_P(BuildCloutPerHour),
 			SHIFT_P(BuildPlugCostPerHour), SHIFT_P(BuildStartNodesPerHour), SHIFT_P(BuildBankPerHour), SHIFT_P(BuildRegenPerHour),
 			SHIFT_P(PlayerStartConv), SHIFT_P(PlayerStartMaxFollowers),
-			SHIFT_P(Capture), SHIFT_P(ConvBase), SHIFT_P(ConvWeight), SHIFT_P(AppealSlope), SHIFT_P(AppealMid),
+			SHIFT_P(Backlash), SHIFT_P(BacklashLead), SHIFT_P(Capture), SHIFT_P(ConvBase), SHIFT_P(ConvWeight), SHIFT_P(AppealSlope), SHIFT_P(AppealMid),
 			SHIFT_P(AppealScale), SHIFT_P(LowQualityThreshold), SHIFT_P(LowQualityPenalty),
 			SHIFT_P(Front1), SHIFT_P(Front2), SHIFT_P(Front3), SHIFT_P(Stickiness), SHIFT_P(FlipMargin),
 			SHIFT_P(DrainRate), SHIFT_P(RegainRate), SHIFT_P(FlipConv), SHIFT_P(AdoptThreshold),
@@ -123,7 +123,7 @@ namespace ShiftSim
 		{
 			J.name = "Tiny Jam #7";
 			J.nodes = 36; J.communities = 5; J.bridges = 2; J.celebs = 2;
-			J.days = 31; J.secPerDay = 6.0; J.regen = 0.447;
+			J.days = 31; J.secPerDay = 6.0; J.regen = 0.440;
 			J.localGate = 0.25; J.celebGate = 0.15;
 			J.celebExtraFollowers = 8.0;
 			J.modIntervalMin = 25.0; J.modIntervalMax = 35.0;
@@ -132,7 +132,7 @@ namespace ShiftSim
 		{
 			J.name = "48h Pixel Rumble";
 			J.nodes = 52; J.communities = 7; J.bridges = 3; J.celebs = 2;
-			J.days = 31; J.secPerDay = 6.0; J.regen = 0.420;
+			J.days = 31; J.secPerDay = 6.0; J.regen = 0.416;
 			J.localGate = 0.25; J.celebGate = 0.20;
 			J.celebExtraFollowers = 8.0;
 			J.modIntervalMin = 15.0; J.modIntervalMax = 25.0;
@@ -141,7 +141,7 @@ namespace ShiftSim
 		{
 			J.name = "GAME OFF 2026";
 			J.nodes = 72; J.communities = 9; J.bridges = 4; J.celebs = 2;
-			J.days = 31; J.secPerDay = 8.0; J.regen = 0.455;
+			J.days = 31; J.secPerDay = 8.0; J.regen = 0.443;
 			J.localGate = 0.25; J.celebGate = 0.25;
 			J.celebExtraFollowers = 14.0;
 			J.modIntervalMin = 12.0; J.modIntervalMax = 20.0;

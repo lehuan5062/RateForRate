@@ -23,3 +23,4 @@ TUT21,21,FirstFake,Votes bought with sockpuppets are fake: they heat you up whil
 TUT22,22,FinalPush,"The rival goes all-in for the last days: a burst of attacks, then it runs low on Posts. Yours refill {pushpct}% faster, so spend them."
 TUT23,23,FirstLead,"You lead the board. The other games pile onto whoever is first, so expect closing rings in every colour."
 TUT24,24,PackHit,The other games fight too: they pile onto the leader and can take a hub from it. A note says who took what.
+TUT25,25,Sympathy,"You lead by more than {sympathy} points, so voters start rooting for the underdog. Your lead drifts back: keep reinforcing."

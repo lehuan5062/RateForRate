@@ -575,3 +575,33 @@ Network lever on GAME OFF) and `fc_step_2` 10 -> 12 (10.0 measured). The harness
 - The first-lead coach card queues behind the others and may come late in a run.
 
 **Not done.** No second contender with its own bank and final push, no personalities for the other seven. If the tester still says the others do not matter, that is the next lever (a contender among them that plays like a small rival), not more rings.
+
+## M15 - playtest round 9 (issue #1, `cd7f176`)
+
+The tester's answers to the round-8 questions: the siege on one voter is gone ("Pass"), the one-plug red ring is fine ("Pass"), the other games: "there are more of them on the map, I can't tell how impactful they're yet", and the new point:
+"the 2 circles in the middle determine 95% of the impact on the game, the moment the player get a hand on them they just become overpower so nothing matter anymore, they are guarantee to score top 1 keeping them and the whole game are preparing nearby voter so they can flip the biggest voter."
+
+**Measured first** (100 runs per cell, seed set 1000, greedy / reactor on jams 1 / 2 / 3; new `Balance: celeb` line, see `Docs/QA.md`, and the QA switch `QaGiveCelebs`, which hands the player both celebrities at the start).
+- The two celebrities are 31 / 27 / 31% of all vote weight (1112 / 1370 / 2256 each against 459 to 526 for a hub). The player held both at the end of 65 / 48 / 17% of greedy runs and 66 / 51 / 17% of reactor runs.
+- *The tester was right.* Holding both at the end won 98 to 100% of the runs in every cell, with 76 to 92% of the vote; holding none 9 to 50%. Half way through the run it is the same (both held: 91 to 100% wins; none: 14 to 62%).
+- Given at the start: greedy 95 / 96 / 100%, reactor 100 / 100 / 100% (88 / 57 / 28 and 84 / 69 / 38 normally), so a celebrity is worth +7 / +39 / +72 points to greedy. An idle player who starts with them wins 0 / 4 / 24%: they are kept by playing.
+- *What did not break it* (all with the celebrities given, or at the end): a weaker celebrity pull on its audience (x0.7, x0.5: 97 to 100%), smaller celebrities (extra followers 4 and 0: 94 to 100%), half the front-page boost (no change), the rival ungated again (the reactor 100%, greedy 97 / 80 / 46, its holds are rarer), a rival that fights back harder while you run away (it halves greedy but the reactor stays at 82 / 69 / 37 normally and 90 to 100% with the celebrities: parrying absorbs it), and a rival with home communities of its own (1 or 2: still 83 to 100%, and a much harder normal game: greedy 63 / 29 / 8%). Those options were taken out again.
+- Why: the rival's whole strength is its celebrities and their followers; the entry that takes them takes everything, and with 60% of the vote against the runner-up's 14% plurality cannot be in doubt.
+
+**What was built: underdogs rally** (`Params::Backlash` 100, `BacklashLead` 0.25; 0 = off, bit-identical). While the entry in front leads the runner-up by more than 25 points of the vote, its voters feel an extra pull towards the runner-up of 100 per unit of lead beyond it (pressure units of the opinion dynamics: a member's neighbours push with about 3).
+A parry does not stop it (it is opinion pressure, not a plug); reinforcing and Rallying slow it. Normal game, seed set 1000: strength 20 greedy 89 / 58 / 29, reactor 86 / 70 / 39, final share of the player 71 / 51 / 40%; 40: 87 / 60 / 34, 83 / 70 / 45; 80: 83 / 57 / 36, 84 / 72 / 44, shares 54 / 44 / 42%; 160: 72 / 53 / 38, 80 / 74 / 51.
+With the celebrities given: 20: greedy 95 / 96 / 100, final share 72 to 80%; 80: 82 / 90 / 100, share 51 to 58%; 160: 81 / 75 / 89, reactor 93 / 98 / 97, and an other entry wins 1 to 5 of 100 runs in some cells. Shipped 100.
+Display: a chip under the leaderboard ("UNDERDOGS RALLY, a big lead drifts back to the runner-up"), a coach card (`Sympathy`, shown the first time the player is the one being pulled back), and, for the tester's second answer, a **trend column** in the leaderboard: every entry's change of share over the last 20 s in points ("-7" for the leader, "+12" for the runner-up), so what the other games do shows.
+
+**Calibration.** Post refill 0.440 / 0.416 / 0.443 (0.447 / 0.420 / 0.455 before). The easy jam is non-monotone for greedy: with a higher refill it leads by more, the sympathy bites and it never reinforces (0.447: 79.5%, 0.460: 73%, 0.435: 78%, 0.423: 68%), so no refill brings it back to the old 83 to 93 band: `greedy_0` is now 74 to 93.
+Pooled over two seed sets (200 runs) the gate gave greedy 75 / 57.5 / 30, the reactor +10 / +9.5 / +10 over it, the winner's mean final share 55.8 / 46.4 / 41.3% (was 77 / 52 / 40), the rival ending with 33 / 35 / 42% (17 / 30 / 40), an other entry winning 0 / 0.5 / 0% of runs.
+New rows: `runaway_*` (the player's mean final share under 64 / 58 / 52) and `rival_keeps_*` (the rival at least 24 / 26 / 30% at the end). Relaxed to their measured values, each with its reason in the row: `build_n0_0` (-1.5: a big lead bleeds anyway, so Posts are worth less) and `build_n0_2` (-4, was -12). Forecast: `fc_quality_2` 80 -> 65, `fc_network_0` 85 -> 40, `fc_network_1` 85 -> 55, `fc_thumb_0` 4 -> 3, `fc_neutral_0` 55-80 -> 45-80 (51 measured, 75 before):
+with the sympathy a better build moves the share less. `verify.ps1 -Balance -Forecast` is green (12 of 12 with `-SkipMeters`); the harness has 5145 tests (`TestSympathy`: off is bit-identical, the pressure is the formula, it takes share off the leader).
+
+**Honest consequences.**
+- *The guarantee is not gone.* A careful player who holds both celebrities still wins 93 to 100%: the celebrities are the rival's fame (the thesis), and what the sympathy changes is the margin (half the vote instead of three quarters, the rival and the runner-up kept alive) and the cost of leading, not who wins. The tester may still find the celebrities decisive.
+- The player who never reinforces loses on the easy jam (88 -> about 75 to 80%); greedy is the bot that feels it, the reactor gains (it holds its lead).
+- The build levers show smaller effects in the forecast (five forecast rows relaxed).
+- The trend column shortens long names by about a dozen pixels.
+
+**Not done.** More ways to win than the celebrities (a second celebrity-sized prize, mid-size contenders), and a harder time for the first capture instead of an easier second half. If "the circles decide" comes back, the next lever is the structure (who owns what at the start), not another rubber band.

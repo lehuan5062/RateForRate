@@ -361,6 +361,24 @@ namespace ShiftSim
 		return Graph_.totalWeight > 0.0 ? Tally_[Entry] / Graph_.totalWeight : 0.0;
 	}
 
+	double Sim::SympathyPressure(int* From, int* To) const
+	{
+		if (!(P_.Backlash > 0.0) || NumEntries_ < 2)
+		{
+			return 0.0;
+		}
+		const int Front = Order_[0];
+		const int Behind = Order_[1];
+		const double Lead = Share(Front) - Share(Behind);
+		if (!(Lead > P_.BacklashLead))
+		{
+			return 0.0;
+		}
+		if (From != nullptr) { *From = Front; }
+		if (To != nullptr) { *To = Behind; }
+		return P_.Backlash * (Lead - P_.BacklashLead);
+	}
+
 	double Sim::UndecidedShare() const
 	{
 		double Sum = 0.0;
@@ -535,6 +553,11 @@ namespace ShiftSim
 			DriftW[e] = Entries_[SimIx(e)].clout * Front;
 		}
 
+		// Underdog sympathy: past a lead of BacklashLead the leader's voters feel a growing pull towards the runner-up.
+		int BacklashFrom = -1;
+		int BacklashTo = -1;
+		const double Backlash = SympathyPressure(&BacklashFrom, &BacklashTo);
+
 		// What each node broadcasts to its followers and (via capture) to its followees.
 		for (int i = 0; i < Count; ++i)
 		{
@@ -576,6 +599,11 @@ namespace ShiftSim
 				{
 					Pv[O] += P_.Capture * Contrib_[SimIx(F)];
 				}
+			}
+
+			if (Backlash > 0.0 && Opinion_[SimIx(i)] == BacklashFrom)
+			{
+				Pv[BacklashTo] += Backlash;
 			}
 
 			double SumP = 0.0;

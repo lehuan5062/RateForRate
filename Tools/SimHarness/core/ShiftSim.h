@@ -267,6 +267,9 @@ namespace ShiftSim
 		double Tally(int Entry) const { return Tally_[Entry]; }                        // sum of V by opinion
 		double TotalWeight() const { return Graph_.totalWeight; }
 		double Share(int Entry) const;                                                  // Tally / total V
+		// Underdog sympathy (Params::Backlash): the pressure that pulls the voters of the entry in front towards the runner-up while it leads by more than Params::BacklashLead (0 when it is off or
+		// the lead is smaller), and the two entries. Derived from the ranking as of the last Step() (presentation reads it too).
+		double SympathyPressure(int* From = nullptr, int* To = nullptr) const;
 		double UndecidedShare() const;
 		int RankOf(int Entry) const { return Rank_[Entry]; }                            // 0-based
 		std::vector<int> Ranking() const;                                               // entry ids, best first

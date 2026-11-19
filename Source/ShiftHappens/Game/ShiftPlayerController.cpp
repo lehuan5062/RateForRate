@@ -137,6 +137,8 @@ namespace
 		// appended in round 8: the other entries fight too
 		TutFirstLead,
 		TutPackHit,
+		// appended in round 9: a runaway leader loses voters to the runner-up
+		TutSympathy,
 		TutCount
 	};
 
@@ -144,7 +146,7 @@ namespace
 	{
 		TEXT("JamStart"), TEXT("FirstHover"), TEXT("FirstPlug"), TEXT("FirstConvictionRing"), TEXT("PostsLow"), TEXT("FirstReinforce"),
 		TEXT("FirstGateSeen"), TEXT("FirstGateOpened"), TEXT("ShiftUnlocked"), TEXT("FirstHeat"), TEXT("FirstModEye"), TEXT("FirstStrike"),
-		TEXT("BlameAvailable"), TEXT("KeysHint"), TEXT("FirstLostVoter"), TEXT("FirstSockpuppet"), TEXT("FinalAudit"), TEXT("RallyHint"), TEXT("ThreatRing"), TEXT("EyeAway"), TEXT("FirstFake"), TEXT("FinalPush"), TEXT("BlameRule"), TEXT("FirstLead"), TEXT("PackHit"),
+		TEXT("BlameAvailable"), TEXT("KeysHint"), TEXT("FirstLostVoter"), TEXT("FirstSockpuppet"), TEXT("FinalAudit"), TEXT("RallyHint"), TEXT("ThreatRing"), TEXT("EyeAway"), TEXT("FirstFake"), TEXT("FinalPush"), TEXT("BlameRule"), TEXT("FirstLead"), TEXT("PackHit"), TEXT("Sympathy"),
 	};
 
 	enum ETutEvent : uint32
@@ -465,6 +467,8 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 	Board->Build(S);
 
 	bResultsBuilt = false;
+	ShareHistory.Reset();
+	ShareSampleTime = -1.0;
 	ResetAlerts();
 	bPaused = false;
 	bNightLatch = false;
@@ -1269,6 +1273,36 @@ void AShiftPlayerController::FillAlertModel(FShiftHudModel& M) const
 	}
 }
 
+/** Samples every entry's share once a second of run time, for the leaderboard's trend column: who gained and who lost over the last 20 s. */
+void AShiftPlayerController::TickShareTrend()
+{
+	const ShiftSim::Sim& S = Run->GetSim();
+	const auto AddSample = [this, &S]()
+	{
+		for (int32 E = 0; E < S.NumEntries(); ++E)
+		{
+			ShareHistory[E].Add(static_cast<float>(S.Share(E)));
+			if (ShareHistory[E].Num() > 21)
+			{
+				ShareHistory[E].RemoveAt(0);
+			}
+		}
+	};
+	if (ShareSampleTime < 0.0 || S.Time() + 1.0e-6 < ShareSampleTime || ShareHistory.Num() != S.NumEntries())
+	{
+		ShareHistory.Reset();
+		ShareHistory.SetNum(S.NumEntries());
+		ShareSampleTime = S.Time();
+		AddSample();
+		return;
+	}
+	while (S.Time() >= ShareSampleTime + 1.0)
+	{
+		ShareSampleTime += 1.0;
+		AddSample();
+	}
+}
+
 void AShiftPlayerController::TickLostVoters(float DeltaTime)
 {
 	LostCooldown = FMath::Max(0.0f, LostCooldown - DeltaTime);
@@ -1341,6 +1375,7 @@ FString AShiftPlayerController::ExpandTutorialText(const FString& Text) const
 	Out.ReplaceInline(TEXT("{rallylock}"), *FString::Printf(TEXT("%.0f"), P.RallyLock));
 	Out.ReplaceInline(TEXT("{eyeaway}"), *FString::Printf(TEXT("%.0f"), Run->GetPolicy().EyeAwaySeconds));
 	Out.ReplaceInline(TEXT("{fakelimit}"), *FString::Printf(TEXT("%.0f"), P.SockHeldHeat > 0.0 ? 100.0 * P.HeatDecay / P.SockHeldHeat : 100.0));
+	Out.ReplaceInline(TEXT("{sympathy}"), *FString::Printf(TEXT("%.0f"), 100.0 * Run->GetSim().GetParams().BacklashLead));
 	Out.ReplaceInline(TEXT("{pushpct}"), *FString::Printf(TEXT("%.0f"), 100.0 * FMath::Max(0.0, Run->GetPolicy().FinalPushRegen - 1.0)));
 	Out.ReplaceInline(TEXT("{review}"), *FString::Printf(TEXT("%.0f"), P.SockReview));
 	Out.ReplaceInline(TEXT("{launder}"), *FString::Printf(TEXT("%.0f%%"), P.SockLaunderConv * 100.0));
@@ -1491,6 +1526,13 @@ void AShiftPlayerController::TickTutorial(float DeltaTime)
 	if (RunClock > 12.0f && !S.Disqualified() && S.Leader() == ShiftSim::kPlayerId)
 	{
 		QueueCoach(TutFirstLead);   // the other entries pile onto whoever leads
+	}
+	{
+		int32 SympathyFrom = -1;
+		if (S.SympathyPressure(&SympathyFrom, nullptr) > 0.0 && SympathyFrom == ShiftSim::kPlayerId)
+		{
+			QueueCoach(TutSympathy);   // a lead of more than 25 points makes voters root for the underdog
+		}
 	}
 	if (RunClock > 80.0f)
 	{
@@ -1855,6 +1897,7 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 		Row.Name = EntryName(E);
 		Row.Share = static_cast<float>(S.Share(E));
 		Row.Votes = static_cast<float>(S.Tally(E));
+		Row.Trend = (ShareHistory.IsValidIndex(E) && ShareHistory[E].Num() >= 6) ? 100.0f * (Row.Share - ShareHistory[E][0]) : 0.0f;
 		Row.Color = ShiftPalette::Entry(E);
 		Row.bPlayer = E == ShiftSim::kPlayerId;
 		Row.bRival = E == S.RivalId();
@@ -1909,6 +1952,15 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 		M.FinalPushBonus = static_cast<float>(FMath::Max(0.0, Pol.FinalPushRegen - 1.0));
 		M.RivalPosts = static_cast<float>(Run->RivalPosts());
 		M.RivalPostsMax = static_cast<float>(Run->RivalPostsMax());
+	}
+	{
+		int32 SympathyFrom = -1;
+		const double Pressure = S.SympathyPressure(&SympathyFrom, nullptr);
+		if (Pressure > 0.0 && P.Backlash > 0.0)
+		{
+			M.SympathyPoints = static_cast<float>(100.0 * Pressure / P.Backlash);
+			M.SympathyLeader = EntryName(SympathyFrom);
+		}
 	}
 	M.EyeAwayLeft = S.EyeAwayRemaining() > 0.0 ? static_cast<float>(S.EyeAwayRemaining()) : -1.0f;
 	M.EyeAwayWarnIn = (Run->EyeWindowAnnounced() && S.EyeAwayRemaining() <= 0.0) ? static_cast<float>(FMath::Max(0.0, Run->NextEyeWindowStart() - S.Time())) : -1.0f;
@@ -2075,6 +2127,7 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 	{
 		HandleEvents(EventScratch);
 		TickLostVoters(DeltaTime);
+		TickShareTrend();
 
 		const ShiftSim::Sim& Sim = Run->GetSim();
 		const int32 Leader = Sim.Leader();

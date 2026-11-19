@@ -77,6 +77,8 @@ namespace ShiftSim
 		double PlayerStartMaxFollowers = 1.0;   // player starts on low-degree nodes
 
 		// ---- opinion dynamics (per step, synchronous) -------------------------------
+		double Backlash = 100.0;                  // underdog sympathy: the voters of the entry that leads by more than BacklashLead are pulled towards the runner-up with this much pressure per unit of lead beyond it (0 = off); not something a parry stops
+		double BacklashLead = 0.25;             // ... the lead (the leader's share minus the runner-up's) from which it starts
 		double Capture = 0.35;                  // weight of followers' opinions on their followee
 		double ConvBase = 0.4;                  // pressure weight = infl * (ConvBase + ConvWeight * c)
 		double ConvWeight = 0.6;

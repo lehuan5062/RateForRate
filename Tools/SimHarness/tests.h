@@ -684,6 +684,53 @@ inline void TestGates(const Config& Cfg)
 }
 
 // ------------------------------------------------------------------------------------------
+inline void TestSympathy(const Config& Cfg)
+{
+    std::printf("[underdog sympathy]\n");
+    Params Off = Cfg.params;
+    Off.Backlash = 0.0;
+    Params On = Cfg.params;
+    On.Backlash = 100.0;
+    On.BacklashLead = 0.25;
+    for (size_t J = 0; J < Cfg.jams.size(); ++J)
+    {
+        // Off: no pressure at all, whatever the lead.
+        Sim A;
+        A.Init(Cfg.jams[J], Off, 71u + static_cast<uint32_t>(J));
+        T_CHECK(Near(A.SympathyPressure(), 0.0));
+        // On, a world nobody leads by 25 points: nothing. Give the player the celebrities and a few hubs so that it leads by far.
+        Sim B;
+        B.Init(Cfg.jams[J], On, 71u + static_cast<uint32_t>(J));
+        for (const int Celeb : B.GetGraph().celebrities) { B.SetNodeState(Celeb, kPlayerId, 0.9, 0.0); }
+        for (int I = 0; I < B.NodeCount(); ++I)
+        {
+            if (B.GetGraph().nodes[static_cast<size_t>(I)].role == NodeRole::LocalHub) { B.SetNodeState(I, kPlayerId, 0.9, 0.0); }
+        }
+        int From = -1;
+        int To = -1;
+        const double Pressure = B.SympathyPressure(&From, &To);
+        T_CHECK(Pressure > 0.0);
+        T_CHECK(From == kPlayerId && To != kPlayerId && B.RankOf(To) == 1);
+        const double Lead = B.Share(From) - B.Share(To);
+        T_CHECK(Near(Pressure, On.Backlash * (Lead - On.BacklashLead)));
+        // The same position without the sympathy keeps more of the leader's voters than with it after a while: compare the tallies (deterministic, same dynamics seed).
+        Sim C;
+        C.Init(Cfg.jams[J], Off, 71u + static_cast<uint32_t>(J));
+        for (const int Celeb : C.GetGraph().celebrities) { C.SetNodeState(Celeb, kPlayerId, 0.9, 0.0); }
+        for (int I = 0; I < C.NodeCount(); ++I)
+        {
+            if (C.GetGraph().nodes[static_cast<size_t>(I)].role == NodeRole::LocalHub) { C.SetNodeState(I, kPlayerId, 0.9, 0.0); }
+        }
+        for (int Step = 0; Step < 600; ++Step)
+        {
+            B.Step();
+            C.Step();
+        }
+        T_CHECK(B.Share(kPlayerId) <= C.Share(kPlayerId) + 0.005);
+    }
+}
+
+// ------------------------------------------------------------------------------------------
 inline void TestStrike(const Config& Cfg)
 {
     std::printf("[strike / shadowban / DQ]\n");
@@ -1982,6 +2029,7 @@ inline void RunAll(const Config& Cfg)
     TestTolerance(Cfg);
     TestEconomy(Legacy);
     TestQueries(Legacy);
+    TestSympathy(Cfg);
     TestDeterminism(Cfg);
     TestDynSeed(Cfg);
     TestInvariants(Cfg);

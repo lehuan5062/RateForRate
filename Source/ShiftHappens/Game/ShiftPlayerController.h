@@ -90,6 +90,7 @@ private:
 	void TickAudio(float DeltaTime);
 	void ShowHeadline(const FString& Event, const FString& EntryName);
 	void TickLostVoters(float DeltaTime);
+	void TickShareTrend();
 
 	// ---- alerts: the urgent events (strike, Shift the Blame offer, disqualification, final push and audit) take over the middle of the bottom bar for a few seconds (FShiftHudAlert)
 	enum EAlertKind : int32 { AlertNone = 0, AlertStrike, AlertBlameOffer, AlertBlameTaken, AlertDisqualified, AlertFinalPush, AlertFinalAudit };
@@ -202,6 +203,10 @@ private:
 
 	int32 LastLeader = -1;
 	int32 LastHeadlineDay = -1;
+
+	// the leaderboard's trend: every entry's share sampled once a second of run time, the last 21 samples (see TickShareTrend)
+	TArray<TArray<float>> ShareHistory;
+	double ShareSampleTime = -1.0;
 
 	int32 HoverNode = -1;
 	FVector2D CursorWorld = FVector2D::ZeroVector;

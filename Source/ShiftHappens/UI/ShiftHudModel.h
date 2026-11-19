@@ -113,6 +113,7 @@ struct FShiftHudRow
 	FString Name;
 	float Share = 0.0f;                // 0..1 of all vote weight
 	float Votes = 0.0f;
+	float Trend = 0.0f;                // the change of share over the last 20 s, in points of all vote weight (+ gaining, - losing; 0 until there are 5 s of history)
 	FLinearColor Color = FLinearColor::White;
 	bool bPlayer = false;
 	bool bRival = false;
@@ -238,6 +239,8 @@ struct FShiftHudModel
 	float FinalPushBonus = 0.0f;       // the player's extra Post refill in the final push (0.25 = 25%)
 	float RivalPosts = 0.0f;           // the rival's Post bank now, and its size (0 = the rival has no bank): shown on the final push card
 	float RivalPostsMax = 0.0f;
+	float SympathyPoints = -1.0f;      // underdog sympathy: how many points of lead past the threshold the entry in front has (< 0 = none): shown as a pinned chip while it is on
+	FString SympathyLeader;            // ... the entry in front, whose voters drift back
 	float FakeHeatRate = 0.0f;         // Heat a second the fake votes held right now add, before cooling
 	FString FakeInfo;                  // the plain-language explanation shown when the sockpuppet-votes chip is hovered
 	FString NightHint;                 // what night shift could do for you right now ("" = the plain hint)

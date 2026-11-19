@@ -691,10 +691,15 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 			}
 			P.Text(FString::FromInt(Row.Rank + 1), PanelX + 14, Y + 1, 11, Row.bPlayer ? C.Teal : C.Ink, EShiftAlign::Center, true);
 			P.Disc(PanelX + 28, Y + 7, 4.0f, Row.Color);
-			P.Text(P.Fit(Row.Name, Row.bPlayer && Model.FakeShare > 0.004f ? 74.0f : 104.0f, 11, Row.bPlayer), PanelX + 38, Y + 1, 11, C.Ink, EShiftAlign::Left, Row.bPlayer);
+			P.Text(P.Fit(Row.Name, Row.bPlayer && Model.FakeShare > 0.004f ? 74.0f : 92.0f, 11, Row.bPlayer), PanelX + 38, Y + 1, 11, C.Ink, EShiftAlign::Left, Row.bPlayer);
 			if (Row.bPlayer && Model.FakeShare > 0.004f)
 			{
 				P.Text(FString::Printf(TEXT("+%.0f%% fake"), Model.FakeShare * 100.0f), PanelX + PanelW - 40, Y + 1, 10, Hex(0xB79BFF), EShiftAlign::Right, true);
+			}
+			else if (FMath::Abs(Row.Trend) >= 0.5f)
+			{
+				// who is gaining and who is losing over the last 20 s, in points: what the other entries do to the leader shows here
+				P.Text(FString::Printf(TEXT("%+.0f"), Row.Trend), PanelX + PanelW - 36, Y + 2, 10, Row.Trend > 0.0f ? C.Teal : C.Red, EShiftAlign::Right, true);
 			}
 			P.Text(FString::Printf(TEXT("%.0f%%"), Row.Share * 100.0f), PanelX + PanelW - 8, Y + 1, 11, C.InkDim, EShiftAlign::Right);
 		}
@@ -876,6 +881,10 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		else if (Model.FinalPushIn >= 0.0f)
 		{
 			Pin(FString::Printf(TEXT("FINAL PUSH IN %.0fs"), Model.FinalPushIn), TEXT("the rival goes all-in: bank Posts"), WithAlpha(Mix(C.Red, C.Amber, 0.5f), 0.92f));
+		}
+		if (Model.SympathyPoints >= 0.5f)
+		{
+			Pin(TEXT("UNDERDOGS RALLY"), FString(TEXT("a big lead drifts back to the runner-up")), WithAlpha(C.Amber, 0.92f));
 		}
 		if (Model.FinalAuditIn >= 0.0f)
 		{
