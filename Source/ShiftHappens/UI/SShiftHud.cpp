@@ -18,9 +18,11 @@
 #include "Math/Color.h"
 #include "Math/MathFwd.h"
 #include "Math/UnrealMathUtility.h"
+#include "Misc/Paths.h"
 #include "Rendering/DrawElements.h"
 #include "ShiftHudModel.h"
 #include "Styling/WidgetStyle.h"
+#include "Templates/TupleFwd.h"
 #include "Types/PaintArgs.h"
 #include "UI/ShiftPaint.h"
 
@@ -262,21 +264,21 @@ void SShiftHud::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 	{
 		const FShiftHudBuild& B = Model.Build;
 		auto Ease = [this, Rate](int32 List, const TArray<FShiftHudForecastRow>& Rows)
-		{
-			for (int32 r = 0; r < Rows.Num(); ++r)
 			{
-				FRowAnim& Anim = BuildAnims.FindOrAdd(List * 32 + Rows[r].EntryId);
-				const float TargetY = static_cast<float>(r);
-				if (!Anim.bInit)
+				for (int32 r = 0; r < Rows.Num(); ++r)
 				{
-					Anim.Y = TargetY;
-					Anim.Share = Rows[r].Value;
-					Anim.bInit = true;
+					FRowAnim& Anim = BuildAnims.FindOrAdd(List * 32 + Rows[r].EntryId);
+					const float TargetY = static_cast<float>(r);
+					if (!Anim.bInit)
+					{
+						Anim.Y = TargetY;
+						Anim.Share = Rows[r].Value;
+						Anim.bInit = true;
+					}
+					Anim.Y += (TargetY - Anim.Y) * Rate;
+					Anim.Share += (Rows[r].Value - Anim.Share) * Rate;
 				}
-				Anim.Y += (TargetY - Anim.Y) * Rate;
-				Anim.Share += (Rows[r].Value - Anim.Share) * Rate;
-			}
-		};
+			};
 		Ease(0, B.ByQuality);
 		Ease(1, B.ByForecast);
 		if (!B.bForecastReady)
@@ -620,6 +622,10 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	P.Rect(0, 40, DesignW, 1, C.Stroke);
 	P.Text(TEXT("SHIFT HAPPENS"), 18, 10, 15, C.Ink, EShiftAlign::Left, true);
 	P.Text(P.Fit(Model.JamName, 230.0f, 13), 160, 12, 13, C.InkDim);
+	if (Model.bReplay)
+	{
+		P.Text(TEXT("REPLAY"), 400, 11, 14, C.Amber, EShiftAlign::Left, true);   // a recording is playing: clicks and keys do nothing
+	}
 	P.Text(FString::Printf(TEXT("%s  -  Day %d / %d"), *Model.DateLabel, Model.Day, Model.Days), 640, 9, 16, C.Ink, EShiftAlign::Center, true);
 	P.Rect(510, 33, 260, 3, C.Track, 1.5f);
 	P.Rect(510, 33, 260.0f * FMath::Clamp(Model.RunProgress, 0.0f, 1.0f), 3, C.Teal, 1.5f);
@@ -847,18 +853,18 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		// the states you are in, pinned under the leaderboard: one chip each, a title and a line of detail
 		float Y = LeaderBottom + 8.0f;
 		const auto Pin = [&](const FString& Title, const FString& Detail, const FLinearColor& Fill) -> float
-		{
-			const float H = Detail.IsEmpty() ? 24.0f : 38.0f;
-			const float Top = Y;
-			P.Rect(GX, Top, GW, H, Fill, 9.0f);
-			P.Text(P.Fit(Title, GW - 16.0f, 12.0f, true), GX + 8.0f, Top + 5.0f, 12.0f, FLinearColor::White, EShiftAlign::Left, true);
-			if (!Detail.IsEmpty())
 			{
-				P.Text(P.Fit(Detail, GW - 16.0f, 10.0f), GX + 8.0f, Top + 21.0f, 10.0f, WithAlpha(FLinearColor::White, 0.92f));
-			}
-			Y += H + 5.0f;
-			return Top;
-		};
+				const float H = Detail.IsEmpty() ? 24.0f : 38.0f;
+				const float Top = Y;
+				P.Rect(GX, Top, GW, H, Fill, 9.0f);
+				P.Text(P.Fit(Title, GW - 16.0f, 12.0f, true), GX + 8.0f, Top + 5.0f, 12.0f, FLinearColor::White, EShiftAlign::Left, true);
+				if (!Detail.IsEmpty())
+				{
+					P.Text(P.Fit(Detail, GW - 16.0f, 10.0f), GX + 8.0f, Top + 21.0f, 10.0f, WithAlpha(FLinearColor::White, 0.92f));
+				}
+				Y += H + 5.0f;
+				return Top;
+			};
 		const FLinearColor Purple = Hex(0x7B5CF0);
 		if (Model.ShadowbanSeconds > 0.0f)
 		{
@@ -875,8 +881,8 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		if (Model.FinalPushLeft > 0.0f)
 		{
 			Pin(FString::Printf(TEXT("FINAL PUSH  %.0fs"), Model.FinalPushLeft),
-					Model.RivalPostsMax > 0.0f ? FString::Printf(TEXT("rival Posts %d/%.0f, yours +%.0f%%"), FMath::FloorToInt(Model.RivalPosts + 1.0e-3f), Model.RivalPostsMax, Model.FinalPushBonus * 100.0f)
-						: FString::Printf(TEXT("rival x2 attacks, your Posts +%.0f%%"), Model.FinalPushBonus * 100.0f), WithAlpha(C.Red, 0.92f));
+				Model.RivalPostsMax > 0.0f ? FString::Printf(TEXT("rival Posts %d/%.0f, yours +%.0f%%"), FMath::FloorToInt(Model.RivalPosts + 1.0e-3f), Model.RivalPostsMax, Model.FinalPushBonus * 100.0f)
+				: FString::Printf(TEXT("rival x2 attacks, your Posts +%.0f%%"), Model.FinalPushBonus * 100.0f), WithAlpha(C.Red, 0.92f));
 		}
 		else if (Model.FinalPushIn >= 0.0f)
 		{
@@ -1081,15 +1087,33 @@ void SShiftHud::PaintResults(FShiftPainter& P, const FPal& C) const
 	}
 	P.Text(FString::Printf(TEXT("honest %.1f%%"), Honest * 100.0f), BarX, 572.0f, 12.0f, C.Teal, EShiftAlign::Left, true);
 	P.Text(FString::Printf(TEXT("sockpuppets %.1f%%"), Sock * 100.0f), BarX + BarW, 572.0f, 12.0f, Hex(0x8B6CFF), EShiftAlign::Right, true);
+	if (!Model.RecordingPath.IsEmpty())
+	{
+		P.Text(P.Fit(FString::Printf(TEXT("Recorded: %s. Send it to the developer to show how you played (O opens the folder)."), *FPaths::GetCleanFilename(Model.RecordingPath)), BarW, 11.0f), BarX, 588.0f, 11.0f, C.InkDim);
+	}
 
+	// the row of buttons, centred on the card: Try again, Next jam (when there is one), Menu, Copy result and, when this jam was recorded, the recordings folder
 	const float By = 606.0f;
-	Button(P, C, EShiftUi::Retry, 340.0f, By, 180.0f, 46.0f, TEXT("Try again  (R)"), true, 17.0f);
+	const float Gap = 12.0f;
+	const float WNext = Model.bCanNextJam ? 190.0f : 0.0f;
+	const float WFiles = Model.RecordingPath.IsEmpty() ? 0.0f : 110.0f;
+	const int32 Buttons = 3 + (Model.bCanNextJam ? 1 : 0) + (WFiles > 0.0f ? 1 : 0);
+	float X = 640.0f - 0.5f * (170.0f + WNext + 150.0f + 140.0f + WFiles + Gap * static_cast<float>(Buttons - 1));
+	Button(P, C, EShiftUi::Retry, X, By, 170.0f, 46.0f, TEXT("Try again  (R)"), true, 17.0f);
+	X += 170.0f + Gap;
 	if (Model.bCanNextJam)
 	{
-		Button(P, C, EShiftUi::NextJam, 540.0f, By, 200.0f, 46.0f, TEXT("Next jam  (ENTER)"), false, 17.0f);
+		Button(P, C, EShiftUi::NextJam, X, By, WNext, 46.0f, TEXT("Next jam  (ENTER)"), false, 17.0f);
+		X += WNext + Gap;
 	}
-	Button(P, C, EShiftUi::Menu, Model.bCanNextJam ? 760.0f : 540.0f, By, 180.0f, 46.0f, TEXT("Menu  (ESC)"), false, 17.0f);
-	Button(P, C, EShiftUi::Share, 960.0f, By, 160.0f, 46.0f, TEXT("Copy result"), false, 15.0f);
+	Button(P, C, EShiftUi::Menu, X, By, 150.0f, 46.0f, TEXT("Menu  (ESC)"), false, 17.0f);
+	X += 150.0f + Gap;
+	Button(P, C, EShiftUi::Share, X, By, 140.0f, 46.0f, TEXT("Copy result"), false, 15.0f);
+	X += 140.0f + Gap;
+	if (WFiles > 0.0f)
+	{
+		Button(P, C, EShiftUi::Recordings, X, By, WFiles, 46.0f, TEXT("Files  (O)"), false, 15.0f);
+	}
 	MuteButton(P, C, 1250.0f, 20.0f);
 }
 

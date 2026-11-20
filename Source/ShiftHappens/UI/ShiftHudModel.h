@@ -38,6 +38,7 @@ namespace EShiftUi
 		Mute = 50,
 		Share = 51,
 		FakeInfo = 52,            // hover only: the explanation of the sockpuppet-votes chip
+		Recordings = 53,          // results: open the folder the recordings of your jams are saved in
 	};
 }
 
@@ -262,6 +263,8 @@ struct FShiftHudModel
 	FString OutcomeLine2;
 	FString OutcomeLine3;
 	FString PlaysLine;
+	FString RecordingPath;                 // where the recording of this jam was saved ("" = none)
+	bool bReplay = false;                  // a recording is being replayed: your clicks do nothing
 	FLinearColor OutcomeColor = FLinearColor::White;
 	float HonestShare = 0.0f;
 	float SockShare = 0.0f;

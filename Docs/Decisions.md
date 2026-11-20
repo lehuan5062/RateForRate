@@ -651,3 +651,44 @@ Pooled gate (200 runs): the other colours take 13 / 14 / 16 voters a run from th
 forecast: thumbnail 2, even-split share 30 to 80 / 20 to 60.
 
 **Honest consequences.** Red is one of three contenders now, not the favourite (it wins few runs); the thesis "fame decides" is carried by three circles. A player who ignores rings loses badly (greedy 61 / 27 / 36). The tester's snowball is weaker (one circle wins 39 to 65%) but two circles still decide most jams.
+
+## M18 - playtest round 12 (issue #1)
+
+The tester: "big circle now seem really easy to take so player still dominate after taking 1"; the other colours are noticed more than red "but now everyone seem weak"; "it's easier than ever to win"; "1-2 big circle still have easy win";
+and "it's recommended to have a game record/playback system so I can send you data on how I play/win easily and have more data on what to change so it more balance".
+
+**Found.** The exclusive audiences of round 11 made every circle's audience a third of its old size, so a gate of 0.15 to 0.25 of its followers' weight opened after one or two flips and a circle fell to two Plugs: greedy took the first one at 22 / 31 / 49 s, the reactor at 24 / 40 / 81 s.
+Nothing slowed a player who led either: the pack's leader preference never applied to the player (round 10, "nobody targets the player just for being the player"), the underdog sympathy starts at a 25-point lead (a player with two circles leads by 19), and the rival only retook a circle by chance.
+The bots cannot stand in for this tester (they play far below it: the reactor wins 88 / 64 / 34% and the tester still wins "easily"), so the missing piece is data on how a person plays.
+
+**Built.**
+- *Recording and replay* (`Game/ShiftRecording.*`, hooks in `FShiftRun`, `UShiftReplayCommandlet`, `Toolseplay.ps1`). The sim is deterministic, so a jam is its world (jam, seed, build) plus every Plug, Sock, Rally, Shift the Blame and night-shift change keyed by the sim step it was applied in
+  (`Sim::StepCount()` at the start of the step; the replay injects at the start of the same step), plus a sample of every entry's share every 5 s and the result with the state hash. Every jam a person plays is written to `Saved/Recordings/shift_jam<n>_<seed>_<time>_<result>.shiftrec.txt` (a few kilobytes of text; `.txt` so GitHub takes it as an attachment);
+  the results screen names it, **O** or the *Files* button opens the folder, and a jam that is left unfinished is saved as `abandoned`. `-ShiftReplay=<file>` plays one back in the game (REPLAY tag, the live controls do nothing) and `Toolseplay.ps1` replays headlessly with the StateTrees and prints the recorded and replayed result and hash (`MATCH`),
+  the clicks by kind and target, what they did, when the first circle fell and the shares along the jam; `-Set` replays the clicks under other tuning. A tuning hash in the header says whether a recording was made under the tuning it is replayed with. Checked: 30 scripted clicks (flips, gated, locked, reinforced) and a jam with none replay to the same hash in the commandlet and in the game.
+- *Circles are harder to take*: `Params::CelebDrainMult` 0.9, the player's Plugs take a tenth less off a celebrity's conviction (`Sim::PlugDrainFor`; the rival and the others are not armored, so holding a circle is not easier): a fully convinced circle takes three Plugs once its gate is open, not two. A sockpuppet still flips it at once (strength 3).
+- *A lead has to be held*: `OthersLeaderPlayer` 1, the pack's preference for the voters of whoever leads (x2) also applies to the player; it only bites when you are ahead. The coach card (TUT23) already said "the other games pile onto whoever is first".
+- *Red retakes what you took*: `RivalRevenge` 1, the rival's next attack after you take one of its voters is on that voter (once its immunity is over, its per-voter cooldown aside): a ring in red on your new circle.
+
+**Measured** (100 runs, seed set 1000, reactor / greedy win %, jams 1 / 2 / 3).
+
+| change | reactor | greedy |
+|---|---|---|
+| round 11 as shipped | 88 / 64 / 34 | 62 / 25 / 37 |
+| rival revenge only | 91 / 59 / 39 | 63 / 29 / 44 (noise) |
+| circle armor 0.85 / 0.75 / 0.65 / 0.5 | 80 / 51 / 33, 75 / 34 / 22, 57 / 30 / 13, 56 / 28 / 9 | 45 / 21 / 24, 40 / 20 / 20, 27 / 11 / 5, 20 / 8 / 9 |
+| circle gate 0.35 everywhere (0.15 / 0.20 / 0.25) | 71 / 48 / 38 | 47 / 26 / 26 |
+| armor 0.8, sympathy from a 15 / 10 point lead | 69 / 44 / 27, 73 / 49 / 24 (no effect: the bots rarely lead by that much) | 44 / 26 / 24, 46 / 22 / 25 |
+| armor 0.8 + the pack goes for a leading player | 56 / 40 / 13 | 30 / 15 / 12 |
+| armor 0.8 + the other colours at strength 1.45 | 76 / 39 / 21 | 36 / 19 / 16 |
+| armor 0.9 + the pack goes for a leading player (shipped) | 69 / 41 / 19 | 45 / 21 / 19 |
+
+First capture of a circle by greedy: 22 / 31 / 49 s before, 36 / 36 / 66 s now. Pooled gate (200 runs, two seed sets): greedy 45 / 16 / 18.5, the reactor 66.5 / 31 / 24, an other colour wins 3 / 26 / 35.5% of the reactor's jams, the player's mean final share 42 / 24 / 19%, the rival keeps 37 / 26 / 25%.
+The stronger others (1.45) moved the reactor by -7 and -5 points on jams 2 and 3 (noise level) and let another colour lead more often (27 and 53% of runs): not shipped. Sympathy from a smaller lead did nothing for the bots and is left at 25 points.
+
+**Rows moved** (each with its reason in the file): `greedy_0` 50-75 -> 35-62, `greedy_1` 18-40 -> 10-32, `greedy_2` 25-48 -> 10-40, `build_zero_1` -12 -> -8, `build_zero_2` -20 -> -12 (greedy itself wins less, so there is less to lose), `other_leads_1` 25 -> 32.
+
+**Honest consequences.** The difficulty step is a judgement, not a calibration: the bots are the only yardstick and they are not the tester. A player who ignores rings (greedy) now wins 45 / 16 / 18% and the reactor 66 / 31 / 24%, so a casual player will lose the two harder jams most of the time; the recordings are what should replace the bots as the anchor.
+The sockpuppet route is relatively better than before (it ignores the armor), but still far below honest play (snowball -66 / -31 / -24 against the reactor, steady 0 / -2 / +2). Two circles still decide most jams they are held in, but they are held much less often.
+
+**Next.** The tester's recordings: replay them (`Toolseplay.ps1 -Dir <folder>`), read what they take first and how fast they snowball, and set the next step from that instead of from bots.

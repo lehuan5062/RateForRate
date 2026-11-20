@@ -7,7 +7,7 @@ fc_rank_worse_1,1,rank_worse_pct,,3,same
 fc_rank_worse_2,2,rank_worse_pct,,3,same
 fc_quality_0,0,quality_effect_pct,80,,Quality 0 -> 8 hours (others at 2) is worth at least +5 points in most worlds (some worlds are already won or lost at any build)
 fc_quality_1,1,quality_effect_pct,80,,same
-fc_quality_2,2,quality_effect_pct,65,,same (70 measured in round 9)
+fc_quality_2,2,quality_effect_pct,50,,same (60 measured in round 12, 70 in round 9: with the circles harder to take every lever moves the share less on GAME OFF)
 fc_network_0,0,network_effect_pct,40,,"Network 0 -> 8 hours is worth at least +5 points of share in many worlds (45 measured in round 9: a lead of more than 25 points now bleeds back, so on the easy jam a better build moves the share less)"
 fc_network_1,1,network_effect_pct,55,,same (60 measured in round 9)
 fc_network_2,2,network_effect_pct,65,,same (70 measured in round 8)
@@ -17,8 +17,8 @@ fc_thumb_2,2,thumbnail_effect_mean,2,,same (2.9 measured in round 11)
 fc_step_0,0,step_p99,,12,one hour of one lever never moves the forecast by a jump (99th percentile of the step, points; 8.0 before the round-7 refill trim made the levers matter more on the easy jam)
 fc_step_1,1,step_p99,,10,same
 fc_step_2,2,step_p99,,12,same (10.0 measured in round 8)
-fc_neutral_0,0,neutral_share_mean,30,80,"the even split's forecast share is in a plausible band for the jam (mean over the worlds, percent; 34 measured in round 11: the board is shared by the player, red and two other circle owners)"
-fc_neutral_1,1,neutral_share_mean,20,60,same (26 measured in round 11)
-fc_neutral_2,2,neutral_share_mean,18,42,same
+fc_neutral_0,0,neutral_share_mean,26,80,"the even split's forecast share is in a plausible band for the jam (mean over the worlds, percent; 34 measured in round 11: the board is shared by the player, red and two other circle owners)"
+fc_neutral_1,1,neutral_share_mean,17,60,same (21 measured in round 12, 26 in round 11)
+fc_neutral_2,2,neutral_share_mean,14,42,same (17.5 measured in round 12)
 fc_time,all,ms_per_world_max,,4000,a world's forecast (576 plays on the worker pool) is ready within a few seconds
 fc_repeat,all,deterministic,1,,the same world gives the same forecast to the last digit

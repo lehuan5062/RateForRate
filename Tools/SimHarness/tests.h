@@ -697,6 +697,62 @@ inline void TestGates(const Config& Cfg)
 }
 
 // ------------------------------------------------------------------------------------------
+inline void TestCelebArmor(const Config& Cfg)
+{
+    std::printf("[celebrity armor]\n");
+    Params Off = Cfg.params;
+    Off.CelebDrainMult = 1.0;
+    Params On = Cfg.params;
+    On.CelebDrainMult = 0.5;
+    for (size_t J = 0; J < Cfg.jams.size(); ++J)
+    {
+        Sim A;
+        A.Init(Cfg.jams[J], Off, 91u + static_cast<uint32_t>(J));
+        Sim B;
+        B.Init(Cfg.jams[J], On, 91u + static_cast<uint32_t>(J));
+        T_CHECK(!A.GetGraph().celebrities.empty());
+        const int Celeb = A.GetGraph().celebrities[0];
+        int Member = -1;
+        for (int I = 0; I < A.NodeCount() && Member < 0; ++I)
+        {
+            Member = (A.GetGraph().nodes[static_cast<size_t>(I)].role == NodeRole::Member && A.Opinion(I) != kPlayerId) ? I : -1;
+        }
+        T_CHECK(Member >= 0);
+        // the drain of one Plug: unarmored 0.45; against a celebrity the player's Plug takes CelebDrainMult of that; nobody else is armored against, nor is any other voter
+        T_CHECK(Near(A.PlugDrainFor(kPlayerId, Celeb, 1.0), Off.PlugDrain));
+        T_CHECK(Near(B.PlugDrainFor(kPlayerId, Celeb, 1.0), On.PlugDrain * 0.5));
+        T_CHECK(Near(B.PlugDrainFor(kPlayerId, Celeb, 2.0), On.PlugDrain * 2.0 * 0.5));
+        T_CHECK(Near(B.PlugDrainFor(B.RivalId(), Celeb, 1.0), On.PlugDrain));
+        T_CHECK(Near(B.PlugDrainFor(kPlayerId, Member, 1.0), On.PlugDrain));
+        // plugs needed: a celebrity at full conviction takes two Plugs (0.85 / 0.45), four with an armor of 0.5 (0.85 / 0.225), the same voter's neighbours as before
+        A.SetNodeState(Celeb, 3, 1.0, 0.0);
+        B.SetNodeState(Celeb, 3, 1.0, 0.0);
+        for (const int F : A.GetGraph().nodes[static_cast<size_t>(Celeb)].followers) { A.SetNodeState(F, kPlayerId, 0.9, 0.0); }
+        for (const int F : B.GetGraph().nodes[static_cast<size_t>(Celeb)].followers) { B.SetNodeState(F, kPlayerId, 0.9, 0.0); }
+        T_CHECK(A.PlugsNeeded(kPlayerId, Celeb, 1.0, false) == 2);
+        T_CHECK(B.PlugsNeeded(kPlayerId, Celeb, 1.0, false) == 4);
+        T_CHECK(B.PlugsNeeded(B.RivalId(), Celeb, 1.0, false) == 2);
+        // and the Plugs really do it: three Plugs leave the armored celebrity the owner's, the fourth flips it
+        A.SetPosts(5.0);
+        B.SetPosts(5.0);
+        int Plugs = 0;
+        while (B.Opinion(Celeb) != kPlayerId && Plugs < 8)
+        {
+            T_CHECK(B.PlugNow(kPlayerId, Celeb, 1.0).result != ActionResult::Gated);
+            ++Plugs;
+        }
+        T_CHECK(Plugs == 4);
+        int PlugsOff = 0;
+        while (A.Opinion(Celeb) != kPlayerId && PlugsOff < 8)
+        {
+            A.PlugNow(kPlayerId, Celeb, 1.0);
+            ++PlugsOff;
+        }
+        T_CHECK(PlugsOff == 2);
+    }
+}
+
+// ------------------------------------------------------------------------------------------
 inline void TestSympathy(const Config& Cfg)
 {
     std::printf("[underdog sympathy]\n");
@@ -2050,6 +2106,7 @@ inline void RunAll(const Config& Cfg)
     TestEconomy(Legacy);
     TestQueries(Legacy);
     TestSympathy(Cfg);
+    TestCelebArmor(Cfg);
     TestDeterminism(Cfg);
     TestDynSeed(Cfg);
     TestInvariants(Cfg);

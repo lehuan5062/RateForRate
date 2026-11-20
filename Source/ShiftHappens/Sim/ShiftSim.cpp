@@ -884,7 +884,7 @@ namespace ShiftSim
 				}
 			}
 			const double Base = (Opinion_[Ix] >= 0) ? Conv_[Ix] : 0.0;
-			const double C = Base - P_.PlugDrain * Strength;
+			const double C = Base - PlugDrainFor(Who, Node, Strength);
 			if (C <= P_.PlugFlipThreshold + kSimEps)
 			{
 				if (IsPlayer && Opinion_[Ix] >= 0)
@@ -1145,6 +1145,12 @@ namespace ShiftSim
 	// Queries
 	// ---------------------------------------------------------------------------------------
 
+	double Sim::PlugDrainFor(int Who, int Node, double Strength) const
+	{
+		const bool bArmor = Who == kPlayerId && Node >= 0 && Node < Graph_.NodeCount() && Graph_.nodes[SimIx(Node)].role == NodeRole::Celebrity;
+		return P_.PlugDrain * Strength * (bArmor ? P_.CelebDrainMult : 1.0);
+	}
+
 	int Sim::PlugsNeeded(int Who, int Node, double Strength, bool RespectGates) const
 	{
 		if (Who < 0 || Who >= NumEntries_ || Node < 0 || Node >= Graph_.NodeCount())
@@ -1165,7 +1171,7 @@ namespace ShiftSim
 			return kUnreachable;
 		}
 		const double C = (Opinion_[Ix] >= 0) ? Conv_[Ix] : 0.0;
-		const double Drain = P_.PlugDrain * MaxOf(Strength, 1.0e-9);
+		const double Drain = PlugDrainFor(Who, Node, MaxOf(Strength, 1.0e-9));
 		const double Need = (C - P_.PlugFlipThreshold - kSimEps) / Drain;
 		int N = static_cast<int>(std::ceil(Need));
 		if (N < 1)

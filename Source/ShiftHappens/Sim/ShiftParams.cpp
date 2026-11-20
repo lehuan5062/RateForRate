@@ -37,7 +37,7 @@ namespace ShiftSim
 			SHIFT_P(Front1), SHIFT_P(Front2), SHIFT_P(Front3), SHIFT_P(Stickiness), SHIFT_P(FlipMargin),
 			SHIFT_P(DrainRate), SHIFT_P(RegainRate), SHIFT_P(FlipConv), SHIFT_P(AdoptThreshold),
 			SHIFT_P(AdoptRate), SHIFT_P(AdoptConv), SHIFT_P(DriftRate), SHIFT_P(DriftConv),
-			SHIFT_P(PlugDrain), SHIFT_P(PlugReinforce), SHIFT_P(PlugFlipThreshold), SHIFT_P(PlugFlipConv),
+			SHIFT_P(PlugDrain), SHIFT_P(CelebDrainMult), SHIFT_P(PlugReinforce), SHIFT_P(PlugFlipThreshold), SHIFT_P(PlugFlipConv),
 			SHIFT_P(AttackTelegraph), SHIFT_P(PlugLock), SHIFT_P(PlayerFlipConv), SHIFT_P(PlayerPlugLock), SHIFT_P(SockStrength), SHIFT_P(SockConv), SHIFT_P(SockLock), SHIFT_P(SockHeat),
 			SHIFT_P(SockRequiresNight), SHIFT_P(SockLaunderConv), SHIFT_P(SockOverheatRefuse), SHIFT_P(FinalAudit), SHIFT_P(SockReview), SHIFT_P(SockTolerance), SHIFT_P(SockHeldHeat), SHIFT_P(EyeAwayHeatMult), SHIFT_P(EyeAwayHeldMult), SHIFT_P(RallyCost), SHIFT_P(RallyBoost), SHIFT_P(RallyLock), SHIFT_P(RallyCooldown), SHIFT_P(ParryOnReinforce), SHIFT_P(ParryCost), SHIFT_P(PostsMax), SHIFT_P(PostsStart),
 			SHIFT_P(PostsRegen), SHIFT_P(GatesApplyToAll),

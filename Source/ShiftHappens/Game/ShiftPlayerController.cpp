@@ -184,6 +184,30 @@ void AShiftPlayerController::BeginPlay()
 	const TCHAR* Cmd = FCommandLine::Get();
 	bool bQaRun = false;
 
+	// -ShiftReplay=<file>: replays a recording (the jam, seed and build it was played with, its clicks where they were made); -ShiftRecord records a QA run too.
+	bForceRecord = FParse::Param(Cmd, TEXT("ShiftRecord"));
+	FString ReplayFile;
+	if (FParse::Value(Cmd, TEXT("ShiftReplay="), ReplayFile, false))
+	{
+		FString Error;
+		if (FShiftRecording::Load(ReplayFile, ReplaySource, Error))
+		{
+			bReplayMode = true;
+			bQaRun = true;
+			JamIndex = ReplaySource.Jam;
+			Seed = ReplaySource.Seed;
+			bFixedSeed = true;
+			Build.Quality = ReplaySource.Quality;
+			Build.Thumbnail = ReplaySource.Thumbnail;
+			Build.Network = ReplaySource.Network;
+			UE_LOG(LogShift, Display, TEXT("Replay: %s (jam %d, seed %u, build %d/%d/%d, %d clicks, recorded result %s, tag %s)"), *ReplayFile, ReplaySource.Jam, ReplaySource.Seed, ReplaySource.Quality, ReplaySource.Thumbnail, ReplaySource.Network, ReplaySource.Events.Num(), *ReplaySource.Result, *ReplaySource.Tag);
+		}
+		else
+		{
+			UE_LOG(LogShift, Error, TEXT("Replay: %s"), *Error);
+		}
+	}
+
 	int32 SeedArg = 7;
 	if (FParse::Value(Cmd, TEXT("ShiftSeed="), SeedArg))
 	{
@@ -380,6 +404,7 @@ void AShiftPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInAttract)
 {
+	SaveRecording(TEXT("abandoned"));   // the jam that is being replaced, if it was left unfinished
 	bAttract = bInAttract;
 	const int32 RunJam = FMath::Clamp(InJamIndex, 0, 2);
 	if (!bAttract)
@@ -415,6 +440,19 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 	if (!FParse::Param(FCommandLine::Get(), TEXT("ShiftNoStateTree")))
 	{
 		Run->SetDriver(FShiftBehavior::Create(*Run));   // null (native policies) when the StateTree assets are missing
+	}
+	bRecordingSaved = false;
+	RecordingPath.Empty();
+	if (!bAttract)
+	{
+		if (bReplayMode)
+		{
+			Run->SetReplay(ReplaySource);
+		}
+		else if (!bQaRunFlag || bForceRecord)
+		{
+			Run->StartRecording();   // every jam a person plays is recorded: a few kilobytes that replay it
+		}
 	}
 
 	float Warp = 0.0f;
@@ -467,6 +505,28 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 	}
 	Board = GetWorld()->SpawnActor<AShiftBoard>(FVector::ZeroVector, FRotator::ZeroRotator);
 	Board->Build(S);
+	{
+		// QA: where the big voters sit, in the design pixels -ShiftClicks takes
+		FString Where;
+		for (const int Celeb : S.GetGraph().celebrities)
+		{
+			const ShiftSim::GraphNode& N = S.GetGraph().nodes[static_cast<size_t>(Celeb)];
+			Where += FString::Printf(TEXT(" celebrity #%d (%.0f,%.0f)"), Celeb, N.x, N.y);
+		}
+		for (const int Hub : S.GetGraph().hubOfCommunity)
+		{
+			const ShiftSim::GraphNode& N = S.GetGraph().nodes[static_cast<size_t>(Hub)];
+			Where += FString::Printf(TEXT(" hub #%d (%.0f,%.0f)"), Hub, N.x, N.y);
+		}
+		UE_LOG(LogShift, Log, TEXT("Layout:%s"), *Where);
+		FString All;
+		for (int32 Node = 0; Node < S.NodeCount(); ++Node)
+		{
+			const ShiftSim::GraphNode& N = S.GetGraph().nodes[static_cast<size_t>(Node)];
+			All += FString::Printf(TEXT(" %d%c(%.0f,%.0f)"), Node, N.role == ShiftSim::NodeRole::Celebrity ? TEXT('C') : (N.role == ShiftSim::NodeRole::LocalHub ? TEXT('H') : (N.role == ShiftSim::NodeRole::Bridge ? TEXT('B') : TEXT('m'))), N.x, N.y);
+		}
+		UE_LOG(LogShift, Log, TEXT("Layout nodes:%s"), *All);
+	}
 
 	bResultsBuilt = false;
 	ShareHistory.Reset();
@@ -519,12 +579,16 @@ void AShiftPlayerController::RestartRun()
 	{
 		return;
 	}
-	StartRun(JamIndex, Seed + 1u, false);
+	StartRun(JamIndex, bReplayMode ? Seed : Seed + 1u, false);
 }
 
 void AShiftPlayerController::EnterScreen(EShiftScreen NewScreen)
 {
 	const EShiftScreen Previous = Screen;
+	if (Previous == EShiftScreen::Play && NewScreen != EShiftScreen::Play)
+	{
+		SaveRecording(TEXT("abandoned"));
+	}
 	Screen = NewScreen;
 	bPaused = false;
 	if (Previous != NewScreen)
@@ -672,6 +736,10 @@ void AShiftPlayerController::ToggleMute()
 
 bool AShiftPlayerController::IsNightHeldNow() const
 {
+	if (Run.IsValid() && Run->IsReplaying())
+	{
+		return Run->IsNightHeld();
+	}
 	if (NightOverride >= 0.0f)
 	{
 		return NightOverride > 0.5f;
@@ -747,6 +815,45 @@ void AShiftPlayerController::ShowHeadline(const FString& Event, const FString& E
 		Line.ReplaceInline(TEXT("{handle}"), *(TEXT("@") + Handle));
 	}
 	PushFeed(Line, AmberColor(), 6.5f, true);
+}
+
+FString AShiftPlayerController::RecordingsDir() const
+{
+	return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Recordings")));
+}
+
+void AShiftPlayerController::SaveRecording(const TCHAR* AbandonedResult)
+{
+	if (!Run.IsValid() || !Run->HasRecording() || bRecordingSaved)
+	{
+		return;
+	}
+	if (Run->IsRecording())
+	{
+		Run->FinishRecording(AbandonedResult);   // the jam is left unfinished
+	}
+	const FShiftRecording& R = Run->GetRecording();
+	if (R.Result.IsEmpty() || (R.Result == TEXT("abandoned") && R.Events.Num() == 0))
+	{
+		return;   // nothing was played
+	}
+	const FString Path = FPaths::Combine(RecordingsDir(), FString::Printf(TEXT("shift_jam%d_%u_%s_%s.shiftrec.txt"), R.Jam + 1, R.Seed, *FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S")), *R.Result));
+	if (R.Save(Path))
+	{
+		bRecordingSaved = true;
+		RecordingPath = Path;
+		UE_LOG(LogShift, Display, TEXT("Recording saved: %s (%d clicks, %d samples, result %s, hash %s)"), *Path, R.Events.Num(), R.Samples.Num(), *R.Result, *R.Hash);
+	}
+	else
+	{
+		UE_LOG(LogShift, Warning, TEXT("Recording could not be saved to %s"), *Path);
+	}
+}
+
+void AShiftPlayerController::OpenRecordingsFolder() const
+{
+	IFileManager::Get().MakeDirectory(*RecordingsDir(), true);
+	FPlatformProcess::ExploreFolder(*RecordingsDir());
 }
 
 void AShiftPlayerController::CopyResultToClipboard()
@@ -827,6 +934,9 @@ void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 	case EShiftUi::Share:
 		CopyResultToClipboard();
 		break;
+	case EShiftUi::Recordings:
+		OpenRecordingsFolder();
+		break;
 	default:
 		break;
 	}
@@ -892,6 +1002,7 @@ void AShiftPlayerController::HandleHudKey(const FKey& Key)
 		if (ResultsShown())
 		{
 			if (Key == EKeys::R) { HandleUi(EShiftUi::Retry, 0.0f); }
+			else if (Key == EKeys::O) { HandleUi(EShiftUi::Recordings, 0.0f); }
 			else if (Key == EKeys::Enter) { HandleUi(EShiftUi::NextJam, 0.0f); }
 			else if (Key == EKeys::Escape) { HandleUi(EShiftUi::Menu, 0.0f); }
 		}
@@ -2017,6 +2128,12 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 		{
 			BuildResults(ResultsModel);
 			bResultsBuilt = true;
+			SaveRecording(TEXT("abandoned"));
+			if (bReplayMode && Run->IsReplaying())
+			{
+				const FString Hash = FString::Printf(TEXT("%016llx"), static_cast<unsigned long long>(S.StateHash()));
+				UE_LOG(LogShift, Display, TEXT("Replay: finished at %.1fs, hash %s, recorded %s: %s"), S.Time(), *Hash, *ReplaySource.Hash, Hash == ReplaySource.Hash ? TEXT("MATCH") : TEXT("DIVERGED"));
+			}
 			if (!S.Disqualified())
 			{
 				PlaySfx(S.Leader() == ShiftSim::kPlayerId ? EShiftSfx::Win : EShiftSfx::Lose);   // the disqualification sounded when it happened
@@ -2035,7 +2152,9 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 		M.FameDots = ResultsModel.FameDots;
 		M.QualityFit = ResultsModel.QualityFit;
 		M.FameFit = ResultsModel.FameFit;
+		M.RecordingPath = RecordingPath;
 	}
+	M.bReplay = Run->IsReplaying();
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------

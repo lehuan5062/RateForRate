@@ -27,6 +27,7 @@ namespace ShiftSim
 		double RivalPostsMax = 3.0;          // the rival's Post bank: every action (a plug on a voter, or a re-plug of a weak hub of its own) costs a Post, so the final push is not unlimited (0 = no bank, no limit)
 		double RivalPostsRegen = 0.30;       // ... Posts a second it refills (the rival acts 0.30 times a second before the push, so the bank stays full; the push drains it and the rival falls back to its normal pace: about 37% fewer attacks in the push)
 		double RivalDefendCost = 1.0;        // ... Posts a re-plug of a weak hub of its own costs
+		double RivalRevenge = 1.0;            // 1: when the player takes a voter from the rival, the rival's next attack (once the voter is no longer immune) is on that voter, whatever its cooldown: it retakes what it lost, and the player sees a ring close in on its new circle (round 12)
 		double GrudgeSeconds = 30.0;         // an entry prefers the player's voters (RivalPlayerMult, OthersTargetsPlayer) only for this long after the player took a voter from it; otherwise the player's voters are like anyone's
 		double RivalNodeCooldown = 30.0;     // seconds a voter the rival has just attacked is left alone, when anything else is worth a Post: it does not hammer one voter all game (0 = it does: the best target every time)
 		double MegaDays = 3.0;               // last N days: Mega Campaign
@@ -45,6 +46,7 @@ namespace ShiftSim
 		double OthersHubs = 1.0;             // 1: another entry may also go for a local hub (gated like the rival when Params::GatesApplyToAll is on)
 		double OthersHubMaxV = 1000.0;       // ... or a celebrity, of at most this vote weight (600 and hubs only until round 11)
 		double OthersStrength = 1.25;        // the strength of another entry's plug (1 until round 11: the others were too weak to be felt; the rival's base is 1.5)
+		double OthersLeaderPlayer = 1.0;      // 1: the pack's preference for the voters of whoever leads the board (OthersLeaderMult) also applies when that is the player: the front-runner draws everyone's attention, not only the rival (round 10 to 11 it never did, and a player who led could not be stopped: the playtester, round 12, "player still dominate after taking 1")
 		double OthersRevenge = 1.0;          // 1: while it holds a grudge another entry goes for the voter the player just took from it, and it defends its own shaky big voters like the rival
 		// stand-in Mod Eye (director)
 		double ModFirstSweepMin = 0.0;       // the Eye's cycle is already running at t=0: first sweep ~ U[this, jam ModIntervalMax]
@@ -223,6 +225,27 @@ namespace ShiftSim
 				}
 				F.undecidedMult = 0.0;
 			}
+			// Revenge: the player just took a voter from the rival (a circle, say): once that voter can be plugged again the rival goes for it first, its cooldown aside, with a ring the player can answer.
+			if (PP.RivalRevenge > 0.5 && Grudge(S, PP, Rival))
+			{
+				const int Taken = S.LastTakenNode(Rival);
+				const bool bFresh = Taken >= 0 && static_cast<size_t>(Taken) < AttackedAt_.size() && S.Time() - AttackedAt_[static_cast<size_t>(Taken)] >= PP.RivalNodeCooldown;
+				if (bFresh && S.Opinion(Taken) == kPlayerId && S.LockRemaining(Taken) <= 0.0 && !S.ThreatOn(Taken, nullptr, nullptr, nullptr))
+				{
+					if (!Pay(S, PP, 1.0))
+					{
+						++Starved;
+						return;
+					}
+					const ActionOutcome O = S.Plug(Rival, Taken, Strength);
+					++Attacks;
+					++Revenges;
+					AttackedAt_[static_cast<size_t>(Taken)] = S.Time();
+					++AttacksOn[static_cast<size_t>(Taken)];
+					Flips += O.flipped ? 1 : 0;
+					return;
+				}
+			}
 			// A voter the rival attacked a moment ago is left alone for RivalNodeCooldown seconds, when anything else is worth a Post: it does not hammer one voter all game.
 			const bool bCooldown = PP.RivalNodeCooldown > 0.0 && AttackedAt_.size() == static_cast<size_t>(S.NodeCount());
 			if (bCooldown)
@@ -290,6 +313,7 @@ namespace ShiftSim
 		int Attacks = 0;
 		int Flips = 0;
 		int Starved = 0;   // actions that did not happen for want of a Post
+		int Revenges = 0;  // attacks on a voter the player had just taken from the rival
 		std::vector<int> AttacksOn;   // statistics: the rival's attacks on each voter
 
 	private:
@@ -356,7 +380,7 @@ namespace ShiftSim
 			if (PP.OthersLeaderMult != 1.0)
 			{
 				const int Leader = S.Leader();
-				if (Leader >= 0 && Leader != Entry && Leader != kPlayerId)
+				if (Leader >= 0 && Leader != Entry && (Leader != kPlayerId || PP.OthersLeaderPlayer > 0.5))
 				{
 					F.ownerMult[Leader] *= PP.OthersLeaderMult;
 				}
@@ -1122,8 +1146,8 @@ namespace ShiftSim
 		{
 			static const Field kFields[] = {
 				SHIFT_PP(RivalDefendBelow), SHIFT_PP(RivalPlayerMult), SHIFT_PP(RivalCapShare), SHIFT_PP(RivalBandBase),
-				SHIFT_PP(RivalBandSlope), SHIFT_PP(RivalBandThreshold), SHIFT_PP(RivalPostsMax), SHIFT_PP(RivalPostsRegen), SHIFT_PP(RivalDefendCost), SHIFT_PP(GrudgeSeconds), SHIFT_PP(RivalNodeCooldown), SHIFT_PP(MegaDays), SHIFT_PP(MegaConvBoost),
-				SHIFT_PP(MegaAttackMult), SHIFT_PP(FinalPushRegen), SHIFT_PP(EyeAwayCount), SHIFT_PP(EyeAwaySeconds), SHIFT_PP(EyeAwayEndMargin), SHIFT_PP(EyeAwayWarn), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV), SHIFT_PP(OthersTargetsPlayer), SHIFT_PP(OthersLeaderMult), SHIFT_PP(OthersHubs), SHIFT_PP(OthersHubMaxV), SHIFT_PP(OthersStrength), SHIFT_PP(OthersRevenge),
+				SHIFT_PP(RivalBandSlope), SHIFT_PP(RivalBandThreshold), SHIFT_PP(RivalPostsMax), SHIFT_PP(RivalPostsRegen), SHIFT_PP(RivalDefendCost), SHIFT_PP(RivalRevenge), SHIFT_PP(GrudgeSeconds), SHIFT_PP(RivalNodeCooldown), SHIFT_PP(MegaDays), SHIFT_PP(MegaConvBoost),
+				SHIFT_PP(MegaAttackMult), SHIFT_PP(FinalPushRegen), SHIFT_PP(EyeAwayCount), SHIFT_PP(EyeAwaySeconds), SHIFT_PP(EyeAwayEndMargin), SHIFT_PP(EyeAwayWarn), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV), SHIFT_PP(OthersTargetsPlayer), SHIFT_PP(OthersLeaderMult), SHIFT_PP(OthersLeaderPlayer), SHIFT_PP(OthersHubs), SHIFT_PP(OthersHubMaxV), SHIFT_PP(OthersStrength), SHIFT_PP(OthersRevenge),
 				SHIFT_PP(ModFirstSweepMin), SHIFT_PP(BotInterval), SHIFT_PP(BotStart), SHIFT_PP(BotNoise), SHIFT_PP(BotBlame), SHIFT_PP(QaGiveCelebs), SHIFT_PP(SockMaxHeat), SHIFT_PP(SockWindup), SHIFT_PP(LateSeconds), SHIFT_PP(RallyMinRisk), SHIFT_PP(ReactDelay), SHIFT_PP(ReactReserve), SHIFT_PP(ReactMinValue), SHIFT_PP(ReactRallyThreats), SHIFT_PP(ReactRallyValue), SHIFT_PP(XReact), SHIFT_PP(XRally), SHIFT_PP(XSock), SHIFT_PP(XBurst),
 				SHIFT_PP(XIdle), SHIFT_PP(XReinforceBelow), SHIFT_PP(XPlugMinV), SHIFT_PP(XSockMinV), SHIFT_PP(XSockShare), SHIFT_PP(XParry), SHIFT_PP(XWindow), SHIFT_PP(XWindowBank), SHIFT_PP(XValueFirst), SHIFT_PP(XKeepRally),
 			};

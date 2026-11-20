@@ -107,6 +107,7 @@ namespace ShiftSim
 
 		// ---- actions ---------------------------------------------------------------
 		double PlugDrain = 0.45;                // conviction removed from a foreign node per Plug
+		double CelebDrainMult = 0.9;           // the player's Plugs drain a celebrity's conviction by this fraction of what they drain from any other voter (round 12, the playtester: "big circle now seem really easy to take"): 0.9 makes a fully convinced circle three Plugs, not two, once its gate is open (0.5: four, and the reactor wins 56 / 28 / 9% instead of 88 / 64 / 34); 1 = no armor. Other entries are not armored against: the circles are hard for the player to take, not for the rival to retake
 		double PlugReinforce = 0.3;             // conviction added to an owned node per Plug
 		double PlugFlipThreshold = 0.15;
 		double PlugFlipConv = 0.55;

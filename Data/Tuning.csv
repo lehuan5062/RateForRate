@@ -79,6 +79,7 @@ AdoptConv,0.25
 DriftRate,0.15
 DriftConv,0.2
 PlugDrain,0.45
+CelebDrainMult,0.9
 PlugReinforce,0.3
 PlugFlipThreshold,0.15
 PlugFlipConv,0.55

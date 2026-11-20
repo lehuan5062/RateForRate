@@ -293,6 +293,7 @@ namespace ShiftSim
 		bool IsGated(int Node, int Who = kPlayerId) const;
 
 		// ---- queries for behaviour layers --------------------------------------------------
+		double PlugDrainFor(int Who, int Node, double Strength) const;                                 // the conviction one Plug of this strength takes from this voter (the player's Plugs are armored against celebrities, Params::CelebDrainMult)
 		int PlugsNeeded(int Who, int Node, double Strength = 1.0, bool RespectGates = true) const;
 		double NodeValue(int Who, int Node) const;
 		// All candidates for Who passing the filter, best score first (ties: lower node id).

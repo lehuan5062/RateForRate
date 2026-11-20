@@ -27,6 +27,7 @@ Hubs and celebrities carry most of the vote weight. Flip them and their follower
 | **E** | Relation lines: faint (default) / off / full |
 | **L** | Leaderboard: compact (default) / full / hidden |
 | **R** | Retry (when paused or on the results screen) |
+| **O** | Results screen: open the folder with the recording of the jam you just played |
 
 * **Posts** are your energy and come back over time. Your build sets the bank (3 to 7, 5 at an even split), how fast they refill, how far each Plug goes and how many voters you start with: the build screen and the pause menu list the numbers.
 * **Gates**: a famous voter ignores you until enough of their own followers already back you (a padlock ring shows progress). Night shift skips gates. The rule binds the rival and the other entries too: a hub or a celebrity whose followers have come around to you is out of their reach (hover it to see).
@@ -35,15 +36,17 @@ Hubs and celebrities carry most of the vote weight. Flip them and their follower
 * **Voters drift back** to where their neighbours are. A voter that shakes is about to flip back, and a line in the pushing entry's colour runs from each neighbour pushing it: reinforce it or win those neighbours.
 * **Attacks are announced.** When the rival or another entry picks one of your voters, a ring in *their* colour closes in on it for 1.5 seconds before the plug lands. Click the voter to **parry** it (the ring bounces, 1 Post), or Rally it and its neighbours (the ring bounces off the shield), or let it go. Your fans are loyal (a voter you flip starts at 80% conviction). Sockpuppet votes are flagged and get no warning. The rival does not hammer one voter: it leaves a voter it just attacked alone for 30 seconds, so its attacks spread over many voters.
 * **Front page**: the top three entries get a boost, so leads snowball.
-* **Three celebrities**, each with an audience of its own (a voter follows at most one) and each owned by a different entry at the start: the rival's, and two other colours'. Taking one opens nothing at the gate of the next.
-* **Grudges, not hunting**: the rival and the other entries go after your voters only for 30 seconds after you took one of theirs, and then they go for that very voter (a ring in their colour closes in on it); otherwise yours are like anyone's. They also hold their own shaky big voters.
-* **The pack**: the other entries act every 6 seconds, go for voters up to a hub's size and pile onto whoever leads the board (never you just for leading); they can win a jam and can take a hub from the front-runner under the same gates as everyone; a note says who took what. It keeps a runaway leader from running away, and makes leading cost you rings in every colour.
+* **Three celebrities**, each with an audience of its own (a voter follows at most one) and each owned by a different entry at the start: the rival's, and two other colours'. Taking one opens nothing at the gate of the next. A big account does not mind a small one's posts: your Plugs take a tenth less off a celebrity's conviction than off anyone else's, so a fully convinced circle takes three Plugs once its gate is open, not two.
+* **Grudges, not hunting**: the rival and the other entries go after your voters only for 30 seconds after you took one of theirs, and then they go for that very voter, the rival first of all (a ring in their colour closes in on it as soon as the voter is no longer immune); otherwise yours are like anyone's. They also hold their own shaky big voters.
+* **The pack**: the other entries act every 8 seconds, go for voters up to a hub's size and pile onto whoever leads the board (you too, when you lead: the front-runner draws everyone's rings, so a lead has to be held); they can win a jam and can take a hub from the front-runner under the same gates as everyone; a note says who took what. It keeps a runaway leader from running away, and makes leading cost you rings in every colour.
 * **Underdogs rally**: when one entry leads the runner-up by more than 25 points of the vote, voters start rooting for the underdog: the leader's voters drift towards the runner-up, harder the bigger the lead, and a parry does not stop it (reinforcing and Rallying slow it). A lead cannot snowball without limit any more: the winner ends around half of the vote instead of three quarters, and a chip under the leaderboard says when it is on. The small +3 / -2 beside a share in the leaderboard is that entry's change over the last 20 seconds.
 * **The rival's final push**: in the last three days the rival attacks twice as often, but it pays Posts like you (a bank of 3, refilling 0.3 a second, shown on the push card): the burst runs the bank dry and it falls back to its normal pace. A countdown announces it, and your Posts refill 10% faster for the same days.
 * **Nothing floats over the board**: the voters keep left of a right-hand strip that holds the leaderboard, the states you are in (shadowban, final push, final audit, fake votes) and the notification cards. What cannot be missed takes over the middle of the bottom bar instead, where the eyes already are for Posts, Heat and strikes (a strike, the Shift the Blame offer, the disqualification, the final push and audit), with a thin frame at the edge of the screen and a warning sound.
 
 Flow: **Title** → **Pick a jam** (Tiny Jam #7, 48h Pixel Rumble, GAME OFF 2026) → **Build your entry** (spend 12 hours on Quality, Thumbnail and Network, with a forecast of this very jam) → **Vote** (31 days) → **Results**
 (the results screen computes, from your own run, how much of the vote is explained by quality and how much by starting fame).
+
+**Recordings.** Every jam you play is recorded: a small text file (`Saved/Recordings/shift_jam<n>_<seed>_<time>_<result>.shiftrec.txt`, a few kilobytes) with the jam, its seed, and every click, Rally and night shift with the moment it was made, plus how the shares went. The game is deterministic, so that is enough to play the jam back exactly; the results screen names the file and **O** (or the *Files* button) opens its folder. If you are a playtester, send the files: they show how you really play, which is what the balance is tuned from. `-ShiftReplay=<file>` plays one back in the game and `Tools\replay.ps1` replays and reports them headlessly.
 
 ## Technology
 
@@ -83,6 +86,7 @@ Testing and balance (also headless; see `Docs/QA.md`):
 .\Tools\run.ps1 -Shot D:\shots\title.png -Quit -Extra @('-ShiftScreen=title')   # screenshot without opening a window
 .\Tools\balance.ps1 -Runs 200                                                 # win/DQ rates per jam and scripted player
 .\Tools\forecast_check.ps1                                                    # the build screen's forecast: monotone in the levers, no jumps, the same every time
+.\Tools\replay.ps1 -Dir D:\from_the_tester                                    # replay recorded jams: result, hash, clicks and shares of each
 .\Tools\verify.ps1                                                             # one command: audio assets and meters, StateTree activity, determinism, game boot
 ```
 

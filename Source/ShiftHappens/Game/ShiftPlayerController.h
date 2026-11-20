@@ -12,6 +12,7 @@
 #include "Game/ShiftBuild.h"
 #include "Game/ShiftForecast.h"
 #include "Game/ShiftForecastService.h"
+#include "Game/ShiftRecording.h"
 #include "Game/ShiftRun.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/Platform.h"
@@ -70,6 +71,10 @@ private:
 	void ToggleMute();
 	void ApplyMute() const;
 	void CopyResultToClipboard();
+	/** Saves the recording of the jam being played (Game/ShiftRecording.h): finished when the jam ended, "abandoned" when it is left unfinished. */
+	void SaveRecording(const TCHAR* AbandonedResult);
+	FString RecordingsDir() const;
+	void OpenRecordingsFolder() const;
 
 	// ---- input
 	void HandleUi(int32 Id, float Value01);
@@ -165,6 +170,11 @@ private:
 	bool bNightLatch = false;
 	bool bPaused = false;
 	bool bResultsBuilt = false;
+	bool bRecordingSaved = false;
+	bool bForceRecord = false;          // -ShiftRecord: a QA run is recorded too
+	bool bReplayMode = false;           // -ShiftReplay=<file>: the recording is replayed instead of played
+	FShiftRecording ReplaySource;
+	FString RecordingPath;              // the file the last jam was recorded to
 	FAlert AlertNow;                // the alert on screen (Kind AlertNone = none); the Blame offer is not queued, it is read from the run
 	TArray<FAlert> AlertQueue;      // lower priority ones waiting for it
 	float AlertAge = 0.0f;

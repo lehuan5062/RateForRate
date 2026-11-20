@@ -8,10 +8,12 @@
 #include "Containers/UnrealString.h"
 #include "GenericPlatform/GenericPlatformMisc.h"
 #include "HAL/Platform.h"
+#include "HAL/UnrealMemory.h"
 #include "Logging/LogMacros.h"
 #include "Math/UnrealMathUtility.h"
 #include "ShiftBuild.h"
 #include "ShiftHappens.h"
+#include "ShiftRecording.h"
 #include "Sim/ShiftBlameRules.h"
 #include "Sim/ShiftParams.h"
 #include "Sim/ShiftRng.h"
@@ -62,6 +64,15 @@ bool FShiftRun::Start(int32 InJamIndex, uint32 InSeed, const FShiftBuild& InBuil
 			Sim->SetNodeState(Celeb, ShiftSim::kPlayerId, 0.9, 0.0);
 		}
 	}
+	RunBuild = InBuild;
+	Rec = FShiftRecording();
+	bRecordingStarted = false;
+	bRecording = false;
+	bRecNight = false;
+	bReplaying = false;
+	bInjecting = false;
+	ReplayEvents.Reset();
+	ReplayNext = 0;
 	FlipStats = FShiftFlipStats();
 	StatOwner.SetNum(Sim->NodeCount());
 	StatGainTime.Init(0.0, Sim->NodeCount());
@@ -143,7 +154,7 @@ void FShiftRun::SetBot(ShiftSim::BotKind Kind)
 
 void FShiftRun::QueueAction(int32 Node, bool bSock)
 {
-	if (Sim.IsValid() && !bOver && Pending.Num() < 16)
+	if (Sim.IsValid() && !bOver && !bReplaying && Pending.Num() < 16)
 	{
 		Pending.Add({ Node, bSock, false });
 	}
@@ -151,7 +162,7 @@ void FShiftRun::QueueAction(int32 Node, bool bSock)
 
 void FShiftRun::QueueRally(int32 Node)
 {
-	if (Sim.IsValid() && !bOver && Pending.Num() < 16)
+	if (Sim.IsValid() && !bOver && !bReplaying && Pending.Num() < 16)
 	{
 		Pending.Add({ Node, false, true });
 	}
@@ -219,9 +230,13 @@ void FShiftRun::ApplyModStrike()
 
 bool FShiftRun::TakeBlame()
 {
-	if (!Sim.IsValid() || bPaused || bOver || !BlameAvailable())
+	if (!Sim.IsValid() || bPaused || bOver || !BlameAvailable() || (bReplaying && !bInjecting))
 	{
 		return false;
+	}
+	if (bRecording && !bBotActive)
+	{
+		Rec.Events.Add({ static_cast<int32>(Sim->StepCount()), TEXT('B'), -1 });
 	}
 	bBlameUsed = true;
 	BlameRemaining = 0.0;
@@ -421,6 +436,16 @@ void FShiftRun::StepOnce()
 {
 	ShiftSim::Sim& S = *Sim;
 
+	if (bReplaying)
+	{
+		InjectReplay();   // the recorded clicks of this step, where the live ones would have been queued
+	}
+	if (bRecording && !bBotActive && bNightHeld != bRecNight)
+	{
+		Rec.Events.Add({ static_cast<int32>(S.StepCount()), bNightHeld ? TEXT('N') : TEXT('n'), -1 });
+		bRecNight = bNightHeld;
+	}
+
 	const bool bOfferWasOpen = BlameRemaining > 0.0;
 	BlameRemaining = FMath::Max(0.0, BlameRemaining - S.GetParams().Dt);
 	if (bOfferWasOpen && BlameRemaining <= 0.0 && !bBlameUsed)
@@ -460,6 +485,10 @@ void FShiftRun::StepOnce()
 	}
 	for (const FPendingAction& Action : Pending)
 	{
+		if (bRecording && !bBotActive)
+		{
+			Rec.Events.Add({ static_cast<int32>(S.StepCount()), Action.bRally ? TEXT('R') : (Action.bSock ? TEXT('S') : TEXT('P')), Action.Node });
+		}
 		// A click on one of your own voters is a reinforcement, day or night: a sockpuppet on your own voter would only be refused.
 		const bool bSockClick = Action.bSock && !(Action.Node >= 0 && Action.Node < S.NodeCount() && S.Opinion(Action.Node) == ShiftSim::kPlayerId);
 		const ShiftSim::ActionOutcome O = Action.bRally ? S.Rally(Action.Node) : (bSockClick ? S.Sock(Action.Node) : S.Plug(ShiftSim::kPlayerId, Action.Node, 1.0));
@@ -536,6 +565,18 @@ void FShiftRun::StepOnce()
 	}
 
 	S.Step();
+	if (bRecording && S.StepCount() % ShiftRecordingInfo::SampleEverySteps == 0)
+	{
+		FShiftRecSample Sample;
+		Sample.Step = static_cast<int32>(S.StepCount());
+		Sample.Posts = static_cast<float>(S.Posts());
+		Sample.Heat = static_cast<float>(S.Heat());
+		for (int32 E = 0; E < S.NumEntries(); ++E)
+		{
+			Sample.Shares.Add(static_cast<float>(S.Share(E)));
+		}
+		Rec.Samples.Add(Sample);
+	}
 	if (S.Finished() && !bAuditDone && S.GetParams().FinalAudit > 0.5)
 	{
 		// The final audit: before the tally is read, the mods purge every sockpuppet vote that nobody backed (no strike, no shadowban).
@@ -574,5 +615,130 @@ void FShiftRun::StepOnce()
 		FShiftEvent Event;
 		Event.Type = S.Disqualified() ? EShiftEventType::Disqualified : EShiftEventType::Finished;
 		Emit(Event);
+		if (bRecording)
+		{
+			FinishRecording(S.Disqualified() ? TEXT("disqualified") : (S.Leader() == ShiftSim::kPlayerId ? TEXT("won") : TEXT("lost")));
+		}
 	}
+}
+
+void FShiftRun::StartRecording()
+{
+	if (!Sim.IsValid() || bReplaying)
+	{
+		return;
+	}
+	Rec = FShiftRecording();
+	Rec.Tag = ShiftRecordingInfo::BuildTag;
+	Rec.Tuning = TuningHash();
+	Rec.Jam = JamIndex;
+	Rec.Seed = Seed;
+	Rec.Quality = RunBuild.Quality;
+	Rec.Thumbnail = RunBuild.Thumbnail;
+	Rec.Network = RunBuild.Network;
+	bRecordingStarted = true;
+	bRecording = true;
+	bRecNight = false;
+	FShiftRecSample First;
+	First.Step = static_cast<int32>(Sim->StepCount());
+	First.Posts = static_cast<float>(Sim->Posts());
+	First.Heat = static_cast<float>(Sim->Heat());
+	for (int32 E = 0; E < Sim->NumEntries(); ++E)
+	{
+		First.Shares.Add(static_cast<float>(Sim->Share(E)));
+	}
+	Rec.Samples.Add(First);
+}
+
+void FShiftRun::FinishRecording(const TCHAR* Result)
+{
+	if (!bRecording || !Sim.IsValid())
+	{
+		return;
+	}
+	const ShiftSim::Sim& S = *Sim;
+	bRecording = false;
+	Rec.Result = Result;
+	Rec.EndStep = static_cast<int32>(S.StepCount());
+	Rec.EndTime = S.Time();
+	Rec.Rank = S.RankOf(ShiftSim::kPlayerId) + 1;
+	Rec.Strikes = S.Strikes();
+	Rec.Hash = FString::Printf(TEXT("%016llx"), static_cast<unsigned long long>(S.StateHash()));
+	Rec.FinalShares.Reset();
+	for (int32 E = 0; E < S.NumEntries(); ++E)
+	{
+		Rec.FinalShares.Add(static_cast<float>(S.Share(E)));
+	}
+}
+
+void FShiftRun::SetReplay(const FShiftRecording& Source)
+{
+	ReplayEvents = Source.Events;
+	ReplayNext = 0;
+	bReplaying = true;
+	bRecording = false;
+	bRecordingStarted = false;
+}
+
+void FShiftRun::InjectReplay()
+{
+	const int32 Step = static_cast<int32>(Sim->StepCount());
+	while (ReplayEvents.IsValidIndex(ReplayNext) && ReplayEvents[ReplayNext].Step <= Step)
+	{
+		const FShiftRecEvent& E = ReplayEvents[ReplayNext++];
+		switch (E.Type)
+		{
+		case TEXT('P'): Pending.Add({ E.Node, false, false }); break;
+		case TEXT('S'): Pending.Add({ E.Node, true, false }); break;
+		case TEXT('R'): Pending.Add({ E.Node, false, true }); break;
+		case TEXT('N'): bNightHeld = true; break;
+		case TEXT('n'): bNightHeld = false; break;
+		case TEXT('B'):
+			bInjecting = true;
+			TakeBlame();
+			bInjecting = false;
+			break;
+		default: break;
+		}
+	}
+}
+
+FString FShiftRun::TuningHash() const
+{
+	if (!Sim.IsValid())
+	{
+		return FString();
+	}
+	uint64 H = 1469598103934665603ull;
+	const auto Mix = [&H](double V)
+		{
+			uint64 Bits = 0;
+			FMemory::Memcpy(&Bits, &V, sizeof(Bits));
+			for (int32 I = 0; I < 8; ++I)
+			{
+				H ^= (Bits >> (8 * I)) & 0xFFull;
+				H *= 1099511628211ull;
+			}
+		};
+	const ShiftSim::Params& P = Sim->GetParams();
+	for (int32 I = 0; I < ShiftSim::ParamCount(); ++I)
+	{
+		double V = 0.0;
+		if (ShiftSim::GetParam(P, ShiftSim::ParamNameAt(I), &V))
+		{
+			Mix(V);
+		}
+	}
+	for (int32 I = 0; I < ShiftSim::PolicyParamCount(); ++I)
+	{
+		double V = 0.0;
+		if (ShiftSim::GetPolicyParam(Policy, ShiftSim::PolicyParamNameAt(I), &V))
+		{
+			Mix(V);
+		}
+	}
+	const ShiftSim::JamDef& J = Sim->Jam();
+	Mix(J.nodes); Mix(J.communities); Mix(J.bridges); Mix(J.celebs); Mix(J.entries); Mix(J.days); Mix(J.secPerDay); Mix(J.regen); Mix(J.localGate); Mix(J.celebGate);
+	Mix(J.rivalId); Mix(J.celebExtraFollowers); Mix(J.rivalFollowerFraction); Mix(J.rivalInterval); Mix(J.modIntervalMin); Mix(J.modIntervalMax);
+	return FString::Printf(TEXT("%016llx"), static_cast<unsigned long long>(H));
 }

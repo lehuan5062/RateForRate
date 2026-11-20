@@ -7,6 +7,7 @@
 #include "Containers/Map.h"
 #include "Containers/UnrealString.h"
 #include "Game/ShiftBuild.h"
+#include "Game/ShiftRecording.h"
 #include "HAL/Platform.h"
 #include "Math/UnrealMathUtility.h"
 #include "Sim/ShiftRng.h"
@@ -188,7 +189,7 @@ public:
 	bool BlameUsed() const { return bBlameUsed; }
 	const FShiftBlameStats& GetBlameStats() const { return BlameStats; }
 
-	void SetNightHeld(bool bHeld) { bNightHeld = bHeld; }
+	void SetNightHeld(bool bHeld) { if (!bReplaying) { bNightHeld = bHeld; } }
 	bool IsNightHeld() const { return bNightHeld; }
 	void SetPaused(bool bInPaused) { bPaused = bInPaused; }
 	bool IsPaused() const { return bPaused; }
@@ -212,10 +213,26 @@ public:
 
 	const FShiftFlipStats& GetFlipStats() const { return FlipStats; }
 	const FShiftFlowStats& GetFlowStats() const { return FlowStats; }
+
+	// ---- recording and replay (Game/ShiftRecording.h) ----
+	/** Starts recording this run (call right after Start(), for a human player: bots and scripted QA runs are not recorded unless asked). */
+	void StartRecording();
+	bool IsRecording() const { return bRecording; }
+	/** Ends the recording with the result as it stands ("abandoned" for a run left unfinished); the run goes on. A finished recording stays readable through GetRecording(). */
+	void FinishRecording(const TCHAR* Result);
+	bool HasRecording() const { return bRecordingStarted; }
+	const FShiftRecording& GetRecording() const { return Rec; }
+	/** Replays a recording: after Start() with the recording's jam, seed and build, the recorded clicks are applied in the steps they were applied in, and the live controls do nothing. */
+	void SetReplay(const FShiftRecording& Source);
+	bool IsReplaying() const { return bReplaying; }
+	/** A hash of every tuning value this run plays under (sim parameters, the jam, the behaviour policies): a recording made under other tuning replays differently, and says so. */
+	FString TuningHash() const;
+	const FShiftBuild& GetBuild() const { return RunBuild; }
 	const FShiftPushSnapshot& GetPushStart() const { return PushStart; }
 
 private:
 	void StepOnce();
+	void InjectReplay();
 	void UpdateEyeWindows();
 	void TrackOwnership();
 	void ModUpdate();
@@ -264,6 +281,18 @@ private:
 	// ownership tracking for FShiftFlipStats
 	FShiftFlipStats FlipStats;
 	FShiftFlowStats FlowStats;
+
+	// recording and replay
+	FShiftBuild RunBuild;
+	FShiftRecording Rec;
+	bool bRecordingStarted = false;
+	bool bRecording = false;
+	bool bRecNight = false;
+	bool bReplaying = false;
+	bool bInjecting = false;
+	TArray<FShiftRecEvent> ReplayEvents;
+	int32 ReplayNext = 0;
+
 	TArray<int32> StatOwner;        // owner of every node after the previous step
 	TArray<double> StatGainTime;    // when the player last took the node
 	TArray<uint8> StatGainSock;     // ... and whether it was a sockpuppet flip
