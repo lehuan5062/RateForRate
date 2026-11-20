@@ -34,6 +34,9 @@ namespace ShiftSim
 		double CelebFollowProb = 0.12;          // per member, per celebrity
 		double HubFollowsCelebProb = 0.1;       // per local hub, per celebrity
 		double CelebMinFollowersPerCommunity = 1.0;
+		double CelebExclusive = 1.0;            // 1: every voter follows at most one celebrity, so each celebrity has an audience of its own and taking one opens nothing at the gate of the next (round 11: "getting one big circle still lead to the others"); 0 = the old random overlap
+		double OtherCelebFollowerFraction = 0.25; // the share of the followers of a celebrity that belongs to another entry that starts with start owning it (the rival's own is JamDef::rivalFollowerFraction)
+		double CelebOwners = 1.0;               // 1: the first celebrity is the rival's, the others belong to two other entries (drawn per world); 0 = the rival owns them all
 		double CelebLinks = 0.0;                // 1: every celebrity follows the others (until round 10: taking one then opened the gate of the other); 0: they are unrelated
 		double BridgeCrossHubFollows = 2.0;     // bridge follows this many foreign hubs
 		double BridgeCrossMemberFollows = 1.0;
@@ -173,7 +176,7 @@ namespace ShiftSim
 		double celebGate = 0.15;                // same for celebrity hubs
 		int rivalId = 1;                        // entry index of the rival
 		double celebExtraFollowers = 25.0;      // audience outside the sampled graph, added to celebrity hubs
-		double rivalFollowerFraction = 0.3;     // share of celebrity followers that start rival-owned
+		double rivalFollowerFraction = 0.5;     // share of celebrity followers that start rival-owned
 		// Behaviour-layer parameters carried by the jam definition (the core itself never reads them).
 		double rivalInterval = 3.3;             // seconds between rival actions (StateTree parameter; the plan's first guess was 2)
 		double modIntervalMin = 25.0;           // Mod Eye sweep spacing in seconds (director parameter)

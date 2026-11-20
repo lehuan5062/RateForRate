@@ -627,3 +627,27 @@ Pooled gate (200 runs): greedy 70.5 / 60.5 / 34 at the first refill guess; the o
 **Rows moved (each with its reason in the file).** `greedy_0` 74 -> 65; `reactor_1` / `reactor_2` 3 -> -8 (0 and -1 measured: with nobody hunting the player there are few rings to answer, so answering them barely matters); the steady preset holds 3.75%; forecast `fc_thumb_1` 4 -> 3, `fc_neutral_0` 45 -> 35.
 
 **Honest consequences.** Answering attacks is now worth little (the reactor no better than greedy on the hard jams): the parry and Rally matter mostly when you raid a colour and it hits back. Two of three circles still decide most jams. The underdog sympathy is unchanged.
+
+## M17 - playtest round 11 (issue #1, `44403c7`)
+
+The tester: "separate in theory but getting one big circle still lead to the others"; the other colours "are more active but it still feel like only red still pose a challenge"; "I don't feel anything, it's unclear if they come after me or not, they still too weak?";
+and "it get a lot easier since getting the big circle was easier though holding it was a bit harder but still snowball and lead to easy win".
+
+**Found.** The celebrities no longer followed each other, but their audiences still overlapped at random (a member follows each celebrity with 12%), so flipping one flipped voters of the next one's audience and opened its gate. The rival still owned all three circles, so only red had a prize to defend;
+the other colours plugged a weak voter every 6 s at strength 1 (a fresh voter of yours flips from 1.44), and a grudge only changed their taste for targets, which nobody sees.
+
+**Built.**
+- `CelebExclusive` 1: every voter follows at most one celebrity (a community's members and hub are dealt to the three, bridges too), so each circle has its own audience.
+- `CelebOwners` 1: the first circle is the rival's, the other two belong to two other entries drawn per world (never the player), each owner holding `RivalFollowerFraction` 0.5 (its own) or `OtherCelebFollowerFraction` 0.25 of its circle's followers at the start.
+- The other colours: strength 1.25 (`OthersStrength`, 1 before), every 8 s (`OthersInterval`), they re-plug their own shaky big voters (like the rival) and, `OthersRevenge` 1, while they hold a grudge they go for the voter the player took from them (`Sim::LastTakenNode`): a ring in their colour on that voter within a few seconds.
+  A coach card (`Grudge`) says so the first time. They may also go for a celebrity (`OthersHubMaxV` 1000).
+- Post refill 0.420 / 0.355 / 0.382 (0.440 / 0.448 / 0.424): the answering player (the reactor) is the difficulty anchor now.
+
+**Measured** (100 runs, seed set 1000, greedy / reactor). Defaults at the first guess (others at strength 1.5 every 6 s): greedy 37 / 39 / 21, reactor 80 / 71 / 41; another colour won 29 / 32 / 44% of greedy runs and 7 / 14 / 44% of reactor runs; holding one circle won 39 to 65%, two or more 88 to 98%. With red owning all circles: reactor 73 / 63 / 20;
+with the old overlap about the same as separate audiences (77 / 79 / 42). The old weak others (strength 1, no grudge): reactor 92 / 85 / 64. Red's own audience share did nothing (it ends at 21 to 29% in every variant: the pack's attacks on the leader and the underdog sympathy cut it down). Strength 1.25 every 8 s: reactor 84 / 83 / 61 before the refill cut.
+Pooled gate (200 runs): the other colours take 13 / 14 / 16 voters a run from the rival, win 2.5 / 16.5 / 32% of the reactor's jams, the player's mean final share is 48 / 33 / 24%, the rival keeps 28 / 26 / 24%.
+
+**Rows moved** (each with its reason in the file): greedy 50-75 / 18-40 / 25-48 (it ignores rings that all colours throw now), the reactor 3 to 45 over greedy, rally-only / parry-only / both rows, the build rows on the middle jam, `steady_2` 10, `other_leads_*` (an other colour wins at most 25% / 40%) and a minimum row (`other_wins_*`: at least 5%), `rival_keeps_*` 20;
+forecast: thumbnail 2, even-split share 30 to 80 / 20 to 60.
+
+**Honest consequences.** Red is one of three contenders now, not the favourite (it wins few runs); the thesis "fame decides" is carried by three circles. A player who ignores rings loses badly (greedy 61 / 27 / 36). The tester's snowball is weaker (one circle wins 39 to 65%) but two circles still decide most jams.

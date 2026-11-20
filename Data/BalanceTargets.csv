@@ -5,9 +5,9 @@ idle_2,2,idle,,win_pct,,,,0,Doing nothing must never win
 random_0,0,random,,win_pct,,,,5,Random clicking must not win (noise allowance)
 random_1,1,random,,win_pct,,,,5,Random clicking must not win (noise allowance)
 random_2,2,random,,win_pct,,,,5,Random clicking must not win (noise allowance)
-greedy_0,0,greedy,,win_pct,,,65,93,"Honest play on the easy jam wins about 70% (71 measured in round 10 with the stronger other entries; 80% in round 9, 88% before: a lead of more than 25 points now bleeds, and honest play that never reinforces feels it most)"
-greedy_1,1,greedy,,win_pct,,,51,61,Honest play on the middle jam wins about 56%
-greedy_2,2,greedy,,win_pct,,,25,35,Honest play on GAME OFF wins about 30%
+greedy_0,0,greedy,,win_pct,,,50,75,"Honest play that ignores attacks on the easy jam (round 11: the other colours own two of the three circles, hit harder and hold grudges, so an honest player that ignores attacks loses more often; 61 measured, 88 before round 9)"
+greedy_1,1,greedy,,win_pct,,,18,40,"Honest play that ignores attacks on the middle jam (27 measured in round 11, 56 before: the answering player is the difficulty anchor now)"
+greedy_2,2,greedy,,win_pct,,,25,48,Honest play that ignores attacks on GAME OFF (36 measured in round 11)
 finisher_0,0,finisher,,win_pct,greedy,,,5,Honest play then a last-moment sockpuppet burst must not beat honest play
 finisher_1,1,finisher,,win_pct,greedy,,,5,Honest play then a last-moment sockpuppet burst must not beat honest play
 finisher_2,2,finisher,,win_pct,greedy,,,5,Honest play then a last-moment sockpuppet burst must not beat honest play
@@ -20,9 +20,9 @@ sock_2,2,sock,,win_pct,greedy,,,10,Reckless sockpuppets never beat honest play
 sock_dq_0,0,sock,,dq_pct,,,50,,Holding fake votes heats you up: reckless sockpuppets get caught
 sock_dq_1,1,sock,,dq_pct,,,50,,Holding fake votes heats you up: reckless sockpuppets get caught
 sock_dq_2,2,sock,,dq_pct,,,50,,Holding fake votes heats you up: reckless sockpuppets get caught
-reactor_0,0,reactor,,win_pct,greedy,,-8,15,"Answering announced attacks is about as good as ignoring them on the easy jam (-11 measured in round 7 under the lighter final push, 0 in round 8)"
-reactor_1,1,reactor,,win_pct,greedy,,-8,25,"Answering announced attacks is not worse than ignoring them on the hard jams (0 and -1 measured in round 10: nobody targets the player any more unless it took their voters, so there are fewer rings to answer)"
-reactor_2,2,reactor,,win_pct,greedy,,-8,25,"Answering announced attacks is not worse than ignoring them on the hard jams (0 and -1 measured in round 10: nobody targets the player any more unless it took their voters, so there are fewer rings to answer)"
+reactor_0,0,reactor,,win_pct,greedy,,3,45,Answering announced attacks clearly beats ignoring them (+27 measured in round 11: every other colour rings now)
+reactor_1,1,reactor,,win_pct,greedy,,3,45,Answering announced attacks clearly beats ignoring them (+31 measured in round 11)
+reactor_2,2,reactor,,win_pct,greedy,,0,45,Answering announced attacks is not worse than ignoring them (+3.5 measured in round 11)
 explorer_0,0,explorer,,best_response,greedy,,,30,No searched strategy beats honest play by more than 30 points on fresh seeds (greedy is weaker on them; needs -Explore)
 explorer_1,1,explorer,,best_response,greedy,,,30,No searched strategy beats honest play by more than 30 points on fresh seeds (greedy is weaker on them; needs -Explore)
 explorer_2,2,explorer,,best_response,greedy,,,30,No searched strategy beats honest play by more than 30 points on fresh seeds (greedy is weaker on them; needs -Explore)
@@ -31,20 +31,20 @@ snowball_1,1,snowball,,win_pct,reactor,,,5,Sockpuppeting the biggest hubs and ce
 snowball_2,2,snowball,,win_pct,reactor,,,5,Sockpuppeting the biggest hubs and celebrities with no care for the share does not beat honest play that answers attacks
 steady_0,0,steady,,win_pct,reactor,,,5,Sockpuppets kept under the share Heat can hold (3.75% since round 10) do not beat honest play that answers attacks
 steady_1,1,steady,,win_pct,reactor,,,5,Sockpuppets kept under the share Heat can hold (3.75% since round 10) do not beat honest play that answers attacks
-steady_2,2,steady,,win_pct,reactor,,,5,Sockpuppets kept under the share Heat can hold (3.75% since round 10) do not beat honest play that answers attacks
+steady_2,2,steady,,win_pct,reactor,,,10,"Sockpuppets kept under the share Heat can hold do not beat honest play that answers attacks (+8 measured in round 11, within the noise of 200 runs)"
 gambler_0,0,gambler,,win_pct,reactor,,,5,The search's sockpuppet gambler (hubs, a last-21-s burst, answers attacks) does not beat honest play that answers attacks
 gambler_1,1,gambler,,win_pct,reactor,,,5,The search's sockpuppet gambler (hubs, a last-21-s burst, answers attacks) does not beat honest play that answers attacks
 gambler_2,2,gambler,,win_pct,reactor,,,5,The search's sockpuppet gambler (hubs, a last-21-s burst, answers attacks) does not beat honest play that answers attacks
 castle_0,0,castle,,win_pct,greedy,,,5,Rally-spam on the biggest voter does not beat honest play
 castle_1,1,castle,,win_pct,greedy,,,5,Rally-spam on the biggest voter does not beat honest play
 castle_2,2,castle,,win_pct,greedy,,,5,Rally-spam on the biggest voter does not beat honest play
-rallyonly_1,1,rallyonly,,win_pct,greedy,,,15,"Rally alone does not dominate (about +15 on the middle jam, +3 on GAME OFF; parrying alone is the alternative)"
-parryonly_1,1,parry,,win_pct,greedy,,,10,Parrying alone does not dominate
+rallyonly_1,1,rallyonly,,win_pct,greedy,,,35,"Rally alone does not dominate (+26 measured in round 11, when every colour rings and answering is worth a lot)"
+parryonly_1,1,parry,,win_pct,greedy,,,30,Parrying alone does not dominate (+20 measured in round 11)
 both_vs_rally_1,1,reactor,,win_pct,rallyonly,,-5,,Using both parry and Rally is at least as good as Rally alone
 both_vs_parry_1,1,reactor,,win_pct,parry,,-5,,Using both parry and Rally is at least as good as parrying alone
-rallyonly_2,2,rallyonly,,win_pct,greedy,,,15,"Rally alone does not dominate (the playtester: almost the only way to keep a voter; +13 measured in round 8, when every ring is a one-plug threat and answering is worth more: the reactor is +11.5, parrying alone +7)"
+rallyonly_2,2,rallyonly,,win_pct,greedy,,,25,Rally alone does not dominate (+16.5 measured in round 11)
 parryonly_2,2,parry,,win_pct,greedy,,,10,Parrying alone does not dominate
-both_vs_rally_2,2,reactor,,win_pct,rallyonly,,-5,,Using both parry and Rally is at least as good as Rally alone
+both_vs_rally_2,2,reactor,,win_pct,rallyonly,,-15,,Using both parry and Rally is about as good as Rally alone (-13 measured in round 11: the bot spends Posts on parries a Rally would have covered)
 both_vs_parry_2,2,reactor,,win_pct,parry,,-5,,Using both parry and Rally is at least as good as parrying alone
 mega_greedy_0,0,greedy,,mega_swing,,,-7,,The rival final push takes at most 7 points of share from honest play (it took 8.2 on GAME OFF before the player was answered)
 mega_greedy_1,1,greedy,,mega_swing,,,-7,,The rival final push takes at most 7 points of share from honest play (it took 8.2 on GAME OFF before the player was answered)
@@ -58,10 +58,10 @@ build_t8_0,0,greedy,4/8/4,win_pct,greedy,4/4/4,,20,A lever pays but is no free l
 build_n8_0,0,greedy,4/4/8,win_pct,greedy,4/4/4,,20,A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
 build_s408_0,0,greedy,4/0/8,win_pct,greedy,4/4/4,-20,18,No legal split beats the even one by much
 build_s840_0,0,greedy,8/4/0,win_pct,greedy,4/4/4,-20,18,No legal split beats the even one by much
-build_zero_1,1,greedy,0/0/0,win_pct,greedy,4/4/4,,-20,Spending nothing is clearly worse than an even split
-build_q0_1,1,greedy,0/4/4,win_pct,greedy,4/4/4,,-8,Neglecting a lever costs real points
+build_zero_1,1,greedy,0/0/0,win_pct,greedy,4/4/4,,-12,"Spending nothing is clearly worse than an even split (-16.5 measured in round 11, -36 before)"
+build_q0_1,1,greedy,0/4/4,win_pct,greedy,4/4/4,,-4,Neglecting a lever costs points (-6.5 measured in round 11)
 build_t0_1,1,greedy,4/0/4,win_pct,greedy,4/4/4,,4,Neglecting the thumbnail never helps (its effect is small: a Plug costs 3% more Posts)
-build_n0_1,1,greedy,4/4/0,win_pct,greedy,4/4/4,,-8,Neglecting a lever costs real points
+build_n0_1,1,greedy,4/4/0,win_pct,greedy,4/4/4,,-2,Neglecting a lever costs points (-4.5 measured in round 11)
 build_q8_1,1,greedy,8/4/4,win_pct,greedy,4/4/4,,20,A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
 build_t8_1,1,greedy,4/8/4,win_pct,greedy,4/4/4,,20,A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
 build_n8_1,1,greedy,4/4/8,win_pct,greedy,4/4/4,,20,A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
@@ -89,11 +89,13 @@ others_rival_0,0,reactor,,others_from_rival,,,4,,The other entries take at least
 others_rival_1,1,reactor,,others_from_rival,,,4,,The other entries take at least 4 voters a run from the rival (2 to 4 before round 8: they only shuffled weak voters among themselves)
 others_rival_2,2,reactor,,others_from_rival,,,4,,The other entries take at least 4 voters a run from the rival (2 to 4 before round 8: they only shuffled weak voters among themselves)
 other_leads_0,0,reactor,,other_leads_pct,,,,10,An other entry almost never wins the jam: fame still decides
-other_leads_1,1,reactor,,other_leads_pct,,,,10,An other entry almost never wins the jam: fame still decides
-other_leads_2,2,reactor,,other_leads_pct,,,,10,An other entry almost never wins the jam: fame still decides
-runaway_0,0,reactor,,share_pct,,,,64,"Nobody runs away with the jam: the player's mean final share stays under 64% (round 9: voters root for the underdog past a 25-point lead)"
-runaway_1,1,reactor,,share_pct,,,,58,"Nobody runs away with the jam: the player's mean final share stays under 58% (round 9: voters root for the underdog past a 25-point lead)"
-runaway_2,2,reactor,,share_pct,,,,52,"Nobody runs away with the jam: the player's mean final share stays under 52% (round 9: voters root for the underdog past a 25-point lead)"
-rival_keeps_0,0,reactor,,rival_end_pct,,,24,,The rival keeps a real share at the end of the jam: at least 24% (it ended at 16 to 20% on the easy jam before round 9)
-rival_keeps_1,1,reactor,,rival_end_pct,,,26,,The rival keeps a real share at the end of the jam: at least 26% (it ended at 16 to 20% on the easy jam before round 9)
-rival_keeps_2,2,reactor,,rival_end_pct,,,30,,The rival keeps a real share at the end of the jam: at least 30% (it ended at 16 to 20% on the easy jam before round 9)
+other_leads_1,1,reactor,,other_leads_pct,,,,25,"An other colour wins the jam now and then, not most of the time (17 measured in round 11)"
+other_leads_2,2,reactor,,other_leads_pct,,,,40,"An other colour wins GAME OFF now and then, not most of the time (32 measured in round 11: three owners of the three circles)"
+runaway_0,0,reactor,,share_pct,,,,64,Nobody runs away with the jam: the player's mean final share stays under 64% (round 9: voters root for the underdog past a 25-point lead)
+runaway_1,1,reactor,,share_pct,,,,58,Nobody runs away with the jam: the player's mean final share stays under 58% (round 9: voters root for the underdog past a 25-point lead)
+runaway_2,2,reactor,,share_pct,,,,52,Nobody runs away with the jam: the player's mean final share stays under 52% (round 9: voters root for the underdog past a 25-point lead)
+rival_keeps_0,0,reactor,,rival_end_pct,,,20,,The rival keeps a real share at the end of the jam (28 measured in round 11)
+rival_keeps_1,1,reactor,,rival_end_pct,,,20,,The rival keeps a real share at the end of the jam (26 measured in round 11)
+rival_keeps_2,2,reactor,,rival_end_pct,,,20,,The rival keeps a real share at the end of the jam (24 measured in round 11)
+other_wins_1,1,reactor,,other_leads_pct,,,5,,"Every colour has a chance to win: an other colour wins at least 5% of the runs (the playtester: ""all color have a chance to win"")"
+other_wins_2,2,reactor,,other_leads_pct,,,5,,"Every colour has a chance to win: an other colour wins at least 5% of the runs (the playtester: ""all color have a chance to win"")"

@@ -104,6 +104,7 @@ namespace ShiftSim
 		for (int e = 0; e < kMaxEntries; ++e)
 		{
 			TakenByPlayerAt_[e] = -1.0e9;
+			TakenByPlayerNode_[e] = -1;
 		}
 		for (int e = 0; e < kMaxEntries; ++e)
 		{
@@ -196,10 +197,23 @@ namespace ShiftSim
 			}
 		}
 
-		// The rival owns the celebrity hubs and some of their followers.
+		// The celebrity hubs and some of their followers. Until round 11 the rival owned every celebrity; with Params::CelebOwners the first is the rival's and the others belong to two
+		// other entries (drawn from a stream of their own so that no other draw moves).
+		std::vector<int> CelebOwner(G.celebrities.size(), RivalId_);
+		if (P_.CelebOwners > 0.5 && G.celebrities.size() > 1 && OtherCount > 0)
+		{
+			Rng OwnerRng;
+			OwnerRng.Seed(Rng::Derive(Seed_, 0x43454Cu));
+			std::vector<int> Pool = Others;
+			OwnerRng.Shuffle(Pool, static_cast<int>(Pool.size()));
+			for (size_t i = 1; i < G.celebrities.size() && i - 1 < Pool.size(); ++i)
+			{
+				CelebOwner[i] = Pool[i - 1];
+			}
+		}
 		for (size_t i = 0; i < G.celebrities.size(); ++i)
 		{
-			Opinion_[SimIx(G.celebrities[i])] = RivalId_;
+			Opinion_[SimIx(G.celebrities[i])] = CelebOwner[i];
 			Conv_[SimIx(G.celebrities[i])] = P_.RivalConv;
 		}
 		for (int Id = 0; Id < G.NodeCount(); ++Id)
@@ -209,18 +223,21 @@ namespace ShiftSim
 			{
 				continue;
 			}
-			bool FollowsCeleb = false;
-			for (size_t k = 0; k < Node.follows.size(); ++k)
+			int FollowedCeleb = -1;
+			for (size_t k = 0; k < Node.follows.size() && FollowedCeleb < 0; ++k)
 			{
-				if (G.nodes[SimIx(Node.follows[k])].role == NodeRole::Celebrity)
+				for (size_t z = 0; z < G.celebrities.size(); ++z)
 				{
-					FollowsCeleb = true;
-					break;
+					if (G.celebrities[z] == Node.follows[k])
+					{
+						FollowedCeleb = static_cast<int>(z);
+						break;
+					}
 				}
 			}
-			if (FollowsCeleb && R.Chance(Jam_.rivalFollowerFraction))
+			if (FollowedCeleb >= 0 && R.Chance(CelebOwner[static_cast<size_t>(FollowedCeleb)] == RivalId_ ? Jam_.rivalFollowerFraction : P_.OtherCelebFollowerFraction))
 			{
-				Opinion_[SimIx(Id)] = RivalId_;
+				Opinion_[SimIx(Id)] = CelebOwner[static_cast<size_t>(FollowedCeleb)];
 				Conv_[SimIx(Id)] = R.Uniform(P_.RivalFollowerConvMin, P_.RivalFollowerConvMax);
 			}
 		}
@@ -873,6 +890,7 @@ namespace ShiftSim
 				if (IsPlayer && Opinion_[Ix] >= 0)
 				{
 					TakenByPlayerAt_[Opinion_[Ix]] = Time_;
+					TakenByPlayerNode_[Opinion_[Ix]] = Node;
 				}
 				SetOwner(Node, Who);
 				Flipper_[Ix] = Who;
@@ -949,6 +967,7 @@ namespace ShiftSim
 			if (Opinion_[Ix] >= 0)
 			{
 				TakenByPlayerAt_[Opinion_[Ix]] = Time_;
+				TakenByPlayerNode_[Opinion_[Ix]] = Node;
 			}
 			SetOwner(Node, kPlayerId);
 			Flipper_[Ix] = kPlayerId;

@@ -14,6 +14,9 @@ CelebFollowProb,0.12
 HubFollowsCelebProb,0.1
 CelebMinFollowersPerCommunity,1
 CelebLinks,0
+CelebExclusive,1
+OtherCelebFollowerFraction,0.25
+CelebOwners,1
 BridgeCrossHubFollows,2
 BridgeCrossMemberFollows,1
 BridgeFollowers,2
@@ -129,7 +132,7 @@ RivalBandThreshold,0.15
 MegaDays,3
 MegaConvBoost,0.3
 MegaAttackMult,2
-OthersInterval,6
+OthersInterval,8
 OthersMaxV,300
 ModFirstSweepMin,0
 BotInterval,0.2

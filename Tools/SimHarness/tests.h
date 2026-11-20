@@ -149,6 +149,7 @@ inline void TestGraph(const Config& Cfg)
             int Recip = 0;
             bool Mirror = true, NoSelf = true, NoDup = true, InBox = true, Weights = true, FollowsOk = true;
             bool CelebFollowedEverywhere = true;
+            int CelebMissing = 0;
             for (int I = 0; I < G.NodeCount(); ++I)
             {
                 const GraphNode& N = G.nodes[static_cast<size_t>(I)];
@@ -183,7 +184,19 @@ inline void TestGraph(const Config& Cfg)
                         if (N.role == NodeRole::Bridge) { continue; }
                         for (size_t Q = 0; Q < N.follows.size(); ++Q) { if (N.follows[Q] == G.celebrities[Z]) { Any = true; } }
                     }
-                    if (!Any) { CelebFollowedEverywhere = false; }
+                    if (!Any) { ++CelebMissing; }
+                }
+            }
+            // Every community has a follower of every celebrity (the old random overlap); with separate audiences (CelebExclusive) a small community can be out of voters that follow no celebrity yet: 20% may miss one.
+            CelebFollowedEverywhere = Cfg.params.CelebExclusive > 0.5 ? (CelebMissing * 5 <= static_cast<int>(G.communityNodes.size() * G.celebrities.size())) : (CelebMissing == 0);
+            // Separate audiences: no voter follows two celebrities.
+            if (Cfg.params.CelebExclusive > 0.5)
+            {
+                for (size_t I = 0; I < G.nodes.size(); ++I)
+                {
+                    int Followed = 0;
+                    for (size_t Q = 0; Q < G.nodes[I].follows.size(); ++Q) { Followed += G.nodes[static_cast<size_t>(G.nodes[I].follows[Q])].role == NodeRole::Celebrity ? 1 : 0; }
+                    T_CHECK(Followed <= 1);
                 }
             }
             T_CHECK(Mirror);
@@ -1997,12 +2010,19 @@ inline void TestQueries(const Config& Cfg)
             T_CHECK(static_cast<int>(S2.GetGraph().nodes[static_cast<size_t>(I)].followers.size()) <= RoundToIntLocal(P.PlayerStartMaxFollowers));
         }
     }
-    // Celebrities start rival-owned at conviction 1.0.
+    // Celebrities start at conviction 1.0: the first is the rival's, the others belong to other entries (never the player's), each to a different one.
+    int OwnersSeen = 0;
     for (size_t Z = 0; Z < S2.GetGraph().celebrities.size(); ++Z)
     {
-        T_CHECK(S2.Opinion(S2.GetGraph().celebrities[Z]) == S2.RivalId());
+        const int Owner = S2.Opinion(S2.GetGraph().celebrities[Z]);
         T_CHECK(Near(S2.Conviction(S2.GetGraph().celebrities[Z]), P.RivalConv));
+        T_CHECK(Owner >= 0 && Owner != kPlayerId);
+        T_CHECK(Z == 0 ? Owner == S2.RivalId() : (P.CelebOwners > 0.5 ? Owner != S2.RivalId() : Owner == S2.RivalId()));
+        OwnersSeen |= 1 << Owner;
     }
+    int Distinct = 0;
+    for (int B = 0; B < 16; ++B) { Distinct += (OwnersSeen >> B) & 1; }
+    T_CHECK(Distinct == (P.CelebOwners > 0.5 ? static_cast<int>(S2.GetGraph().celebrities.size()) : 1));
 }
 
 inline void RunAll(const Config& Cfg)

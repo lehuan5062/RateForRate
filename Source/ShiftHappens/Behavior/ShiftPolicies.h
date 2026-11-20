@@ -38,12 +38,14 @@ namespace ShiftSim
 		double FinalPushRegen = 1.10;        // the player's Post refill multiplier in the rival's final push (the last MegaDays days), 1 = off
 		double MegaAttackMult = 2.0;         // actions per rival tick during Mega
 		// stand-in others
-		double OthersInterval = 6.0;         // each other entry acts this often (10 until round 10: the other colours were for show)
+		double OthersInterval = 8.0;         // each other entry acts this often (10 until round 10: the other colours were for show; 6 in round 10)
 		double OthersMaxV = 300.0;           // the biggest member or bridge another entry goes for (100 until round 10)
 		double OthersTargetsPlayer = 3.0;    // how much readier another entry is to plug a voter the player holds while it has a grudge (GrudgeSeconds after the player took one of its voters); otherwise like any other voter
 		double OthersLeaderMult = 2.0;       // how much likelier another entry is to pick a voter of whoever leads the board (1 = no preference: any voter alike): the pack piles onto the front-runner, the rival most of the time, you when you lead
 		double OthersHubs = 1.0;             // 1: another entry may also go for a local hub (gated like the rival when Params::GatesApplyToAll is on)
-		double OthersHubMaxV = 600.0;        // ... of at most this vote weight
+		double OthersHubMaxV = 1000.0;       // ... or a celebrity, of at most this vote weight (600 and hubs only until round 11)
+		double OthersStrength = 1.25;        // the strength of another entry's plug (1 until round 11: the others were too weak to be felt; the rival's base is 1.5)
+		double OthersRevenge = 1.0;          // 1: while it holds a grudge another entry goes for the voter the player just took from it, and it defends its own shaky big voters like the rival
 		// stand-in Mod Eye (director)
 		double ModFirstSweepMin = 0.0;       // the Eye's cycle is already running at t=0: first sweep ~ U[this, jam ModIntervalMax]
 		// player bots
@@ -326,7 +328,28 @@ namespace ShiftSim
 		// OthersHubs it may also take a local hub (under the gates: an entry needs a foothold among a hub's followers, like the player and the rival).
 		static void Act(Sim& S, const PolicyParams& PP, int Entry)
 		{
+			if (PP.OthersRevenge > 0.5)
+			{
+				// Hold what is its own: re-plug the weakest big voter it owns when it is shaky (the rival does the same).
+				const int Weak = S.WeakestOwned(Entry, S.GetParams().HighValueV, PP.RivalDefendBelow);
+				if (Weak >= 0)
+				{
+					S.Plug(Entry, Weak, 1.0);
+					return;
+				}
+				// A grudge: the player took a voter from this entry in the last GrudgeSeconds, so it goes for that voter while it is still the player's (a ring in its colour closes in on it).
+				if (StandInRival::Grudge(S, PP, Entry))
+				{
+					const int Node = S.LastTakenNode(Entry);
+					if (Node >= 0 && S.Opinion(Node) == kPlayerId && S.LockRemaining(Node) <= 0.0 && !S.ThreatOn(Node, nullptr, nullptr, nullptr))
+					{
+						S.Plug(Entry, Node, PP.OthersStrength);
+						return;
+					}
+				}
+			}
 			TargetFilter F;
+			F.strength = PP.OthersStrength;
 			F.maxV = PP.OthersMaxV;
 			F.ownerMult[kPlayerId] = StandInRival::Grudge(S, PP, Entry) ? PP.OthersTargetsPlayer : 1.0;
 			F.roleMask = (1u << static_cast<uint32_t>(NodeRole::Member)) | (1u << static_cast<uint32_t>(NodeRole::Bridge));
@@ -344,7 +367,7 @@ namespace ShiftSim
 			{
 				TargetFilter H = F;
 				H.maxV = PP.OthersHubMaxV;
-				H.roleMask = 1u << static_cast<uint32_t>(NodeRole::LocalHub);
+				H.roleMask = (1u << static_cast<uint32_t>(NodeRole::LocalHub)) | (1u << static_cast<uint32_t>(NodeRole::Celebrity));
 				Target Hub;
 				if (S.BestTarget(Entry, H, &Hub) && (!bFound || Hub.score > T.score))
 				{
@@ -354,7 +377,7 @@ namespace ShiftSim
 			}
 			if (bFound)
 			{
-				S.Plug(Entry, T.node, 1.0);
+				S.Plug(Entry, T.node, PP.OthersStrength);
 			}
 		}
 
@@ -1100,7 +1123,7 @@ namespace ShiftSim
 			static const Field kFields[] = {
 				SHIFT_PP(RivalDefendBelow), SHIFT_PP(RivalPlayerMult), SHIFT_PP(RivalCapShare), SHIFT_PP(RivalBandBase),
 				SHIFT_PP(RivalBandSlope), SHIFT_PP(RivalBandThreshold), SHIFT_PP(RivalPostsMax), SHIFT_PP(RivalPostsRegen), SHIFT_PP(RivalDefendCost), SHIFT_PP(GrudgeSeconds), SHIFT_PP(RivalNodeCooldown), SHIFT_PP(MegaDays), SHIFT_PP(MegaConvBoost),
-				SHIFT_PP(MegaAttackMult), SHIFT_PP(FinalPushRegen), SHIFT_PP(EyeAwayCount), SHIFT_PP(EyeAwaySeconds), SHIFT_PP(EyeAwayEndMargin), SHIFT_PP(EyeAwayWarn), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV), SHIFT_PP(OthersTargetsPlayer), SHIFT_PP(OthersLeaderMult), SHIFT_PP(OthersHubs), SHIFT_PP(OthersHubMaxV),
+				SHIFT_PP(MegaAttackMult), SHIFT_PP(FinalPushRegen), SHIFT_PP(EyeAwayCount), SHIFT_PP(EyeAwaySeconds), SHIFT_PP(EyeAwayEndMargin), SHIFT_PP(EyeAwayWarn), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV), SHIFT_PP(OthersTargetsPlayer), SHIFT_PP(OthersLeaderMult), SHIFT_PP(OthersHubs), SHIFT_PP(OthersHubMaxV), SHIFT_PP(OthersStrength), SHIFT_PP(OthersRevenge),
 				SHIFT_PP(ModFirstSweepMin), SHIFT_PP(BotInterval), SHIFT_PP(BotStart), SHIFT_PP(BotNoise), SHIFT_PP(BotBlame), SHIFT_PP(QaGiveCelebs), SHIFT_PP(SockMaxHeat), SHIFT_PP(SockWindup), SHIFT_PP(LateSeconds), SHIFT_PP(RallyMinRisk), SHIFT_PP(ReactDelay), SHIFT_PP(ReactReserve), SHIFT_PP(ReactMinValue), SHIFT_PP(ReactRallyThreats), SHIFT_PP(ReactRallyValue), SHIFT_PP(XReact), SHIFT_PP(XRally), SHIFT_PP(XSock), SHIFT_PP(XBurst),
 				SHIFT_PP(XIdle), SHIFT_PP(XReinforceBelow), SHIFT_PP(XPlugMinV), SHIFT_PP(XSockMinV), SHIFT_PP(XSockShare), SHIFT_PP(XParry), SHIFT_PP(XWindow), SHIFT_PP(XWindowBank), SHIFT_PP(XValueFirst), SHIFT_PP(XKeepRally),
 			};

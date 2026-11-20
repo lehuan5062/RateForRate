@@ -139,6 +139,8 @@ namespace
 		TutPackHit,
 		// appended in round 9: a runaway leader loses voters to the runner-up
 		TutSympathy,
+		// appended in round 11: a colour you took a voter from comes for it
+		TutGrudge,
 		TutCount
 	};
 
@@ -146,7 +148,7 @@ namespace
 	{
 		TEXT("JamStart"), TEXT("FirstHover"), TEXT("FirstPlug"), TEXT("FirstConvictionRing"), TEXT("PostsLow"), TEXT("FirstReinforce"),
 		TEXT("FirstGateSeen"), TEXT("FirstGateOpened"), TEXT("ShiftUnlocked"), TEXT("FirstHeat"), TEXT("FirstModEye"), TEXT("FirstStrike"),
-		TEXT("BlameAvailable"), TEXT("KeysHint"), TEXT("FirstLostVoter"), TEXT("FirstSockpuppet"), TEXT("FinalAudit"), TEXT("RallyHint"), TEXT("ThreatRing"), TEXT("EyeAway"), TEXT("FirstFake"), TEXT("FinalPush"), TEXT("BlameRule"), TEXT("FirstLead"), TEXT("PackHit"), TEXT("Sympathy"),
+		TEXT("BlameAvailable"), TEXT("KeysHint"), TEXT("FirstLostVoter"), TEXT("FirstSockpuppet"), TEXT("FinalAudit"), TEXT("RallyHint"), TEXT("ThreatRing"), TEXT("EyeAway"), TEXT("FirstFake"), TEXT("FinalPush"), TEXT("BlameRule"), TEXT("FirstLead"), TEXT("PackHit"), TEXT("Sympathy"), TEXT("Grudge"),
 	};
 
 	enum ETutEvent : uint32
@@ -1375,6 +1377,7 @@ FString AShiftPlayerController::ExpandTutorialText(const FString& Text) const
 	Out.ReplaceInline(TEXT("{rallylock}"), *FString::Printf(TEXT("%.0f"), P.RallyLock));
 	Out.ReplaceInline(TEXT("{eyeaway}"), *FString::Printf(TEXT("%.0f"), Run->GetPolicy().EyeAwaySeconds));
 	Out.ReplaceInline(TEXT("{fakelimit}"), *FString::Printf(TEXT("%.0f"), P.SockHeldHeat > 0.0 ? 100.0 * P.HeatDecay / P.SockHeldHeat : 100.0));
+	Out.ReplaceInline(TEXT("{grudge}"), *FString::Printf(TEXT("%.0f"), Run->GetPolicy().GrudgeSeconds));
 	Out.ReplaceInline(TEXT("{sympathy}"), *FString::Printf(TEXT("%.0f"), 100.0 * Run->GetSim().GetParams().BacklashLead));
 	Out.ReplaceInline(TEXT("{pushpct}"), *FString::Printf(TEXT("%.0f"), 100.0 * FMath::Max(0.0, Run->GetPolicy().FinalPushRegen - 1.0)));
 	Out.ReplaceInline(TEXT("{review}"), *FString::Printf(TEXT("%.0f"), P.SockReview));
@@ -1526,6 +1529,15 @@ void AShiftPlayerController::TickTutorial(float DeltaTime)
 	if (RunClock > 12.0f && !S.Disqualified() && S.Leader() == ShiftSim::kPlayerId)
 	{
 		QueueCoach(TutFirstLead);   // the other entries pile onto whoever leads
+	}
+	for (const ShiftSim::PendingAttack& A : S.PendingAttacks())
+	{
+		// a ring from an other colour on a voter of yours while it holds a grudge: it is coming for what you took
+		if (A.who != S.RivalId() && S.Opinion(A.node) == ShiftSim::kPlayerId && S.Time() - S.LastTakenByPlayer(A.who) < Run->GetPolicy().GrudgeSeconds)
+		{
+			QueueCoach(TutGrudge);
+			break;
+		}
 	}
 	{
 		int32 SympathyFrom = -1;

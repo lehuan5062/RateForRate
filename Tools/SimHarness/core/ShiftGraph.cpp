@@ -360,7 +360,42 @@ namespace ShiftSim
 		}
 
 		// Celebrity hubs: followed sparsely across communities.
-		for (int zi = 0; zi < Celebs; ++zi)
+		const bool bExclusive = P.CelebExclusive > 0.5 && Celebs > 1;
+		std::vector<uint8_t> HasCeleb(G.nodes.size(), 0);   // exclusive audiences: the voters that already follow a celebrity
+		if (bExclusive)
+		{
+			for (int C = 0; C < Comms; ++C)
+			{
+				const std::vector<int>& L = Core[static_cast<size_t>(C)];
+				std::vector<uint8_t> Reached(static_cast<size_t>(Celebs), 0);
+				for (int i = 0; i < GraphSz(L); ++i)
+				{
+					const int Id = L[static_cast<size_t>(i)];
+					const double Prob = std::fmin(1.0, static_cast<double>(Celebs) * ((i == 0) ? P.HubFollowsCelebProb : P.CelebFollowProb));
+					if (R.Chance(Prob))
+					{
+						const int zi = R.Range(Celebs);
+						AddFollow(G, Id, G.celebrities[static_cast<size_t>(zi)]);
+						HasCeleb[static_cast<size_t>(Id)] = 1;
+						Reached[static_cast<size_t>(zi)] = 1;
+					}
+				}
+				const int MinFollowers = RoundToInt(P.CelebMinFollowersPerCommunity);
+				for (int zi = 0; zi < Celebs && MinFollowers > 0 && GraphSz(L) > 1; ++zi)
+				{
+					for (int Try = 0; Try < 6 && Reached[static_cast<size_t>(zi)] == 0; ++Try)
+					{
+						const int Id = L[static_cast<size_t>(1 + R.Range(GraphSz(L) - 1))];
+						if (HasCeleb[static_cast<size_t>(Id)] == 0 && AddFollow(G, Id, G.celebrities[static_cast<size_t>(zi)]))
+						{
+							HasCeleb[static_cast<size_t>(Id)] = 1;
+							Reached[static_cast<size_t>(zi)] = 1;
+						}
+					}
+				}
+			}
+		}
+		for (int zi = 0; zi < Celebs && !bExclusive; ++zi)
 		{
 			const int Z = G.celebrities[static_cast<size_t>(zi)];
 			for (int C = 0; C < Comms; ++C)
@@ -439,7 +474,14 @@ namespace ShiftSim
 					}
 				}
 			}
-			for (int zi = 0; zi < Celebs; ++zi)
+			if (bExclusive)
+			{
+				if (R.Chance(std::fmin(1.0, static_cast<double>(Celebs) * P.CelebFollowProb)))
+				{
+					AddFollow(G, B, G.celebrities[static_cast<size_t>(R.Range(Celebs))]);
+				}
+			}
+			for (int zi = 0; zi < Celebs && !bExclusive; ++zi)
 			{
 				if (R.Chance(P.CelebFollowProb))
 				{
