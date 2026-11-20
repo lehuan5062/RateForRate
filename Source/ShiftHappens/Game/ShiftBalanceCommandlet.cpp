@@ -130,7 +130,7 @@ namespace
 		}
 		else if (Name.Equals(TEXT("steady"), ESearchCase::IgnoreCase))
 		{
-			P.Add(TEXT("XReact"), 1.0); P.Add(TEXT("XRally"), 1.0); P.Add(TEXT("XSock"), 1.0); P.Add(TEXT("XBurst"), 0.0); P.Add(TEXT("XSockMinV"), 250.0); P.Add(TEXT("SockMaxHeat"), 35.0); P.Add(TEXT("XSockShare"), 0.06);
+			P.Add(TEXT("XReact"), 1.0); P.Add(TEXT("XRally"), 1.0); P.Add(TEXT("XSock"), 1.0); P.Add(TEXT("XBurst"), 0.0); P.Add(TEXT("XSockMinV"), 250.0); P.Add(TEXT("SockMaxHeat"), 35.0); P.Add(TEXT("XSockShare"), 0.0375);
 		}
 		else if (Name.Equals(TEXT("gambler"), ESearchCase::IgnoreCase))
 		{

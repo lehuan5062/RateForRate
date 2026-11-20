@@ -103,6 +103,10 @@ namespace ShiftSim
 		Flipper_.assign(Count, kNoOwner);
 		for (int e = 0; e < kMaxEntries; ++e)
 		{
+			TakenByPlayerAt_[e] = -1.0e9;
+		}
+		for (int e = 0; e < kMaxEntries; ++e)
+		{
 			Tally_[e] = 0.0;
 			Rank_[e] = e;
 			Order_[e] = e;
@@ -866,6 +870,10 @@ namespace ShiftSim
 			const double C = Base - P_.PlugDrain * Strength;
 			if (C <= P_.PlugFlipThreshold + kSimEps)
 			{
+				if (IsPlayer && Opinion_[Ix] >= 0)
+				{
+					TakenByPlayerAt_[Opinion_[Ix]] = Time_;
+				}
 				SetOwner(Node, Who);
 				Flipper_[Ix] = Who;
 				Conv_[Ix] = IsPlayer ? P_.PlayerFlipConv : P_.PlugFlipConv;
@@ -938,6 +946,10 @@ namespace ShiftSim
 		{
 			SockPrevOpinion_[Ix] = Opinion_[Ix];
 			SockPrevConv_[Ix] = Conv_[Ix];
+			if (Opinion_[Ix] >= 0)
+			{
+				TakenByPlayerAt_[Opinion_[Ix]] = Time_;
+			}
 			SetOwner(Node, kPlayerId);
 			Flipper_[Ix] = kPlayerId;
 			Conv_[Ix] = P_.SockConv;

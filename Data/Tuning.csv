@@ -13,6 +13,7 @@ ReciprocalProb,0.15
 CelebFollowProb,0.12
 HubFollowsCelebProb,0.1
 CelebMinFollowersPerCommunity,1
+CelebLinks,0
 BridgeCrossHubFollows,2
 BridgeCrossMemberFollows,1
 BridgeFollowers,2
@@ -92,7 +93,7 @@ SockOverheatRefuse,1
 FinalAudit,1
 SockReview,15
 SockTolerance,1
-SockHeldHeat,50
+SockHeldHeat,80
 EyeAwayHeatMult,0
 EyeAwayHeldMult,0.5
 RallyCost,1
@@ -121,15 +122,15 @@ TargetFollowerCredit,0.5
 HighValueV,250
 RivalDefendBelow,0.75
 RivalPlayerMult,2
-RivalCapShare,0.65
+RivalCapShare,1
 RivalBandBase,1
 RivalBandSlope,4
 RivalBandThreshold,0.15
 MegaDays,3
 MegaConvBoost,0.3
 MegaAttackMult,2
-OthersInterval,10
-OthersMaxV,100
+OthersInterval,6
+OthersMaxV,300
 ModFirstSweepMin,0
 BotInterval,0.2
 SockMaxHeat,45

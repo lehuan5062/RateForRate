@@ -20,13 +20,14 @@ namespace ShiftSim
 		// stand-in rival
 		double RivalDefendBelow = 0.75;      // defend the weakest high-value rival node when its conviction is below this
 		double RivalPlayerMult = 2.0;        // attack score multiplier for player-owned nodes
-		double RivalCapShare = 0.65;         // at/above this share the rival only attacks player-owned nodes (1 = never complacent)
+		double RivalCapShare = 1.0;          // at/above this share the rival only attacks player-owned nodes (1 = never: since round 10 nobody targets the player just for being the player)
 		double RivalBandBase = 1.5;          // strength = base + slope * max(0, playerShare - threshold). 1.5 (was 1.0) since round 8: the rival no longer stacks plugs on one voter (RivalNodeCooldown), so one plug has to do the job: a fresh voter of the player's (80% sure) flips in one plug from 1.44 up
 		double RivalBandSlope = 4.0;
 		double RivalBandThreshold = 0.15;
 		double RivalPostsMax = 3.0;          // the rival's Post bank: every action (a plug on a voter, or a re-plug of a weak hub of its own) costs a Post, so the final push is not unlimited (0 = no bank, no limit)
 		double RivalPostsRegen = 0.30;       // ... Posts a second it refills (the rival acts 0.30 times a second before the push, so the bank stays full; the push drains it and the rival falls back to its normal pace: about 37% fewer attacks in the push)
 		double RivalDefendCost = 1.0;        // ... Posts a re-plug of a weak hub of its own costs
+		double GrudgeSeconds = 30.0;         // an entry prefers the player's voters (RivalPlayerMult, OthersTargetsPlayer) only for this long after the player took a voter from it; otherwise the player's voters are like anyone's
 		double RivalNodeCooldown = 30.0;     // seconds a voter the rival has just attacked is left alone, when anything else is worth a Post: it does not hammer one voter all game (0 = it does: the best target every time)
 		double MegaDays = 3.0;               // last N days: Mega Campaign
 		double MegaConvBoost = 0.3;          // +conviction on all rival nodes at Mega start
@@ -37,9 +38,9 @@ namespace ShiftSim
 		double FinalPushRegen = 1.10;        // the player's Post refill multiplier in the rival's final push (the last MegaDays days), 1 = off
 		double MegaAttackMult = 2.0;         // actions per rival tick during Mega
 		// stand-in others
-		double OthersInterval = 10.0;        // each other entry acts this often
-		double OthersMaxV = 100.0;           // weak: only low-weight nodes
-		double OthersTargetsPlayer = 1.0;    // how readily another entry plugs a voter the player holds (1 = like any other voter, 0 = never)
+		double OthersInterval = 6.0;         // each other entry acts this often (10 until round 10: the other colours were for show)
+		double OthersMaxV = 300.0;           // the biggest member or bridge another entry goes for (100 until round 10)
+		double OthersTargetsPlayer = 3.0;    // how much readier another entry is to plug a voter the player holds while it has a grudge (GrudgeSeconds after the player took one of its voters); otherwise like any other voter
 		double OthersLeaderMult = 2.0;       // how much likelier another entry is to pick a voter of whoever leads the board (1 = no preference: any voter alike): the pack piles onto the front-runner, the rival most of the time, you when you lead
 		double OthersHubs = 1.0;             // 1: another entry may also go for a local hub (gated like the rival when Params::GatesApplyToAll is on)
 		double OthersHubMaxV = 600.0;        // ... of at most this vote weight
@@ -140,6 +141,9 @@ namespace ShiftSim
 	{
 	public:
 		// Interval: the jam definition's rivalInterval (Jams.csv), 2 s if unset.
+		// True while the player took a voter from this entry in the last GrudgeSeconds: only then does it prefer the player's voters.
+		static bool Grudge(const Sim& S, const PolicyParams& PP, int Entry) { return S.Time() - S.LastTakenByPlayer(Entry) < PP.GrudgeSeconds; }
+
 		static double IntervalFor(const Sim& S, const PolicyParams& /*PP*/)
 		{
 			return S.Jam().rivalInterval > 0.1 ? S.Jam().rivalInterval : 2.0;
@@ -204,7 +208,7 @@ namespace ShiftSim
 			const double Strength = PP.RivalBandBase + PP.RivalBandSlope * (Over > 0.0 ? Over : 0.0);
 			TargetFilter F;
 			F.strength = Strength;
-			F.ownerMult[kPlayerId] = PP.RivalPlayerMult;
+			F.ownerMult[kPlayerId] = Grudge(S, PP, Rival) ? PP.RivalPlayerMult : 1.0;
 			if (S.Share(Rival) >= PP.RivalCapShare)
 			{
 				// Comfortably ahead: leave the other entries alone, only squash the player.
@@ -324,12 +328,12 @@ namespace ShiftSim
 		{
 			TargetFilter F;
 			F.maxV = PP.OthersMaxV;
-			F.ownerMult[kPlayerId] = PP.OthersTargetsPlayer;
+			F.ownerMult[kPlayerId] = StandInRival::Grudge(S, PP, Entry) ? PP.OthersTargetsPlayer : 1.0;
 			F.roleMask = (1u << static_cast<uint32_t>(NodeRole::Member)) | (1u << static_cast<uint32_t>(NodeRole::Bridge));
 			if (PP.OthersLeaderMult != 1.0)
 			{
 				const int Leader = S.Leader();
-				if (Leader >= 0 && Leader != Entry)
+				if (Leader >= 0 && Leader != Entry && Leader != kPlayerId)
 				{
 					F.ownerMult[Leader] *= PP.OthersLeaderMult;
 				}
@@ -1095,7 +1099,7 @@ namespace ShiftSim
 		{
 			static const Field kFields[] = {
 				SHIFT_PP(RivalDefendBelow), SHIFT_PP(RivalPlayerMult), SHIFT_PP(RivalCapShare), SHIFT_PP(RivalBandBase),
-				SHIFT_PP(RivalBandSlope), SHIFT_PP(RivalBandThreshold), SHIFT_PP(RivalPostsMax), SHIFT_PP(RivalPostsRegen), SHIFT_PP(RivalDefendCost), SHIFT_PP(RivalNodeCooldown), SHIFT_PP(MegaDays), SHIFT_PP(MegaConvBoost),
+				SHIFT_PP(RivalBandSlope), SHIFT_PP(RivalBandThreshold), SHIFT_PP(RivalPostsMax), SHIFT_PP(RivalPostsRegen), SHIFT_PP(RivalDefendCost), SHIFT_PP(GrudgeSeconds), SHIFT_PP(RivalNodeCooldown), SHIFT_PP(MegaDays), SHIFT_PP(MegaConvBoost),
 				SHIFT_PP(MegaAttackMult), SHIFT_PP(FinalPushRegen), SHIFT_PP(EyeAwayCount), SHIFT_PP(EyeAwaySeconds), SHIFT_PP(EyeAwayEndMargin), SHIFT_PP(EyeAwayWarn), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV), SHIFT_PP(OthersTargetsPlayer), SHIFT_PP(OthersLeaderMult), SHIFT_PP(OthersHubs), SHIFT_PP(OthersHubMaxV),
 				SHIFT_PP(ModFirstSweepMin), SHIFT_PP(BotInterval), SHIFT_PP(BotStart), SHIFT_PP(BotNoise), SHIFT_PP(BotBlame), SHIFT_PP(QaGiveCelebs), SHIFT_PP(SockMaxHeat), SHIFT_PP(SockWindup), SHIFT_PP(LateSeconds), SHIFT_PP(RallyMinRisk), SHIFT_PP(ReactDelay), SHIFT_PP(ReactReserve), SHIFT_PP(ReactMinValue), SHIFT_PP(ReactRallyThreats), SHIFT_PP(ReactRallyValue), SHIFT_PP(XReact), SHIFT_PP(XRally), SHIFT_PP(XSock), SHIFT_PP(XBurst),
 				SHIFT_PP(XIdle), SHIFT_PP(XReinforceBelow), SHIFT_PP(XPlugMinV), SHIFT_PP(XSockMinV), SHIFT_PP(XSockShare), SHIFT_PP(XParry), SHIFT_PP(XWindow), SHIFT_PP(XWindowBank), SHIFT_PP(XValueFirst), SHIFT_PP(XKeepRally),

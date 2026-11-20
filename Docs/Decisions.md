@@ -605,3 +605,25 @@ with the sympathy a better build moves the share less. `verify.ps1 -Balance -For
 - The trend column shortens long names by about a dozen pixels.
 
 **Not done.** More ways to win than the celebrities (a second celebrity-sized prize, mid-size contenders), and a harder time for the first capture instead of an easier second half. If "the circles decide" comes back, the next lever is the structure (who owns what at the start), not another rubber band.
+
+## M16 - playtest round 10 (issue #1, `58d2515`)
+
+The tester: the drift is barely felt; "obtain 1 big circle guarantee to get the other one", two circles then flip everything near them; separate the circles, maybe add a third; "all team seem to target the player badly then completely failed at it", only red affects the game, the others are for show,
+"it would be better if all color have a chance to win ... but none of them should exclusively target the player unless the player are in the process of taking voter from them"; and the Thumbnail's first look dropped from x1 at 4 hours to x0.15 at 3.
+
+**Found.** The celebrities followed each other (`ShiftGraph.cpp`), so one celebrity of 1100 to 2300 weight counted as backing at the other's gate. The rival preferred the player's voters x2 always and only the player's at a 65% share; the pack piled onto the player when it led. The thumbnail rule (1 + 0.5 x hours, with hours below 4 counting double) reached its 0.15 floor at 3 hours.
+
+**Built.**
+- `CelebLinks` 0: the celebrities no longer follow each other. Three celebrities per jam (`Celebs` 3), each with 4 extra followers (8 / 8 / 14 before), so no single one is a third of the board.
+- Grudges: `Sim::LastTakenByPlayer` (when the player last took a voter from an entry, by Plug or Sock); the rival (`RivalPlayerMult` 2) and the other entries (`OthersTargetsPlayer` 3) prefer the player's voters only for `GrudgeSeconds` 30 after that; `RivalCapShare` 1 (never "only the player"); the pack's leader preference never applies to the player.
+- A stronger pack: `OthersInterval` 10 -> 6 s, `OthersMaxV` 100 -> 300.
+- Thumbnail under 4 hours: 1 / (1 + 0.5 x hours lost): 3 h x0.5, 2 h x0.33, 0 h x0.2.
+- `SockHeldHeat` 50 -> 80 (the safe fake share 6% -> 3.75%): with nobody hunting the player, holding 6% of sockpuppet votes beat honest play by 12 points on GAME OFF (steady 43-47% against the reactor's 33%); at 80 the same habit wins 13-22%.
+- Post refill 0.440 / 0.448 / 0.424.
+
+**Measured** (100 runs, seed set 1000, greedy / reactor). Unlinked circles and grudges alone made the game much easier (89 / 73 / 76 and 93 / 92 / 85). Three smaller circles and the stronger pack: 74 / 39 / 39 and 68 / 44 / 42; holding one circle wins 17 to 59%, two or more 86 to 95%; the best other entry ends at 11 to 13% and an other entry wins up to 5 runs in 100.
+Pooled gate (200 runs): greedy 70.5 / 60.5 / 34 at the first refill guess; the other entries take 18 / 22 / 38 voters a run from the rival and win 0.5 to 1.5% of jams; the player's mean final share 44 / 39 / 30%, the rival's 32 / 34 / 39%.
+
+**Rows moved (each with its reason in the file).** `greedy_0` 74 -> 65; `reactor_1` / `reactor_2` 3 -> -8 (0 and -1 measured: with nobody hunting the player there are few rings to answer, so answering them barely matters); the steady preset holds 3.75%; forecast `fc_thumb_1` 4 -> 3, `fc_neutral_0` 45 -> 35.
+
+**Honest consequences.** Answering attacks is now worth little (the reactor no better than greedy on the hard jams): the parry and Rally matter mostly when you raid a colour and it hits back. Two of three circles still decide most jams. The underdog sympathy is unchanged.

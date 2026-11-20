@@ -383,7 +383,7 @@ namespace ShiftSim
 					AddFollow(G, L[static_cast<size_t>(1 + R.Range(GraphSz(L) - 1))], Z);
 				}
 			}
-			for (int zj = 0; zj < Celebs; ++zj)
+			for (int zj = 0; zj < Celebs && P.CelebLinks > 0.5; ++zj)
 			{
 				if (zj != zi)
 				{

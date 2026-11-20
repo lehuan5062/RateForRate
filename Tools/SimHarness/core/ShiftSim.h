@@ -239,6 +239,8 @@ namespace ShiftSim
 		int Challenger(int Node) const { return Challenger_[static_cast<size_t>(Node)]; }
 		// Who last flipped this voter: an entry id (a Plug or Sock), kFlipNatural for opinion pressure, kNoOwner if it has not changed hands. Derived, not in StateHash.
 		int LastFlipper(int Node) const { return Flipper_[static_cast<size_t>(Node)]; }
+		// Sim time the player last took a voter from this entry with a Plug or a Sock (-1e9 if never). Derived, not in StateHash: the other entries hold a grudge on it.
+		double LastTakenByPlayer(int Entry) const { return (Entry >= 0 && Entry < kMaxEntries) ? TakenByPlayerAt_[Entry] : -1.0e9; }
 		// Announced attacks on the player's voters, and the soonest one on a given voter (false when none).
 		const std::vector<PendingAttack>& PendingAttacks() const { return Pending_; }
 		bool ThreatOn(int Node, int* Who, double* TimeLeft, double* Total) const;
@@ -336,6 +338,7 @@ namespace ShiftSim
 		std::vector<double> Drain_;         // derived, see Drain()
 		std::vector<int> Challenger_;       // derived, see Challenger()
 		std::vector<int> Flipper_;          // derived, see LastFlipper()
+		double TakenByPlayerAt_[kMaxEntries];  // derived, see LastTakenByPlayer()
 		std::vector<double> Shield_;        // derived, see ShieldRemaining()
 		std::vector<PendingAttack> Pending_;
 		AttackCounters AttackStats_;

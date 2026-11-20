@@ -59,7 +59,7 @@ namespace ShiftSim
 		P.PlayerFlipConv = BuildDetail::Clamp(P.PlayerFlipConv + P.BuildFlipConvPerHour * Qh, 0.5, 0.98);
 
 		// Thumbnail: how many people consider it at all (clout) and how far each Post goes (a Plug costs a little less).
-		P.PlayerClout = std::fmax(0.15, 1.0 + P.BuildCloutPerHour * Th) * P.PlayerClout;
+		P.PlayerClout = (Th >= 0.0 ? 1.0 + P.BuildCloutPerHour * Th : 1.0 / (1.0 - P.BuildCloutPerHour * Th)) * P.PlayerClout;   // under 4 hours 1 / (1 + 0.5 x hours lost): 3 h x0.5, 2 h x0.33, 0 h x0.2
 		P.PlayerPlugCost = BuildDetail::Clamp(1.0 - P.BuildPlugCostPerHour * Th, 0.5, 1.5);
 
 		// Network: followers on day one, and a bigger, faster Post economy.

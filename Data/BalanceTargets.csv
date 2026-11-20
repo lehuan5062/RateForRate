@@ -5,7 +5,7 @@ idle_2,2,idle,,win_pct,,,,0,Doing nothing must never win
 random_0,0,random,,win_pct,,,,5,Random clicking must not win (noise allowance)
 random_1,1,random,,win_pct,,,,5,Random clicking must not win (noise allowance)
 random_2,2,random,,win_pct,,,,5,Random clicking must not win (noise allowance)
-greedy_0,0,greedy,,win_pct,,,74,93,"Honest play on the easy jam wins about 80% (88% before round 9: a lead of more than 25 points now bleeds, and honest play that never reinforces feels it most)"
+greedy_0,0,greedy,,win_pct,,,65,93,"Honest play on the easy jam wins about 70% (71 measured in round 10 with the stronger other entries; 80% in round 9, 88% before: a lead of more than 25 points now bleeds, and honest play that never reinforces feels it most)"
 greedy_1,1,greedy,,win_pct,,,51,61,Honest play on the middle jam wins about 56%
 greedy_2,2,greedy,,win_pct,,,25,35,Honest play on GAME OFF wins about 30%
 finisher_0,0,finisher,,win_pct,greedy,,,5,Honest play then a last-moment sockpuppet burst must not beat honest play
@@ -21,17 +21,17 @@ sock_dq_0,0,sock,,dq_pct,,,50,,Holding fake votes heats you up: reckless sockpup
 sock_dq_1,1,sock,,dq_pct,,,50,,Holding fake votes heats you up: reckless sockpuppets get caught
 sock_dq_2,2,sock,,dq_pct,,,50,,Holding fake votes heats you up: reckless sockpuppets get caught
 reactor_0,0,reactor,,win_pct,greedy,,-8,15,"Answering announced attacks is about as good as ignoring them on the easy jam (-11 measured in round 7 under the lighter final push, 0 in round 8)"
-reactor_1,1,reactor,,win_pct,greedy,,3,25,Answering announced attacks (Rally) beats ignoring them on the hard jams
-reactor_2,2,reactor,,win_pct,greedy,,3,25,Answering announced attacks (Rally) beats ignoring them on the hard jams
+reactor_1,1,reactor,,win_pct,greedy,,-8,25,"Answering announced attacks is not worse than ignoring them on the hard jams (0 and -1 measured in round 10: nobody targets the player any more unless it took their voters, so there are fewer rings to answer)"
+reactor_2,2,reactor,,win_pct,greedy,,-8,25,"Answering announced attacks is not worse than ignoring them on the hard jams (0 and -1 measured in round 10: nobody targets the player any more unless it took their voters, so there are fewer rings to answer)"
 explorer_0,0,explorer,,best_response,greedy,,,30,No searched strategy beats honest play by more than 30 points on fresh seeds (greedy is weaker on them; needs -Explore)
 explorer_1,1,explorer,,best_response,greedy,,,30,No searched strategy beats honest play by more than 30 points on fresh seeds (greedy is weaker on them; needs -Explore)
 explorer_2,2,explorer,,best_response,greedy,,,30,No searched strategy beats honest play by more than 30 points on fresh seeds (greedy is weaker on them; needs -Explore)
 snowball_0,0,snowball,,win_pct,reactor,,,5,Sockpuppeting the biggest hubs and celebrities with no care for the share does not beat honest play that answers attacks
 snowball_1,1,snowball,,win_pct,reactor,,,5,Sockpuppeting the biggest hubs and celebrities with no care for the share does not beat honest play that answers attacks
 snowball_2,2,snowball,,win_pct,reactor,,,5,Sockpuppeting the biggest hubs and celebrities with no care for the share does not beat honest play that answers attacks
-steady_0,0,steady,,win_pct,reactor,,,5,Sockpuppets kept under the 6% Heat can hold do not beat honest play that answers attacks
-steady_1,1,steady,,win_pct,reactor,,,5,Sockpuppets kept under the 6% Heat can hold do not beat honest play that answers attacks
-steady_2,2,steady,,win_pct,reactor,,,5,Sockpuppets kept under the 6% Heat can hold do not beat honest play that answers attacks
+steady_0,0,steady,,win_pct,reactor,,,5,Sockpuppets kept under the share Heat can hold (3.75% since round 10) do not beat honest play that answers attacks
+steady_1,1,steady,,win_pct,reactor,,,5,Sockpuppets kept under the share Heat can hold (3.75% since round 10) do not beat honest play that answers attacks
+steady_2,2,steady,,win_pct,reactor,,,5,Sockpuppets kept under the share Heat can hold (3.75% since round 10) do not beat honest play that answers attacks
 gambler_0,0,gambler,,win_pct,reactor,,,5,The search's sockpuppet gambler (hubs, a last-21-s burst, answers attacks) does not beat honest play that answers attacks
 gambler_1,1,gambler,,win_pct,reactor,,,5,The search's sockpuppet gambler (hubs, a last-21-s burst, answers attacks) does not beat honest play that answers attacks
 gambler_2,2,gambler,,win_pct,reactor,,,5,The search's sockpuppet gambler (hubs, a last-21-s burst, answers attacks) does not beat honest play that answers attacks

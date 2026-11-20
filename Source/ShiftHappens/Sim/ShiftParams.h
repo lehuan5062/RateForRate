@@ -34,6 +34,7 @@ namespace ShiftSim
 		double CelebFollowProb = 0.12;          // per member, per celebrity
 		double HubFollowsCelebProb = 0.1;       // per local hub, per celebrity
 		double CelebMinFollowersPerCommunity = 1.0;
+		double CelebLinks = 0.0;                // 1: every celebrity follows the others (until round 10: taking one then opened the gate of the other); 0: they are unrelated
 		double BridgeCrossHubFollows = 2.0;     // bridge follows this many foreign hubs
 		double BridgeCrossMemberFollows = 1.0;
 		double BridgeFollowers = 2.0;           // foreign members that follow a bridge
@@ -119,7 +120,7 @@ namespace ShiftSim
 		double SockOverheatRefuse = 1.0;        // 1: a sockpuppet that would take Heat to the cap is refused (Overheated, costs nothing) instead of striking at once
 		double EyeAwayHeatMult = 0.0;           // while the Mod Eye looks away (Sim::SetEyeAway): the Heat that night shift and a sockpuppet click add is multiplied by this ...
 		double EyeAwayHeldMult = 0.5;           // ... and the Heat that held sockpuppet votes add by this
-		double SockHeldHeat = 50.0;             // Heat per second per 100% of all vote weight held in sockpuppet votes, flagged or backed: holding fake votes keeps you warm (0 = off); cooling is 3 a second, so a 6% fake share is the most Heat can hold steady
+		double SockHeldHeat = 80.0;             // Heat per second per 100% of all vote weight held in sockpuppet votes, flagged or backed: holding fake votes keeps you warm (0 = off); cooling is 3 a second, so a 3.75% fake share is the most Heat can hold steady (50 and 6% until round 10, when holding 6% beat honest play by 12 points on GAME OFF)
 		double SockTolerance = 1.0;             // share of all vote weight the player may hold in sockpuppet votes (flagged or backed) when the Mod Eye passes; above it the sweep strikes (>= 1 = off, the default: SockHeldHeat does the job)
 		double SockReview = 15.0;               // seconds: the final audit also purges sockpuppet votes bought in the last this-many seconds of the jam, backed or not (0 = only the ones still flagged)
 		double FinalAudit = 1.0;                // 1: at the end of the jam the Mod Eye purges every sockpuppet vote that is still flagged (Sim::RevertSockpuppets)

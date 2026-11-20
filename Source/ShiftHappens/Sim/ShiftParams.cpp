@@ -22,7 +22,7 @@ namespace ShiftSim
 			SHIFT_P(WeightScale), SHIFT_P(WeightExp), SHIFT_P(InflBase),
 			SHIFT_P(MemberMin), SHIFT_P(MemberMax), SHIFT_P(MemberFollowHubProb), SHIFT_P(MemberRandomFollows),
 			SHIFT_P(RandomFollowSameCommunityProb), SHIFT_P(HubRandomFollowProb), SHIFT_P(ReciprocalProb),
-			SHIFT_P(CelebFollowProb), SHIFT_P(HubFollowsCelebProb), SHIFT_P(CelebMinFollowersPerCommunity),
+			SHIFT_P(CelebFollowProb), SHIFT_P(HubFollowsCelebProb), SHIFT_P(CelebMinFollowersPerCommunity), SHIFT_P(CelebLinks),
 			SHIFT_P(BridgeCrossHubFollows), SHIFT_P(BridgeCrossMemberFollows), SHIFT_P(BridgeFollowers),
 			SHIFT_P(HubExtraFollowers), SHIFT_P(LayoutWidth), SHIFT_P(LayoutHeight), SHIFT_P(LayoutMargin), SHIFT_P(LayoutMarginRight),
 			SHIFT_P(LayoutRingX), SHIFT_P(LayoutRingY), SHIFT_P(LayoutMinDist), SHIFT_P(LayoutCelebRadius),
@@ -122,28 +122,28 @@ namespace ShiftSim
 		if (Index <= 0)
 		{
 			J.name = "Tiny Jam #7";
-			J.nodes = 36; J.communities = 5; J.bridges = 2; J.celebs = 2;
+			J.nodes = 36; J.communities = 5; J.bridges = 2; J.celebs = 3;
 			J.days = 31; J.secPerDay = 6.0; J.regen = 0.440;
 			J.localGate = 0.25; J.celebGate = 0.15;
-			J.celebExtraFollowers = 8.0;
+			J.celebExtraFollowers = 4.0;
 			J.modIntervalMin = 25.0; J.modIntervalMax = 35.0;
 		}
 		else if (Index == 1)
 		{
 			J.name = "48h Pixel Rumble";
-			J.nodes = 52; J.communities = 7; J.bridges = 3; J.celebs = 2;
-			J.days = 31; J.secPerDay = 6.0; J.regen = 0.416;
+			J.nodes = 52; J.communities = 7; J.bridges = 3; J.celebs = 3;
+			J.days = 31; J.secPerDay = 6.0; J.regen = 0.448;
 			J.localGate = 0.25; J.celebGate = 0.20;
-			J.celebExtraFollowers = 8.0;
+			J.celebExtraFollowers = 4.0;
 			J.modIntervalMin = 15.0; J.modIntervalMax = 25.0;
 		}
 		else
 		{
 			J.name = "GAME OFF 2026";
-			J.nodes = 72; J.communities = 9; J.bridges = 4; J.celebs = 2;
-			J.days = 31; J.secPerDay = 8.0; J.regen = 0.443;
+			J.nodes = 72; J.communities = 9; J.bridges = 4; J.celebs = 3;
+			J.days = 31; J.secPerDay = 8.0; J.regen = 0.424;
 			J.localGate = 0.25; J.celebGate = 0.25;
-			J.celebExtraFollowers = 14.0;
+			J.celebExtraFollowers = 4.0;
 			J.modIntervalMin = 12.0; J.modIntervalMax = 20.0;
 		}
 		return J;
