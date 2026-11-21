@@ -101,7 +101,7 @@ Content/Shift/         generated assets (Git LFS)
 Plugins/GameFeatures/  the three jam packs
 Data/                  CSV sources of truth (text, tuning, jams)
 Tools/                 build / run / balance / verify scripts, Python builders (py/), standalone sim harness
-Docs/                  Decisions.md (design, engineering decisions, claim register), Audio.md, QA.md, Itch.md, mcp-toolsets.md, metasound-nodes-5.8.md
+Docs/                  Audio.md, QA.md, Itch.md, mcp-toolsets.md, metasound-nodes-5.8.md
 ```
 
 ## AI disclosure

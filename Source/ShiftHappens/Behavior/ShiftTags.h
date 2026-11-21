@@ -9,7 +9,7 @@
  * FShiftEvaluator_GameTags; the stock "Has Tags" StateTree condition then tests them (the rival tree's Mega Campaign and Defend gates use it).
  *
  * Tags only: there is no Ability System here. The sim core is a fixed-step, deterministic, engine-free simulation and the Ability System needs
- * actors and a ticking world (see Docs/Decisions.md, S9).
+ * actors and a ticking world.
  */
 namespace ShiftTags
 {

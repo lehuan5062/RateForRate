@@ -1,7 +1,7 @@
 """Runtime check of the MCP toolset register and of what the Python API exposes (UE 5.8).
 
 Dumps every registered toolset and tool (unreal.ToolsetRegistry), writes Docs/mcp-toolsets.md, checks that no audio toolset exists,
-and records `hasattr(unreal, X)` for the classes the claims in Docs/Decisions.md depend on.
+and records `hasattr(unreal, X)` for the classes the game relies on.
 Run: Tools\\run_py.ps1 -Script Tools\\py\\probe_toolsets.py
 """
 import json
