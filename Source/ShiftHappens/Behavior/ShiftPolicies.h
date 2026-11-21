@@ -47,6 +47,7 @@ namespace ShiftSim
 		double OthersHubMaxV = 1000.0;       // ... or a celebrity, of at most this vote weight (600 and hubs only until round 11)
 		double OthersStrength = 1.25;        // the strength of another entry's plug (1 until round 11: the others were too weak to be felt; the rival's base is 1.5)
 		double OthersLeaderPlayer = 1.0;      // 1: the pack's preference for the voters of whoever leads the board (OthersLeaderMult) also applies when that is the player: the front-runner draws everyone's attention, not only the rival (round 10 to 11 it never did, and a player who led could not be stopped: the playtester, round 12, "player still dominate after taking 1")
+		double OthersRevengeStrength = 1.9;   // the strength of the ring an other entry sends at the voter the player just took from it (OthersStrength for its other plugs). 1.9 is the least that flips a fully convinced voter in one plug ((1 - PlugFlipThreshold) / PlugDrain = 1.89): a voter the player took is back to full conviction within seconds, so at 1.25 or 1.6 the ring only dented it and could never take a circle back, and in the three recordings of round 12 the other colours retook none of the three circles the player took from them; the ring is still announced and parried like any other. 0 = OthersStrength
 		double OthersRevenge = 1.0;          // 1: while it holds a grudge another entry goes for the voter the player just took from it, and it defends its own shaky big voters like the rival
 		// stand-in Mod Eye (director)
 		double ModFirstSweepMin = 0.0;       // the Eye's cycle is already running at t=0: first sweep ~ U[this, jam ModIntervalMax]
@@ -367,7 +368,7 @@ namespace ShiftSim
 					const int Node = S.LastTakenNode(Entry);
 					if (Node >= 0 && S.Opinion(Node) == kPlayerId && S.LockRemaining(Node) <= 0.0 && !S.ThreatOn(Node, nullptr, nullptr, nullptr))
 					{
-						S.Plug(Entry, Node, PP.OthersStrength);
+						S.Plug(Entry, Node, PP.OthersRevengeStrength > 0.0 ? PP.OthersRevengeStrength : PP.OthersStrength);
 						return;
 					}
 				}
@@ -1147,7 +1148,7 @@ namespace ShiftSim
 			static const Field kFields[] = {
 				SHIFT_PP(RivalDefendBelow), SHIFT_PP(RivalPlayerMult), SHIFT_PP(RivalCapShare), SHIFT_PP(RivalBandBase),
 				SHIFT_PP(RivalBandSlope), SHIFT_PP(RivalBandThreshold), SHIFT_PP(RivalPostsMax), SHIFT_PP(RivalPostsRegen), SHIFT_PP(RivalDefendCost), SHIFT_PP(RivalRevenge), SHIFT_PP(GrudgeSeconds), SHIFT_PP(RivalNodeCooldown), SHIFT_PP(MegaDays), SHIFT_PP(MegaConvBoost),
-				SHIFT_PP(MegaAttackMult), SHIFT_PP(FinalPushRegen), SHIFT_PP(EyeAwayCount), SHIFT_PP(EyeAwaySeconds), SHIFT_PP(EyeAwayEndMargin), SHIFT_PP(EyeAwayWarn), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV), SHIFT_PP(OthersTargetsPlayer), SHIFT_PP(OthersLeaderMult), SHIFT_PP(OthersLeaderPlayer), SHIFT_PP(OthersHubs), SHIFT_PP(OthersHubMaxV), SHIFT_PP(OthersStrength), SHIFT_PP(OthersRevenge),
+				SHIFT_PP(MegaAttackMult), SHIFT_PP(FinalPushRegen), SHIFT_PP(EyeAwayCount), SHIFT_PP(EyeAwaySeconds), SHIFT_PP(EyeAwayEndMargin), SHIFT_PP(EyeAwayWarn), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV), SHIFT_PP(OthersTargetsPlayer), SHIFT_PP(OthersLeaderMult), SHIFT_PP(OthersLeaderPlayer), SHIFT_PP(OthersHubs), SHIFT_PP(OthersHubMaxV), SHIFT_PP(OthersStrength), SHIFT_PP(OthersRevengeStrength), SHIFT_PP(OthersRevenge),
 				SHIFT_PP(ModFirstSweepMin), SHIFT_PP(BotInterval), SHIFT_PP(BotStart), SHIFT_PP(BotNoise), SHIFT_PP(BotBlame), SHIFT_PP(QaGiveCelebs), SHIFT_PP(SockMaxHeat), SHIFT_PP(SockWindup), SHIFT_PP(LateSeconds), SHIFT_PP(RallyMinRisk), SHIFT_PP(ReactDelay), SHIFT_PP(ReactReserve), SHIFT_PP(ReactMinValue), SHIFT_PP(ReactRallyThreats), SHIFT_PP(ReactRallyValue), SHIFT_PP(XReact), SHIFT_PP(XRally), SHIFT_PP(XSock), SHIFT_PP(XBurst),
 				SHIFT_PP(XIdle), SHIFT_PP(XReinforceBelow), SHIFT_PP(XPlugMinV), SHIFT_PP(XSockMinV), SHIFT_PP(XSockShare), SHIFT_PP(XParry), SHIFT_PP(XWindow), SHIFT_PP(XWindowBank), SHIFT_PP(XValueFirst), SHIFT_PP(XKeepRally),
 			};

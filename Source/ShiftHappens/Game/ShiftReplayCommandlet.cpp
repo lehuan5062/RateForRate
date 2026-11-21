@@ -74,7 +74,7 @@ namespace
 	}
 
 	/** Replays one recording and reports it. Returns false when the file could not be replayed at all. */
-	bool ReplayOne(const FString& File, const TMap<FString, double>& Overrides, bool bNoStateTree, FReplayTotals& Totals)
+	bool ReplayOne(const FString& File, const TMap<FString, double>& Overrides, bool bNoStateTree, const FString& BuildArg, FReplayTotals& Totals)
 	{
 		++Totals.Files;
 		FShiftRecording Rec;
@@ -89,6 +89,18 @@ namespace
 		Build.Quality = Rec.Quality;
 		Build.Thumbnail = Rec.Thumbnail;
 		Build.Network = Rec.Network;
+		if (!BuildArg.IsEmpty())
+		{
+			// -Build=Q,T,N: the same clicks with another build (what would this jam have been with other hours)
+			TArray<FString> BuildParts;
+			BuildArg.ParseIntoArray(BuildParts, TEXT(","));
+			if (BuildParts.Num() == 3)
+			{
+				Build.Quality = FCString::Atoi(*BuildParts[0]);
+				Build.Thumbnail = FCString::Atoi(*BuildParts[1]);
+				Build.Network = FCString::Atoi(*BuildParts[2]);
+			}
+		}
 		FShiftRun Run;
 		Run.SetOverrides(Overrides);
 		if (!Run.Start(Rec.Jam, Rec.Seed, Build, true))
@@ -114,7 +126,7 @@ namespace
 		const ShiftSim::Graph& G = S.GetGraph();
 		const bool bSameTuning = Run.TuningHash() == Rec.Tuning;
 		UE_LOG(LogShift, Display, TEXT("Replay: file=%s"), *FPaths::GetCleanFilename(File));
-		UE_LOG(LogShift, Display, TEXT("Replay: jam=%d seed=%u build=%d/%d/%d tag=%s tuning=%s clicks=%d samples=%d"), Rec.Jam + 1, Rec.Seed, Rec.Quality, Rec.Thumbnail, Rec.Network, *Rec.Tag,
+		UE_LOG(LogShift, Display, TEXT("Replay: jam=%d seed=%u build=%d/%d/%d tag=%s (this build %s) tuning=%s clicks=%d samples=%d"), Rec.Jam + 1, Rec.Seed, Build.Quality, Build.Thumbnail, Build.Network, *Rec.Tag, ShiftRecordingInfo::BuildTag,
 			bSameTuning ? TEXT("same") : TEXT("DIFFERENT"), Rec.Events.Num(), Rec.Samples.Num());
 
 		// what the recorded clicks were aimed at (the graph is known from the seed, so no replay is needed for this)
@@ -157,6 +169,23 @@ namespace
 		TArray<FShiftEvent> Scratch;
 		int32 Stalled = 0;
 		int64 PrevSteps = S.StepCount();
+		const auto OwnerName = [&S](int32 Owner) -> FString
+		{
+			if (Owner == ShiftSim::kPlayerId) { return FString(TEXT("you")); }
+			if (Owner == S.RivalId()) { return FString(TEXT("rival")); }
+			return Owner < 0 ? FString(TEXT("nobody")) : FString::Printf(TEXT("other%d"), Owner);
+		};
+		TArray<int32> CircleOwner;
+		FString CircleStart;
+		FString CircleLog;
+		for (const int Celeb : G.celebrities)
+		{
+			CircleOwner.Add(S.Opinion(Celeb));
+			CircleStart += FString::Printf(TEXT("%s#%d %s (weight %.0f = %.1f%% of the vote)"), CircleStart.IsEmpty() ? TEXT("") : TEXT(", "), Celeb, *OwnerName(S.Opinion(Celeb)), G.nodes[static_cast<size_t>(Celeb)].weight, 100.0 * G.nodes[static_cast<size_t>(Celeb)].weight / FMath::Max(1.0, G.totalWeight));
+		}
+		int32 RingsRival = 0, RingsOthers = 0;
+		int32 LostCause[3] = { 0, 0, 0 };
+		int32 PostsLow = 0, PostsCap = 0, Ticks = 0;
 		while (!Run.IsOver() && static_cast<int32>(S.StepCount()) < Rec.EndStep && Stalled < 4)
 		{
 			Run.Tick(Dt);
@@ -170,6 +199,10 @@ namespace
 				if (Type < 32)
 				{
 					++Outcome[Type];
+				}
+				if (E.Type == EShiftEventType::PlayerLostVoter)
+				{
+					++LostCause[FMath::Clamp(FMath::RoundToInt(E.Value), 0, 2)];
 				}
 				if (E.Type == EShiftEventType::PlayerFlipped && E.Node >= 0 && E.Node < S.NodeCount())
 				{
@@ -186,6 +219,25 @@ namespace
 					}
 				}
 			}
+			for (size_t I = 0; I < G.celebrities.size(); ++I)
+			{
+				const int32 Owner = S.Opinion(G.celebrities[I]);
+				if (Owner != CircleOwner[static_cast<int32>(I)])
+				{
+					CircleLog += FString::Printf(TEXT("%s%.0fs #%d %s>%s"), CircleLog.IsEmpty() ? TEXT("") : TEXT("; "), S.Time(), G.celebrities[I], *OwnerName(CircleOwner[static_cast<int32>(I)]), *OwnerName(Owner));
+					CircleOwner[static_cast<int32>(I)] = Owner;
+				}
+			}
+			for (const ShiftSim::PendingAttack& A : S.PendingAttacks())
+			{
+				if (S.Opinion(A.node) == ShiftSim::kPlayerId && A.total - A.timeLeft <= Dt * 1.5)
+				{
+					if (A.who == S.RivalId()) { ++RingsRival; } else { ++RingsOthers; }
+				}
+			}
+			++Ticks;
+			PostsLow += S.Posts() < 1.0 ? 1 : 0;
+			PostsCap += S.Posts() >= S.GetParams().PostsMax - 0.01 ? 1 : 0;
 			const bool bLead = !S.Disqualified() && S.Leader() == ShiftSim::kPlayerId;
 			if (bLead && FirstLead < 0.0)
 			{
@@ -214,7 +266,7 @@ namespace
 		const bool bMatch = Hash == Rec.Hash && Result == Rec.Result;
 		UE_LOG(LogShift, Display, TEXT("Replay: recorded result=%s rank=%d strikes=%d end=%.1fs hash=%s"), *Rec.Result, Rec.Rank, Rec.Strikes, Rec.EndTime, *Rec.Hash);
 		UE_LOG(LogShift, Display, TEXT("Replay: replayed result=%s rank=%d strikes=%d end=%.1fs hash=%s   %s"), *Result, S.RankOf(ShiftSim::kPlayerId) + 1, S.Strikes(), S.Time(), *Hash,
-			bMatch ? TEXT("MATCH") : (bSameTuning ? TEXT("DIVERGED (same tuning: a bug, or a recording from another build)") : TEXT("differs (other tuning)")));
+			bMatch ? TEXT("MATCH") : (Rec.Tag != ShiftRecordingInfo::BuildTag ? TEXT("differs (the rules changed since this recording: Docs/QA.md lists the -Set values that restore them)") : (bSameTuning ? TEXT("DIVERGED (same build and tuning: a bug)") : TEXT("differs (other tuning)"))));
 		UE_LOG(LogShift, Display, TEXT("Replay: outcomes flipped=%d (celebrity %d, hub %d, bridge %d, member %d) reinforced=%d parried=%d weakened=%d gated=%d locked=%d no_posts=%d refused=%d overheated=%d rallied=%d rally_blocked=%d"),
 			Outcome[static_cast<int32>(EShiftEventType::PlayerFlipped)], FlippedRole[static_cast<int32>(ShiftSim::NodeRole::Celebrity)], FlippedRole[static_cast<int32>(ShiftSim::NodeRole::LocalHub)],
 			FlippedRole[static_cast<int32>(ShiftSim::NodeRole::Bridge)], FlippedRole[static_cast<int32>(ShiftSim::NodeRole::Member)], Outcome[static_cast<int32>(EShiftEventType::PlayerReinforced)],
@@ -232,10 +284,15 @@ namespace
 			FirstCeleb >= 0.0 ? *FString::Printf(TEXT("%.0fs"), FirstCeleb) : TEXT("never"), HeldEnd, RivalEnd, G.celebrities.size() > 0 ? static_cast<int32>(G.celebrities.size()) : 0,
 			FirstLead >= 0.0 ? *FString::Printf(TEXT("%.0fs"), FirstLead) : TEXT("never"), 100.0 * LeadSeconds / FMath::Max(1.0, S.Time()));
 		UE_LOG(LogShift, Display, TEXT("Replay: shares (percent of the vote) %s"), *ShareLine);
+		UE_LOG(LogShift, Display, TEXT("Replay: circles at the start: %s"), *CircleStart);
+		UE_LOG(LogShift, Display, TEXT("Replay: circle changes: %s"), CircleLog.IsEmpty() ? TEXT("none") : *CircleLog);
+		UE_LOG(LogShift, Display, TEXT("Replay: rings announced on your voters: rival %d, other colours %d   voters you lost: opinion pressure %d, the rival %d, another colour %d   Posts: under 1 for %.0f%% of the jam, at the bank cap for %.0f%%"),
+			RingsRival, RingsOthers, LostCause[0], LostCause[1], LostCause[2], 100.0 * PostsLow / FMath::Max(1, Ticks), 100.0 * PostsCap / FMath::Max(1, Ticks));
+		UE_LOG(LogShift, Display, TEXT("Replay: the rival: attacks %d (on the voter you just took: %d, no Post left: %d), defends %d"), Run.RivalPolicy().Attacks, Run.RivalPolicy().Revenges, Run.RivalPolicy().Starved, Run.RivalPolicy().Defends);
 		FString Final;
 		for (int32 E = 0; E < S.NumEntries(); ++E)
 		{
-			Final += FString::Printf(TEXT("%s%s %.1f"), Final.IsEmpty() ? TEXT("") : TEXT(" | "), E == ShiftSim::kPlayerId ? TEXT("you") : (E == S.RivalId() ? TEXT("rival") : TEXT("other")), S.Share(E) * 100.0);
+			Final += FString::Printf(TEXT("%s%s %.1f"), Final.IsEmpty() ? TEXT("") : TEXT(" | "), *OwnerName(E), S.Share(E) * 100.0);
 		}
 		UE_LOG(LogShift, Display, TEXT("Replay: final shares %s"), *Final);
 
@@ -253,9 +310,10 @@ namespace
 
 int32 UShiftReplayCommandlet::Main(const FString& Params)
 {
-	FString RecArg, DirArg, SetArg;
+	FString RecArg, DirArg, SetArg, BuildArg;
 	FParse::Value(*Params, TEXT("Rec="), RecArg, false);
 	FParse::Value(*Params, TEXT("Dir="), DirArg, false);
+	FParse::Value(*Params, TEXT("Build="), BuildArg, false);
 	const bool bNoStateTree = FParse::Param(*Params, TEXT("NoStateTree"));
 
 	TMap<FString, double> Overrides;
@@ -301,7 +359,7 @@ int32 UShiftReplayCommandlet::Main(const FString& Params)
 	FReplayTotals Totals;
 	for (const FString& File : Files)
 	{
-		ReplayOne(File, Overrides, bNoStateTree, Totals);
+		ReplayOne(File, Overrides, bNoStateTree, BuildArg, Totals);
 	}
 	UE_LOG(LogShift, Display, TEXT("Replay: summary files=%d replayed=%d matched=%d won=%d lost=%d disqualified=%d abandoned=%d mean_share=%.1f%% mean_clicks_per_min=%.1f"), Totals.Files, Totals.Replayed, Totals.Matched,
 		Totals.Won, Totals.Lost, Totals.Disqualified, Totals.Abandoned, Totals.Replayed > 0 ? 100.0 * Totals.ShareSum / Totals.Replayed : 0.0, Totals.Replayed > 0 ? Totals.ClicksPerMinSum / Totals.Replayed : 0.0);

@@ -4,11 +4,13 @@
 #   .\Tools\replay.ps1 -Rec D:\somewhere\shift_jam3_123_20261120-101500_won.shiftrec.txt
 #   .\Tools\replay.ps1 -Dir D:\from_the_tester           every recording in a folder (what the playtester sent)
 #   .\Tools\replay.ps1 -Rec <file> -Set CelebDrainMult=0.4,CelebGate=0.3   the same clicks under other tuning: "what would this jam have been with my change"
+#   .\Tools\replay.ps1 -Rec <file> -Build 4,4,4                              the same clicks with another build (Quality,Thumbnail,Network hours)
 # The log is Saved\replay_last.log (or replay_<Tag>.log).
 param(
 	[string]$Rec = '',
 	[string]$Dir = '',
 	[string[]]$Set = @(),
+	[string[]]$Build = @(),
 	[string]$Tag = '',
 	[switch]$NoStateTree,
 	[string]$EngineRoot = $(if ($env:SHIFT_UE_ROOT) { $env:SHIFT_UE_ROOT } else { 'C:\Program Files\Epic Games\UE_5.8' })
@@ -21,6 +23,8 @@ if ($Rec) { $args += "-Rec=`"$((Resolve-Path $Rec).Path)`"" }
 if ($Dir) { $args += "-Dir=`"$((Resolve-Path $Dir).Path)`"" }
 $setArg = ($Set | ForEach-Object { $_ -split ',' } | Where-Object { $_ }) -join ','
 if ($setArg) { $args += "-Set=$setArg" }
+$buildArg = ($Build | ForEach-Object { $_ -split ',' } | Where-Object { $_ }) -join ','
+if ($buildArg) { $args += "-Build=$buildArg" }
 if ($NoStateTree) { $args += '-NoStateTree' }
 $log = Join-Path $Root $(if ($Tag) { "Saved\replay_$Tag.log" } else { 'Saved\replay_last.log' })
 New-Item -ItemType Directory -Force -Path (Split-Path $log) | Out-Null

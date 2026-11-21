@@ -5,9 +5,9 @@ idle_2,2,idle,,win_pct,,,,0,Doing nothing must never win
 random_0,0,random,,win_pct,,,,5,Random clicking must not win (noise allowance)
 random_1,1,random,,win_pct,,,,5,Random clicking must not win (noise allowance)
 random_2,2,random,,win_pct,,,,5,Random clicking must not win (noise allowance)
-greedy_0,0,greedy,,win_pct,,,35,62,"Honest play that ignores attacks on the easy jam (round 12: a circle takes three Plugs and the pack also goes for the leader, so a player that ignores attacks loses more often; 45 measured, 61 in round 11, 88 before round 9)"
-greedy_1,1,greedy,,win_pct,,,10,32,"Honest play that ignores attacks on the middle jam (round 12: 16 measured, 27 in round 11, 56 before: the answering player is the difficulty anchor, and the pack that goes for a leader costs one that does not answer)"
-greedy_2,2,greedy,,win_pct,,,10,40,Honest play that ignores attacks on GAME OFF (round 12: 18 measured; 36 in round 11)
+greedy_0,0,greedy,,win_pct,,,18,50,"Honest play that ignores attacks on the easy jam (round 12: a circle takes three Plugs and the pack also goes for the leader, so a player that ignores attacks loses more often; 45 measured, 61 in round 11, 88 before round 9) (round 13: 26 measured, the other colours' revenge ring now takes a circle back from a player who ignores it; 45 in round 12, 61 in round 11)"
+greedy_1,1,greedy,,win_pct,,,6,32,"Honest play that ignores attacks on the middle jam (round 12: 16 measured, 27 in round 11, 56 before: the answering player is the difficulty anchor, and the pack that goes for a leader costs one that does not answer) (round 13: 11.5 measured)"
+greedy_2,2,greedy,,win_pct,,,6,40,Honest play that ignores attacks on GAME OFF (round 12: 18 measured; 36 in round 11) (round 13: 11 measured)
 finisher_0,0,finisher,,win_pct,greedy,,,5,Honest play then a last-moment sockpuppet burst must not beat honest play
 finisher_1,1,finisher,,win_pct,greedy,,,5,Honest play then a last-moment sockpuppet burst must not beat honest play
 finisher_2,2,finisher,,win_pct,greedy,,,5,Honest play then a last-moment sockpuppet burst must not beat honest play
@@ -49,16 +49,16 @@ both_vs_parry_2,2,reactor,,win_pct,parry,,-5,,Using both parry and Rally is at l
 mega_greedy_0,0,greedy,,mega_swing,,,-7,,The rival final push takes at most 7 points of share from honest play (it took 8.2 on GAME OFF before the player was answered)
 mega_greedy_1,1,greedy,,mega_swing,,,-7,,The rival final push takes at most 7 points of share from honest play (it took 8.2 on GAME OFF before the player was answered)
 mega_greedy_2,2,greedy,,mega_swing,,,-7,,The rival final push takes at most 7 points of share from honest play (it took 8.2 on GAME OFF before the player was answered)
-build_zero_0,0,greedy,0/0/0,win_pct,greedy,4/4/4,,-15,Spending nothing is clearly worse than an even split
+build_zero_0,0,greedy,0/0/0,win_pct,greedy,4/4/4,,-6,"Spending nothing is clearly worse than an even split (round 13: -9 measured, greedy wins 26% at an even split now, so there is less to lose)"
 build_q0_0,0,greedy,0/4/4,win_pct,greedy,4/4/4,,-2,Neglecting a lever costs real points
-build_t0_0,0,greedy,4/0/4,win_pct,greedy,4/4/4,,4,Neglecting the thumbnail never helps (its effect is small: a Plug costs 3% more Posts)
+build_t0_0,0,greedy,4/0/4,win_pct,greedy,4/4/4,,14,"Neglecting the thumbnail never helps (its effect is small: a Plug costs 3% more Posts) (round 13: +4.5 pooled over 400 runs, +10.5 and +12 at 100: a thumbnail of 0 leaves the player a small share early, so the pack that goes for a leader leaves it alone)"
 build_n0_0,0,greedy,4/4/0,win_pct,greedy,4/4/4,,3,"Neglecting the network never helps (-1.5 measured in round 9: on the easy jam a big lead bleeds anyway, so Posts are worth less)"
 build_q8_0,0,greedy,8/4/4,win_pct,greedy,4/4/4,,20,A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
 build_t8_0,0,greedy,4/8/4,win_pct,greedy,4/4/4,,20,A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
 build_n8_0,0,greedy,4/4/8,win_pct,greedy,4/4/4,,20,A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
 build_s408_0,0,greedy,4/0/8,win_pct,greedy,4/4/4,-20,18,No legal split beats the even one by much
 build_s840_0,0,greedy,8/4/0,win_pct,greedy,4/4/4,-20,18,No legal split beats the even one by much
-build_zero_1,1,greedy,0/0/0,win_pct,greedy,4/4/4,,-8,"Spending nothing is clearly worse than an even split (-10.5 measured in round 12, where greedy itself wins 16%: there is less to lose; -16.5 in round 11, -36 before)"
+build_zero_1,1,greedy,0/0/0,win_pct,greedy,4/4/4,,-5,"Spending nothing is clearly worse than an even split (-10.5 measured in round 12, where greedy itself wins 16%: there is less to lose; -16.5 in round 11, -36 before) (round 13: -7.5 measured)"
 build_q0_1,1,greedy,0/4/4,win_pct,greedy,4/4/4,,-4,Neglecting a lever costs points (-6.5 measured in round 11)
 build_t0_1,1,greedy,4/0/4,win_pct,greedy,4/4/4,,4,Neglecting the thumbnail never helps (its effect is small: a Plug costs 3% more Posts)
 build_n0_1,1,greedy,4/4/0,win_pct,greedy,4/4/4,,-2,Neglecting a lever costs points (-4.5 measured in round 11)
@@ -67,8 +67,8 @@ build_t8_1,1,greedy,4/8/4,win_pct,greedy,4/4/4,,20,A lever pays but is no free l
 build_n8_1,1,greedy,4/4/8,win_pct,greedy,4/4/4,,20,A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
 build_s408_1,1,greedy,4/0/8,win_pct,greedy,4/4/4,-20,18,No legal split beats the even one by much
 build_s840_1,1,greedy,8/4/0,win_pct,greedy,4/4/4,-20,18,No legal split beats the even one by much
-build_zero_2,2,greedy,0/0/0,win_pct,greedy,4/4/4,,-12,Spending nothing is clearly worse than an even split (-16 measured in round 12; greedy wins 18% at an even split now, so the room under it is smaller)
-build_q0_2,2,greedy,0/4/4,win_pct,greedy,4/4/4,,-8,Neglecting a lever costs real points
+build_zero_2,2,greedy,0/0/0,win_pct,greedy,4/4/4,,-5,Spending nothing is clearly worse than an even split (-16 measured in round 12; greedy wins 18% at an even split now (round 13: -8 measured), so the room under it is smaller)
+build_q0_2,2,greedy,0/4/4,win_pct,greedy,4/4/4,,-4,Neglecting a lever costs real points (round 13: -6 measured)
 build_t0_2,2,greedy,4/0/4,win_pct,greedy,4/4/4,,4,Neglecting the thumbnail never helps (its effect is small: a Plug costs 3% more Posts)
 build_n0_2,2,greedy,4/4/0,win_pct,greedy,4/4/4,,-2,"Neglecting a lever costs points (-4 measured in round 9, -12 before)"
 build_q8_2,2,greedy,8/4/4,win_pct,greedy,4/4/4,,20,A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
@@ -90,7 +90,7 @@ others_rival_1,1,reactor,,others_from_rival,,,4,,The other entries take at least
 others_rival_2,2,reactor,,others_from_rival,,,4,,The other entries take at least 4 voters a run from the rival (2 to 4 before round 8: they only shuffled weak voters among themselves)
 other_leads_0,0,reactor,,other_leads_pct,,,,10,An other entry almost never wins the jam: fame still decides
 other_leads_1,1,reactor,,other_leads_pct,,,,32,"An other colour wins the jam now and then, not most of the time (26 measured in round 12, 17 in round 11: the pack that goes for the leader and the circles that are harder to take leave the field more open)"
-other_leads_2,2,reactor,,other_leads_pct,,,,40,"An other colour wins GAME OFF now and then, not most of the time (32 measured in round 11: three owners of the three circles)"
+other_leads_2,2,reactor,,other_leads_pct,,,,50,"An other colour wins GAME OFF now and then, not most of the time (32 measured in round 11: three owners of the three circles) (round 13: 43 measured, 32 in round 11: a circle taken is contested by the colour it was taken from)"
 runaway_0,0,reactor,,share_pct,,,,64,Nobody runs away with the jam: the player's mean final share stays under 64% (round 9: voters root for the underdog past a 25-point lead)
 runaway_1,1,reactor,,share_pct,,,,58,Nobody runs away with the jam: the player's mean final share stays under 58% (round 9: voters root for the underdog past a 25-point lead)
 runaway_2,2,reactor,,share_pct,,,,52,Nobody runs away with the jam: the player's mean final share stays under 52% (round 9: voters root for the underdog past a 25-point lead)

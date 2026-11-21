@@ -139,7 +139,7 @@ bool ShiftForecastRun::PlaySample(int32 JamIndex, uint32 Seed, const FShiftBuild
 	{
 		return false;
 	}
-	Run.SetBot(ShiftSim::BotKind::Greedy);
+	Run.SetBot(ShiftSim::BotKind::Reactor);   // a careful player: answers announced attacks (since round 13 a player that ignores them loses the circles it takes, and the forecast would say the build hardly matters)
 	Run.SetTimeScale(60.0);
 	while (!Run.IsOver())
 	{

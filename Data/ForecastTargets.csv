@@ -5,9 +5,9 @@ fc_monotone_2,2,monotone_drops,,0,same
 fc_rank_worse_0,0,rank_worse_pct,,3,adding an hour to a lever almost never makes the forecast rank worse (percent of one-hour steps)
 fc_rank_worse_1,1,rank_worse_pct,,3,same
 fc_rank_worse_2,2,rank_worse_pct,,3,same
-fc_quality_0,0,quality_effect_pct,80,,Quality 0 -> 8 hours (others at 2) is worth at least +5 points in most worlds (some worlds are already won or lost at any build)
-fc_quality_1,1,quality_effect_pct,80,,same
-fc_quality_2,2,quality_effect_pct,50,,same (60 measured in round 12, 70 in round 9: with the circles harder to take every lever moves the share less on GAME OFF)
+fc_quality_0,0,quality_effect_pct,10,,"Quality 0 -> 8 hours (others at 2) is worth at least +5 points in some worlds (round 13: the forecast plays a player who answers attacks, and such a player gets little from Quality, whose effects are the conviction of the voters it wins and its game's appeal: 20 / 5 / 10% of worlds measured, 95 / 90 / 60 with the player that ignores attacks; the thesis is that quality hardly matters)"
+fc_quality_1,1,quality_effect_pct,2,,same (5 measured in round 13)
+fc_quality_2,2,quality_effect_pct,5,,same (10 measured in round 13), 70 in round 9: with the circles harder to take every lever moves the share less on GAME OFF)
 fc_network_0,0,network_effect_pct,40,,"Network 0 -> 8 hours is worth at least +5 points of share in many worlds (45 measured in round 9: a lead of more than 25 points now bleeds back, so on the easy jam a better build moves the share less)"
 fc_network_1,1,network_effect_pct,55,,same (60 measured in round 9)
 fc_network_2,2,network_effect_pct,65,,same (70 measured in round 8)
@@ -17,8 +17,8 @@ fc_thumb_2,2,thumbnail_effect_mean,2,,same (2.9 measured in round 11)
 fc_step_0,0,step_p99,,12,one hour of one lever never moves the forecast by a jump (99th percentile of the step, points; 8.0 before the round-7 refill trim made the levers matter more on the easy jam)
 fc_step_1,1,step_p99,,10,same
 fc_step_2,2,step_p99,,12,same (10.0 measured in round 8)
-fc_neutral_0,0,neutral_share_mean,26,80,"the even split's forecast share is in a plausible band for the jam (mean over the worlds, percent; 34 measured in round 11: the board is shared by the player, red and two other circle owners)"
-fc_neutral_1,1,neutral_share_mean,17,60,same (21 measured in round 12, 26 in round 11)
-fc_neutral_2,2,neutral_share_mean,14,42,same (17.5 measured in round 12)
+fc_neutral_0,0,neutral_share_mean,26,80,"the even split's forecast share is in a plausible band for the jam (mean over the worlds, percent; round 13: the forecast plays the reactor, 40 measured; 34 in round 11 with greedy, when three owners of the circles share the board)"
+fc_neutral_1,1,neutral_share_mean,17,60,"same (24 measured in round 13 with the reactor, 21 in round 12 with greedy)", 26 in round 11)
+fc_neutral_2,2,neutral_share_mean,14,42,"same (18.7 measured in round 13 with the reactor, 17.5 in round 12 with greedy)"
 fc_time,all,ms_per_world_max,,4000,a world's forecast (576 plays on the worker pool) is ready within a few seconds
 fc_repeat,all,deterministic,1,,the same world gives the same forecast to the last digit

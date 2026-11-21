@@ -13,7 +13,7 @@
  * The file (Saved/Recordings/shift_jam<n>_<seed>_<time>_<result>.shiftrec.txt: a .txt so that GitHub and chat programs take it as an attachment) is plain text, one line per item, so it can be read, diffed and sent in a message:
  *
  *   SHIFTREC 1
- *   tag round12            the game's build tag
+ *   tag round13            the game's build tag (the rules version: bumped when a change makes an older recording replay differently)
  *   tuning 3f9a...         hash of every tuning value the run was played under (a replay under other tuning diverges, and says so)
  *   jam 2 / seed 123 / build 4 4 4
  *   E <step> P|S|R|B|N|n <node>     Plug, Sock, Rally, Shift the Blame, night shift on, night shift off
@@ -22,7 +22,7 @@
  */
 namespace ShiftRecordingInfo
 {
-	inline const TCHAR* const BuildTag = TEXT("round12");
+	inline const TCHAR* const BuildTag = TEXT("round13");
 	constexpr int32 FormatVersion = 1;
 	constexpr int32 SampleEverySteps = 100;   // 5 s of jam time at 20 Hz
 }
