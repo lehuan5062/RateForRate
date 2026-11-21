@@ -5,9 +5,10 @@ normalisation is gone, so Tools/py/ms_calibrate.py measures every sound with the
 trims, in dB, that bring each one to its target into Tools/py/ms_trims.json; Tools/py/ms_sfx.py and ms_music.py apply them.
 """
 
+# round 14: the playtester found the sound of a successful flip a bit loud: Flip -5 -> -9 dB, Sock -6 -> -8 dB (they sound dozens of times a jam; Win stays at -5, it sounds once)
 SFX_TARGET_DB = {
-    "Click": -7, "Hover": -17, "Slider": -15, "Upload": -6, "Transition": -12, "Tip": -12, "Plug": -6, "Flip": -5, "Reinforce": -10,
-    "Weaken": -10, "Gated": -7, "Locked": -10, "NoPosts": -9, "NightOn": -5, "NightOff": -7, "Sock": -6, "Heartbeat": -6, "ModWarn": -10,
+    "Click": -7, "Hover": -17, "Slider": -15, "Upload": -6, "Transition": -12, "Tip": -12, "Plug": -6, "Flip": -9, "Reinforce": -10,
+    "Weaken": -10, "Gated": -7, "Locked": -10, "NoPosts": -9, "NightOn": -5, "NightOff": -7, "Sock": -8, "Heartbeat": -6, "ModWarn": -10,
     "ModSweep": -10, "Strike": -5, "Shadowban": -9, "Blame": -6, "Day": -22, "Win": -5, "Lose": -8, "DQ": -6,
 }
 

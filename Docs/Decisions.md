@@ -718,3 +718,11 @@ The tester, answering the two questions of round 12: the first circle falls "aro
 
 **Honest consequences.** A casual player who ignores rings wins 26 / 11 / 11% now; the coach says what the ring is and that it can be parried, and the reactor (a careful player) still wins 63 / 30 / 20%. The tester's skill is still not measured: three jams on one jam, one of them a win. The next recordings (other jams, more builds) are what can say whether the game is now too hard for them, or still easy.
 Quality is close to a dead lever for a careful player (see the forecast above): whether it should matter more (a bigger appeal slope would also move the thesis numbers, R squared of quality 0.13) or stay the honest joke that quality hardly matters is the tester's and the owner's call; asked in the reply, not changed.
+
+## M20 - playtest round 14 (issue #1, comment 7058491280)
+
+The tester: "the difficulty seem about right for now, I was able to get top 1 without any time spent but it somehow feel more balance than before. Might want to see if more adjustment was needed though"; and "the sound of player successfully seem a bit loud". Three recordings of won jams (one per jam) were attached; they were not downloaded (the owner declined), so nothing in this round is measured from them.
+
+**Built.** Nothing in the rules: the tester finds the difficulty right and the next step would be measured from their recordings, not from bots. The sound of a successful flip (`MS_Sfx_Flip`, sounds dozens of times a jam) peaked at -5 dBFS, as loud as a Strike or the night shift: its level target is -9 dB now and the sockpuppet flip's -8 dB (-6 before); the win jingle stays at -5 dB (it sounds once). `Tools\calibrate_audio.ps1` rebuilt all 42 MetaSound assets and measured them with the in-graph meters: trims Flip -4.2 dB, Sock -3.1 dB, worst error 0.1 dB after two passes. Nothing was recorded or played aloud; I could not listen, so the new level is a number, not an ear.
+
+**Honest consequences.** Wins in all three jams without spending any build time (by the comment) say the game is not hard for this tester, in the same message as "about right": the difficulty is whatever they think a win should cost. The three recordings are on the issue for a round that wants numbers.
