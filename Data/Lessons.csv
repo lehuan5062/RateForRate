@@ -1,24 +1,25 @@
 Id,Chapter,Step,Text
-L0S01,0,1,Goal: Nine games enter. After 31 days the colour with the most votes wins. Every face is a voter and every colour is a game. A big voter drags its followers along.
-L0S02,0,2,"Click: Plug a voter for one Post. Click your own voter to reinforce it, or one with a closing ring to parry. Right-click your own voter to Rally. Hold SHIFT or press N for night shift. Space pauses."
-L0S03,0,3,"Posts and gates: Posts are your energy and refill slowly. A famous voter is gated: it ignores you until enough of its followers back you. Win the edges first, then the hub."
-L0S04,0,4,"Drift and attacks: Voters drift back to where their neighbours are, and a voter that shakes is about to flip. A ring in another game's colour announces an attack: click the voter to parry it, or Rally it."
-L0S05,0,5,Night shift: Sockpuppets ignore gates but add Heat and are fake votes. Heat above the red tick when the Mod Eye passes is a strike. Strikes never wear off and a final audit purges fake votes.
-L0S06,0,6,"Winning: The front-runner draws everyone's attacks, so a lead has to be held. Your build sets your Posts and your first voters. Press H to read this again."
-L1S01,1,1,"Nine games, one jam. After 31 days the colour with the most votes wins, and you are teal. Every face is a voter, every colour is a game, and the leaderboard counts how much each game's voters weigh."
-L1S02,1,2,"Hover a voter to read it: who it backs, how sure it is, and whether you can flip it. Hover the voter in the spotlight."
-L1S03,1,3,Click the spotlit voter to Plug your game at it. Every Plug costs one Post (bottom left) and a weak voter flips in one.
-L1S04,1,4,"The ring around a voter is its conviction. A strong voter takes several Plugs: each one drains the ring, and at zero it flips to you. Plug the spotlit voter until it flips."
-L1S05,1,5,"Voters drift back to where their neighbours are. A voter that shakes is about to flip back, and the lines show who pushes it. Click it to reinforce it."
-L1S06,1,6,A padlock is a gate: a famous voter ignores you until enough of its followers already back you. Click the padlocked hub to see how far away you are.
-L1S07,1,7,"Win the spotlit followers first. The gate ring fills as they come around, and once it opens the hub is a normal voter: flip it, and its followers follow."
-L1S08,1,8,"Attacks are announced. A ring in the attacker's colour closes in on one of your voters, then plugs it. Click that voter to parry it for one Post before the ring lands."
-L1S09,1,9,Right-click a voter you hold to Rally it: one Post shields it and its neighbours from every plug for a few seconds. Try it on the spotlit voter.
-L1S10,1,10,"That is the honest game: win the edges, open the gates, hold what you have. Night shift is the risky shortcut, and it has its own lesson."
-L2S01,2,1,"Celebrities sit behind gates, and the honest way takes a long time. Click the spotlit celebrity to see its gate."
-L2S02,2,2,Hold SHIFT (or press N) for the night shift. The board goes dark and your clicks become sockpuppets that ignore gates. Holding it builds Heat (bottom bar).
-L2S03,2,3,Now click the celebrity. A sockpuppet flips it straight through the gate and adds {sockheat} Heat. Its visor marks it as a fake vote.
-L2S04,2,4,"Fake votes keep you hot while you hold them, and a strike takes them all. Back it: plug your own sockpuppet until its ring is {launder} full and it turns into a real vote."
-L2S05,2,5,"The Mod Eye sweeps every so often (top bar). If Heat is above the red tick when it passes, that is a strike. Let go of SHIFT and let Heat cool before it passes."
-L2S06,2,6,"{strikes} strikes and you are out, and they never wear off. Once per jam you can Shift the Blame, but only for a small pile of fake votes. A final audit at the end purges every fake vote, so night shift is an opening move, not a last-second trick."
-L2S07,2,7,"You know the whole game now. Pick a jam, spend your 12 hours on the build screen, and win it. The pop-up cards fill in the rest as it happens."
+L0S01,0,1,"Goal: Each face is a voter. Each colour is a game, and you play the teal game. After 31 days, the game with the most votes wins. Big voters count more, and their followers often follow them."
+L0S02,0,2,Controls: Click a voter to Plug it (1 Post). Click your own voter to make it stronger. Right-click your own voter to Rally it (protect it). Hold SHIFT or press N for night shift. Space pauses. H opens this page.
+L0S03,0,3,Posts and gates: Posts are your energy. They come back slowly. A padlock is a gate: a big voter ignores you until enough of its followers back you. Win its followers first. Then win the voter.
+L0S04,0,4,Attacks: A voter can leave you when the voters near it like another game. A shaking voter is about to leave. A coloured ring that closes in on your voter is an attack. Click the voter to stop it.
+L0S05,0,5,"Night shift: Hold SHIFT and click to make sockpuppets. These are fake votes that ignore gates. They add Heat. If Heat is above the red mark when the Mod Eye checks, you get a strike. Too many strikes and you are out."
+L0S06,0,6,"Winning: Everyone attacks the game in first place, so protect your lead with Rally and parry. Your build (12 hours) sets your Posts and your first voters. Press H to read this page again."
+L1S01,1,1,"Welcome! Each face is a voter. Each colour is a game, and you play the teal game. After 31 days, the game with the most votes wins. Your goal: win more voters than the other games."
+L1S02,1,2,Move your mouse over the voter with the yellow ring. A card shows who it votes for and what you can do. You can do this at any time.
+L1S03,1,3,"Click the voter with the yellow ring. This is a Plug. It costs 1 Post (bottom left). This voter is weak, so it changes to your colour."
+L1S04,1,4,The circle around a voter is its conviction: how sure it is. Each Plug makes the circle smaller. Plug the yellow voter until the circle is empty and it changes to your colour.
+L1S05,1,5,"This voter is yours, but it is shaking. It is about to leave, because the voters near it like another game. Click it to make it stronger. This is called reinforce."
+L1S06,1,6,A padlock is a gate. A big voter with a gate will not listen to you yet. You must win some of its followers first. Click the voter with the padlock to see what you need.
+L1S07,1,7,"Now win the followers with the yellow rings. The ring on the gate fills when they join you. When the gate opens, click the big voter to win it."
+L1S08,1,8,A coloured ring that closes in on your voter is an attack. Another game wants to take your voter. Click your voter before the ring closes. This is a parry. It costs 1 Post.
+L1S09,1,9,Right-click your own voter. This is a Rally. It costs 1 Post and protects the voter and its neighbours for a few seconds.
+L1S10,1,10,"Well done! You win by winning voters, opening gates, and protecting your voters. Night shift is a faster way, but it is risky. It has its own lesson."
+L2S01,2,1,Famous voters have gates that are hard to open. Winning their followers takes a long time. Click the famous voter with the yellow ring to see its gate.
+L2S02,2,2,There is a faster way. Hold the SHIFT key (or press N). The board turns dark. This is night shift. Now your clicks make sockpuppets: fake votes that ignore gates. Heat goes up while you hold SHIFT.
+L2S03,2,3,Keep holding SHIFT and click the voter with the yellow ring. The gate does not stop a sockpuppet. It adds {sockheat} Heat. The small visor on the voter means that it is fake.
+L2S04,2,4,"This vote is fake, and fake votes keep your Heat high. Make it real: click it again and again until its circle is {launder} full."
+L2S05,2,5,"Heat is high now. See the red mark on the Heat bar? The Mod Eye (top of the screen) checks you from time to time. If Heat is above the red mark when it checks, you get a strike."
+L2S06,2,6,Let go of SHIFT. Heat goes down by itself. Wait until the Heat bar is below the red mark.
+L2S07,2,7,"A strike removes all your fake votes. {strikes} strikes and you are out. Strikes never go away. At the end, a final check removes fake votes that are not real. Once, you can press B to Shift the Blame, if you have few fake votes."
+L2S08,2,8,"Now you know the whole game. Night shift is strong but risky: use it early, then make the votes real. Pick a jam, build your game with 12 hours, and win!"

@@ -2005,7 +2005,7 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 		double ThreatTotal = 0.0;
 		if (S.ThreatOn(HoverNode, &ThreatWho, &ThreatLeft, &ThreatTotal))
 		{
-			T.Status = FString::Printf(TEXT("%s plugs this voter in %.1fs: click to parry, or Rally"), *EntryName(ThreatWho), ThreatLeft);
+			T.Status = FString::Printf(TEXT("%s plugs this voter in %.1fs"), *EntryName(ThreatWho), ThreatLeft);
 			T.StatusColor = ShiftPalette::Entry(ThreatWho);
 		}
 		else if (S.ShieldRemaining(HoverNode) > 0.0)
@@ -2016,7 +2016,7 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 		else if (S.IsSockpuppet(HoverNode))
 		{
 			T.Status = P.SockLaunderConv <= 1.0
-				? FString::Printf(TEXT("Sockpuppet (%.0f%% sure): reinforce to %.0f%% to make it real"), T.Conviction * 100.0f, P.SockLaunderConv * 100.0)
+				? FString::Printf(TEXT("Fake vote (%.0f%% sure). Real at %.0f%%"), T.Conviction * 100.0f, P.SockLaunderConv * 100.0)
 				: FString(TEXT("Sockpuppet: fragile, a strike takes it back"));
 			T.StatusColor = SockColor;
 		}
@@ -2030,8 +2030,8 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 				for (const int32 Other : Node.follows) { Pushers += S.Opinion(Other) == Challenger ? 1 : 0; }
 				for (const int32 Other : Node.followers) { Pushers += S.Opinion(Other) == Challenger ? 1 : 0; }
 			}
-			T.Status = Challenger >= 0 ? FString::Printf(TEXT("Flips back in ~%.0fs: %d neighbours back %s. Reinforce, or win them"), FMath::Max(1.0, S.SecondsToFlip(HoverNode)), Pushers, *EntryName(Challenger))
-				: FString::Printf(TEXT("Under pressure: flips back in about %.0fs. Click to reinforce"), FMath::Max(1.0, S.SecondsToFlip(HoverNode)));
+			T.Status = Challenger >= 0 ? FString::Printf(TEXT("Leaves in ~%.0fs: %d neighbours back %s"), FMath::Max(1.0, S.SecondsToFlip(HoverNode)), Pushers, *EntryName(Challenger))
+				: FString::Printf(TEXT("Under pressure: leaves in about %.0fs"), FMath::Max(1.0, S.SecondsToFlip(HoverNode)));
 			T.StatusColor = AmberColor();
 		}
 		else
@@ -2044,7 +2044,7 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 			}
 			else
 			{
-				T.Status = TEXT("Yours: click to reinforce, right-click to Rally");
+				T.Status = TEXT("Yours. Safe for now");
 			}
 			T.StatusColor = TealColor();
 		}
@@ -2070,14 +2070,91 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 	else if (S.IsGated(HoverNode))
 	{
 		const ShiftSim::GateInfo Gate = S.Gate(HoverNode);
-		T.Status = FString::Printf(TEXT("Gated: %.0f%% of followers back you, need %.0f%%. Hold SHIFT to skip it"), Gate.progress * 100.0, Gate.needed * 100.0);
+		T.Status = FString::Printf(TEXT("Gated: %.0f%% of followers back you, need %.0f%%"), Gate.progress * 100.0, Gate.needed * 100.0);
 		T.StatusColor = RedColor();
 	}
 	else
 	{
 		const int32 Need = S.PlugsNeeded(ShiftSim::kPlayerId, HoverNode, 1.0, true);
-		T.Status = Need >= ShiftSim::kUnreachable ? FString(TEXT("Cannot be flipped right now")) : FString::Printf(TEXT("Click: Plug (-1 Post), %d to flip"), Need);
+		T.Status = Need >= ShiftSim::kUnreachable ? FString(TEXT("Cannot be flipped right now")) : FString::Printf(TEXT("%d %s to flip it"), Need, Need == 1 ? TEXT("Plug") : TEXT("Plugs"));
 		T.StatusColor = TealColor();
+	}
+
+	// What the player can do with this voter, and with which keys (a replay has no controls)
+	if (Run->IsReplaying())
+	{
+		return;
+	}
+	auto PostsText = [](double Cost) -> FString
+		{
+			const double Whole = FMath::RoundToDouble(Cost);
+			return FMath::Abs(Cost - Whole) < 0.05 ? FString::Printf(TEXT("%.0f %s"), Whole, Whole == 1.0 ? TEXT("Post") : TEXT("Posts")) : FString::Printf(TEXT("%.1f Posts"), Cost);
+		};
+	auto Add = [&T](const TCHAR* Key, const FString& Text, bool bAvailable)
+		{
+			FShiftHudAction& A = T.Actions.AddDefaulted_GetRef();
+			A.Key = Key;
+			A.Text = Text;
+			A.bAvailable = bAvailable;
+		};
+	const bool bNightOk = !(bLessonRun && Lesson.IsValid() && !Lesson->NightAllowed());
+	const double PostsHeld = S.Posts();
+	const FString SockText = FString::Printf(TEXT("Sockpuppet: %s, +%.0f Heat"), S.IsGated(HoverNode) ? TEXT("skips the gate") : TEXT("fast but fake"), P.SockHeat);
+	if (OwnerId == ShiftSim::kPlayerId)
+	{
+		int32 AttackerId = -1;
+		double AttackLeft = 0.0;
+		double AttackTotal = 0.0;
+		if (S.ThreatOn(HoverNode, &AttackerId, &AttackLeft, &AttackTotal))
+		{
+			const double Cost = FMath::Max(1.0, P.ParryCost);
+			Add(TEXT("CLICK"), FString::Printf(TEXT("Parry: stop the attack, %s"), *PostsText(Cost)), PostsHeld >= Cost);
+		}
+		else if (S.IsSockpuppet(HoverNode))
+		{
+			Add(TEXT("CLICK"), TEXT("Back it: make it a real vote, 1 Post"), PostsHeld >= 1.0);
+		}
+		else
+		{
+			Add(TEXT("CLICK"), TEXT("Reinforce: make it stronger, 1 Post"), PostsHeld >= 1.0);
+		}
+		if (S.RallyCooldownRemaining() > 0.0)
+		{
+			Add(TEXT("RIGHT-CLICK"), FString::Printf(TEXT("Rally: ready in %.0fs"), S.RallyCooldownRemaining()), false);
+		}
+		else
+		{
+			Add(TEXT("RIGHT-CLICK"), FString::Printf(TEXT("Rally: shield it and neighbours, %s"), *PostsText(P.RallyCost)), PostsHeld >= P.RallyCost);
+		}
+	}
+	else if (S.LockRemaining(HoverNode) > 0.0)
+	{
+		Add(TEXT("CLICK"), FString::Printf(TEXT("Wait: immune for %.0fs"), FMath::Max(1.0, S.LockRemaining(HoverNode))), false);
+	}
+	else if (bNight)
+	{
+		const bool bHot = P.SockOverheatRefuse > 0.5 && S.Heat() + P.SockHeat >= P.HeatMax - 1.0e-9;
+		Add(TEXT("SHIFT + CLICK"), bHot ? FString(TEXT("Too hot: wait for Heat to fall")) : SockText, !bHot);
+	}
+	else
+	{
+		const int32 Need = S.PlugsNeeded(ShiftSim::kPlayerId, HoverNode, 1.0, true);
+		if (S.IsGated(HoverNode))
+		{
+			Add(TEXT("CLICK"), TEXT("Gated: win its followers first"), false);
+		}
+		else if (Need >= ShiftSim::kUnreachable)
+		{
+			Add(TEXT("CLICK"), TEXT("Cannot be flipped now"), false);
+		}
+		else
+		{
+			Add(TEXT("CLICK"), FString::Printf(TEXT("Plug: %s, %d more to flip"), *PostsText(P.PlayerPlugCost), Need), PostsHeld >= P.PlayerPlugCost);
+		}
+		if (bNightOk)
+		{
+			Add(TEXT("SHIFT + CLICK"), SockText, true);
+		}
 	}
 }
 

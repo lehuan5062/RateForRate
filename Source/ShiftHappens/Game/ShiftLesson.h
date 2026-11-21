@@ -94,6 +94,8 @@ private:
 		TFunction<bool(FShiftRun&)> Done;
 		TFunction<void(const ShiftSim::Sim&, TArray<int32>&)> Targets;       // the voters to point at, and the only ones a click may use
 		TFunction<FShiftLessonAuto(const ShiftSim::Sim&)> AutoAct;
+		TFunction<void(FShiftRun&)> Keep;                                    // runs every tick while the step is on: keeps the scene from sliding away by itself (nothing in a lesson may get lost while it is read)
+		bool bRedOk = false;                                                 // the step is about Heat above the red tick: its Heat ceiling is higher
 	};
 
 	struct FPicks
@@ -121,6 +123,7 @@ private:
 	float HoverTime = 0.0f;
 	float NightTime = 0.0f;
 	bool bGoPending = false;            // Go has not run yet in this step
+	bool bNagged = false;               // the "let go of SHIFT" hint was given in this step
 	int32 StepKey = -1;                 // the voter a step is about: when it is lost the scene is put back
 	TArray<FStep> Steps;
 	TArray<FShiftEvent> StepEvents;

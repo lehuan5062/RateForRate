@@ -19,7 +19,7 @@ Hubs and celebrities carry most of the vote weight. Flip them and their follower
 
 | Input | What it does |
 |---|---|
-| **Hover** a voter | Tooltip: handle, followers, vote weight, who they back and how sure they are, and why you can or cannot flip them |
+| **Hover** a voter | Tooltip: handle, followers, vote weight, who they back and how sure they are, why you can or cannot flip them, and every action you can take on it with its key |
 | **Click** | **Plug** (day shift): spend 1 Post to chip away at a voter's conviction (the ring). At zero they flip to you. Click your own voters to reinforce them, and click a voter a ring is closing in on to **parry** the attack |
 | **Right-click** a voter you hold | **Rally**: spend 1 Post to shield it and your voters one hop away from every plug for 6 s (teal dome) and add a little conviction (8 s cooldown) |
 | **Hold SHIFT** (or press **N** to toggle) | **Night shift**: the world goes dark. Clicks become **sockpuppets**: 3x stronger, ignore gates, but fragile, and they build **Heat** |

@@ -600,8 +600,9 @@ void SShiftHud::PaintBuild(FShiftPainter& P, const FPal& C) const
 void SShiftHud::PaintTooltip(FShiftPainter& P, const FPal& C) const
 {
 	const FShiftHudTooltip& T = Model.Tooltip;
-	const float CardW = 292.0f;
-	const float CardH = 118.0f;
+	const float CardW = 380.0f;
+	const float ActionsH = T.Actions.Num() > 0 ? 12.0f + 21.0f * static_cast<float>(T.Actions.Num()) : 0.0f;
+	const float CardH = 118.0f + ActionsH;
 	// The right gutter (leaderboard, states, feed) is never covered: the card flips to the left of the voter when it would reach it.
 	const float LeaderboardX = FMath::Min(DesignW - 10.0f - CompactLeaderboardW, Model.LeaderboardMode == 1 ? 996.0f : DesignW);
 	const float LeaderboardBottom = 668.0f;
@@ -626,6 +627,20 @@ void SShiftHud::PaintTooltip(FShiftPainter& P, const FPal& C) const
 	P.Rect(X + 14.0f, Y + 66.0f, CardW - 28.0f, 5.0f, C.Track, 2.5f);
 	P.Rect(X + 14.0f, Y + 66.0f, (CardW - 28.0f) * FMath::Clamp(T.Conviction, 0.0f, 1.0f), 5.0f, T.bHasOwner ? T.OwnerColor : C.Track, 2.5f);
 	P.Text(P.Fit(T.Status, CardW - 26.0f, 12.0f, true), X + 14.0f, Y + 82.0f, 12.0f, T.StatusColor, EShiftAlign::Left, true);
+	if (T.Actions.Num() > 0)
+	{
+		// what can be done here, each with its key
+		P.Rect(X + 14.0f, Y + 104.0f, CardW - 28.0f, 1.0f, C.Stroke);
+		const float KeyW = 96.0f;
+		for (int32 i = 0; i < T.Actions.Num(); ++i)
+		{
+			const FShiftHudAction& A = T.Actions[i];
+			const float Ry = Y + 112.0f + 21.0f * static_cast<float>(i);
+			P.Rect(X + 14.0f, Ry, KeyW, 18.0f, A.bAvailable ? WithAlpha(C.Teal, 0.22f) : C.Track, 5.0f);
+			P.Text(A.Key, X + 14.0f + KeyW * 0.5f, Ry + 3.0f, 10.0f, A.bAvailable ? C.Ink : C.InkDim, EShiftAlign::Center, true);
+			P.Text(P.Fit(A.Text, CardW - 28.0f - KeyW - 10.0f, 12.0f), X + 14.0f + KeyW + 10.0f, Ry + 1.0f, 12.0f, A.bAvailable ? C.Ink : C.InkDim);
+		}
+	}
 }
 
 void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const

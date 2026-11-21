@@ -316,6 +316,14 @@ void FShiftLesson::BuildSteps()
 					Sm.SetPosts(Sm.GetParams().PostsMax);
 				};
 			S.Targets = [L](const Sim&, TArray<int32>& Out) { Out.Add(L->Picks.Own); };
+			S.Keep = [L](FShiftRun& R)
+				{
+					Sim& Sm = R.GetSim();
+					if (Sm.Opinion(L->Picks.Own) == kPlayer && Sm.Conviction(L->Picks.Own) < 0.15)
+					{
+						Sm.SetNodeState(L->Picks.Own, kPlayer, 0.25, 0.0);   // it keeps shaking, but it does not leave before the player has read the card
+					}
+				};
 			S.Done = [L](FShiftRun&) { return L->Saw(EShiftEventType::PlayerReinforced, L->Picks.Own) || L->Saw(EShiftEventType::PlayerParried, L->Picks.Own); };
 			S.AutoAct = [L](const Sim&) { return FShiftLessonAuto{ FShiftLessonAuto::EKind::Click, L->Picks.Own, false }; };
 		}
@@ -388,8 +396,8 @@ void FShiftLesson::BuildSteps()
 					Sm.SetNodeState(L->Picks.Strong, kPlayer, 0.6, 0.0);
 					Sm.SetPosts(Sm.GetParams().PostsMax);
 				};
-			S.GoDelay = 4.0f;   // the time to read the card
-			S.Go = [L](FShiftRun& R) { R.GetSim().Plug(R.GetSim().RivalId(), L->Picks.Strong, 1.5); };   // the ring starts to close
+			S.GoDelay = 1.0f;
+			S.Go = [L](FShiftRun& R) { R.GetSim().Plug(R.GetSim().RivalId(), L->Picks.Strong, 40.0); };   // the ring starts to close, slowly: nobody is hurried while reading the card
 			S.Targets = [L](const Sim&, TArray<int32>& Out) { Out.Add(L->Picks.Strong); };
 			S.Done = [L](FShiftRun&) { return L->Saw(EShiftEventType::PlayerParried, L->Picks.Strong); };
 			S.AutoAct = [L](const Sim&) { return FShiftLessonAuto{ FShiftLessonAuto::EKind::Click, L->Picks.Strong, false }; };
@@ -473,7 +481,23 @@ void FShiftLesson::BuildSteps()
 		S.Done = [L](FShiftRun& R) { return R.GetSim().Opinion(L->Picks.Celeb) == kPlayer && !R.GetSim().IsSockpuppet(L->Picks.Celeb); };
 		S.AutoAct = [L](const Sim&) { return FShiftLessonAuto{ FShiftLessonAuto::EKind::Click, L->Picks.Celeb, true }; };
 	}
-	// 5. the Mod Eye passes while Heat is high: let it cool
+	// 5. Heat is high and the Mod Eye checks: read it first, the world waits
+	{
+		FStep& S = Step();
+		S.bRead = true;
+		S.bRedOk = true;
+		S.Anchor = EShiftLessonAnchor::Heat;
+		S.Stage = [L](FShiftRun& R)
+			{
+				Sim& Sm = R.GetSim();
+				L->StepKey = -1;
+				Sm.ForgiveStrike();
+				Sm.SetHeat(Sm.GetParams().HeatRedZone + 15.0);
+				R.SetNextModSweep(Sm.Time() + 90.0);
+			};
+		S.Targets = [](const Sim&, TArray<int32>&) {};
+	}
+	// 6. let go of SHIFT and let Heat cool
 	{
 		FStep& S = Step();
 		S.Allow = AllowNight;
@@ -483,11 +507,20 @@ void FShiftLesson::BuildSteps()
 				Sim& Sm = R.GetSim();
 				L->StepKey = -1;
 				Sm.ForgiveStrike();
-				Sm.SetHeat(Sm.GetParams().HeatRedZone + 5.0);   // just above the tick: a couple of seconds of cooling
-				R.SetNextModSweep(Sm.Time() + 7.0);
+				Sm.SetHeat(Sm.GetParams().HeatRedZone + 15.0);   // well above the tick: about five seconds of cooling
+				R.SetNextModSweep(Sm.Time() + 90.0);   // far away, and kept away (Keep): the Mod Eye is explained, never sprung on a reader
 			};
 		S.Targets = [](const Sim&, TArray<int32>&) {};
-		S.Done = [L](FShiftRun&) { return L->Saw(EShiftEventType::ModSweepClear, -1); };
+		S.Done = [](FShiftRun& R) { return R.GetSim().Heat() < R.GetSim().GetParams().HeatRedZone - 1.0 && !R.IsNightHeld(); };
+		S.bRedOk = true;
+		S.Keep = [](FShiftRun& R)
+			{
+				const Sim& Sm = R.GetSim();
+				if (R.NextModSweep() - Sm.Time() < 20.0)
+				{
+					R.SetNextModSweep(Sm.Time() + 90.0);
+				}
+			};
 		S.AutoAct = [](const Sim&) { return FShiftLessonAuto{ FShiftLessonAuto::EKind::NightOff, -1, false }; };
 	}
 	// 6. strikes, the audit, the Blame
@@ -509,6 +542,7 @@ void FShiftLesson::EnterStep(FShiftRun& Run)
 	HoverTime = 0.0f;
 	NightTime = 0.0f;
 	bGoPending = false;
+	bNagged = false;
 	StepEvents.Reset();
 	Targets.Reset();
 	if (Steps.IsValidIndex(StepIx))
@@ -571,6 +605,19 @@ void FShiftLesson::Tick(FShiftRun& Run, float DeltaTime, const TArray<FShiftEven
 	ShiftSim::Sim& S = Run.GetSim();
 	const FStep& St = Steps[StepIx];
 	PhaseTime += DeltaTime;
+	// Nothing in a lesson can hurt: Heat never reaches the red tick (except in the step about it, and never the cap) and a strike, should one happen, is taken back.
+	{
+		const ShiftSim::Params& Pm = S.GetParams();
+		const double Ceiling = St.bRedOk ? Pm.HeatMax - 25.0 : Pm.HeatRedZone - 5.0;
+		if (S.Heat() > Ceiling)
+		{
+			S.SetHeat(Ceiling);
+		}
+		if (S.Strikes() > 0)
+		{
+			S.ForgiveStrike();
+		}
+	}
 
 	if (Phase == EPhase::Doing)
 	{
@@ -592,20 +639,19 @@ void FShiftLesson::Tick(FShiftRun& Run, float DeltaTime, const TArray<FShiftEven
 				Notice = TEXT("It got away. Same again.");
 				break;
 			}
-			if (E.Type == EShiftEventType::Strike && ChapterIx == 2 && StepIx == 4)
-			{
-				// the Mod Eye found Heat too high: the lesson wants the other outcome
-				if (St.Stage) { St.Stage(Run); }
-				bGoPending = St.Go != nullptr;   // the delay runs again
-				PhaseTime = 0.0f;
-				StepEvents.Reset();
-				Notice = TEXT("A strike: Heat was above the red tick. Let go of SHIFT and wait.");
-				break;
-			}
 		}
 		const bool bHeld = Targets.Contains(HoverNode);
 		HoverTime = bHeld ? HoverTime + DeltaTime : 0.0f;
 		NightTime = Run.IsNightHeld() ? NightTime + DeltaTime : 0.0f;
+		if (St.Keep)
+		{
+			St.Keep(Run);
+		}
+		if (ChapterIx == 2 && StepIx == 5 && !bNagged && NightTime > 6.0f)
+		{
+			bNagged = true;
+			Notice = TEXT("Let go of SHIFT. Heat goes down by itself.");
+		}
 		if (St.Done && St.Done(Run))
 		{
 			Phase = EPhase::Cheer;

@@ -184,8 +184,8 @@ seeded PRNG, and if nothing applies fall back to any line with the same Outcome.
 | Description | Max 90 chars. Qualitative; exact thresholds (seconds of SHIFT, "a third of the jam", cascade size) are decided in code. |
 | Hidden | `true` shows the entry as locked with no text until earned (Banned Speedrun, Sticky Situation, Schadenfreude, Nobody Played It). |
 
-### Lessons.csv  (`Id,Chapter,Step,Text`)  23 rows
-The guided lessons of *Learn to play* (`Game/ShiftLesson.cpp`; the steps and what proves each one are in code, only the words are data). Chapter 0 holds the six blocks of the *How to play* reference page, each `Title: Text`; chapters 1 and 2 hold the steps of lesson 1 (10) and lesson 2 (7). Placeholders (`{sockheat}`, `{launder}`, `{strikes}`) are the coach-card ones, filled from the live parameters. `Data/validate_text.py` checks them (max 260 chars, `L<chapter>S<nn>` ids, steps 1..N per chapter, known placeholders only).
+### Lessons.csv  (`Id,Chapter,Step,Text`)  24 rows
+The guided lessons of *Learn to play* (`Game/ShiftLesson.cpp`; the steps and what proves each one are in code, only the words are data). Chapter 0 holds the six blocks of the *How to play* reference page, each `Title: Text`; chapters 1 and 2 hold the steps of lesson 1 (10) and lesson 2 (8). Placeholders (`{sockheat}`, `{launder}`, `{strikes}`) are the coach-card ones, filled from the live parameters. `Data/validate_text.py` checks them (max 260 chars, `L<chapter>S<nn>` ids, steps 1..N per chapter, known placeholders only).
 
 | Column | Meaning |
 |---|---|

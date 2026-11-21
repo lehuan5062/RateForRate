@@ -163,6 +163,14 @@ struct FShiftHudRow
 	bool bRival = false;
 };
 
+/** One thing the player can do to the voter under the cursor, and the key for it. */
+struct FShiftHudAction
+{
+	FString Key;                 // CLICK, RIGHT-CLICK, SHIFT + CLICK
+	FString Text;                // what it does and what it costs
+	bool bAvailable = true;      // false: drawn dim (no Posts, immune, gated)
+};
+
 /** Hover card for a voter. Positions are in design units (1280 x 720). */
 struct FShiftHudTooltip
 {
@@ -177,6 +185,7 @@ struct FShiftHudTooltip
 	FLinearColor OwnerColor = FLinearColor::White;
 	float Conviction = 0.0f;
 	bool bHasOwner = false;
+	TArray<FShiftHudAction> Actions;
 };
 
 /** A point on the results scatter plots. */

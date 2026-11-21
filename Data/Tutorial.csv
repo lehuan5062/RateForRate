@@ -1,27 +1,27 @@
 Id,Step,Trigger,Text
-TUT01,1,JamStart,"Your game is fine. Theirs is famous. Votes follow fame, so let us shift some."
-TUT02,2,FirstHover,"Hover a voter to see who they follow, how much they weigh and if you can flip them."
-TUT03,3,FirstPlug,Click a voter to Plug your game at them. Each Plug costs one Post.
-TUT04,4,FirstConvictionRing,The ring is conviction. Plug until it drains and the voter flips to you.
-TUT05,5,PostsLow,"Posts refill slowly. Spend them on voters with many followers, not on lurkers."
-TUT06,6,FirstReinforce,Plug your own voters to reinforce them. Even fans need a little love.
-TUT07,7,FirstGateSeen,A padlock marks a gate. A hub ignores you until enough of its followers back you. The rival and the other games play by the same rule.
-TUT08,8,FirstGateOpened,The gate opened because its followers came around. That is the honest way.
-TUT09,9,ShiftUnlocked,"Hold SHIFT for the night shift: sockpuppets ignore gates, so you can crack a celebrity. Sticky Keys in the way? Press N."
-TUT10,10,FirstHeat,"Night shift is loud: each sockpuppet adds {sockheat} Heat and holding SHIFT adds {heatrate} a second. Heat cools only when you let go."
-TUT11,11,FirstModEye,"The Mod Eye sweeps every 12 to 35 seconds (see the countdown up top). Above the red tick when it passes, you take a strike."
-TUT12,12,FirstStrike,Strike! The mods undid your sockpuppets and shadowbanned you for {ban} seconds. {strikes} strikes and you are out; they do not wear off.
-TUT13,13,BlameRule,"One more strike ends you. Once per jam, Shift the Blame (click the bar below, or B) if your strikes took under {blamefake}% fake votes."
-TUT14,14,KeysHint,Space pauses. M mutes. Esc opens the menu. The rest is up to you.
-TUT15,15,FirstLostVoter,A voter changed sides. A shaking ring means it is drifting; a closing coloured ring means another game is about to plug it.
-TUT16,16,FirstSockpuppet,Fake votes keep you hot while you hold them. A strike undoes them all and the audit the unbacked: plug one to {launder} to back it.
-TUT17,17,FinalAudit,"Final audit: fake votes are purged, and so is every sockpuppet vote bought in the last {review}s, even if backed."
-TUT18,18,RallyHint,Right-click a voter you hold to Rally it: {rallycost} Post shields it and its neighbours from plugs for {rallylock}s. Ready in {rallycd}s.
-TUT19,19,ThreatRing,"A ring closing in on your voter is an attack, in the attacker's colour. Click the voter to parry it, or Rally it and its neighbours."
-TUT20,20,EyeAway,"The Mod Eye looks away! For {eyeaway}s night shift adds no Heat: hold SHIFT, sockpuppet a big voter, then plug it to back it."
-TUT21,21,FirstFake,Votes bought with sockpuppets are fake: they heat you up while you hold them. Keep them under {fakelimit}% or a strike takes them all.
-TUT22,22,FinalPush,"The rival goes all-in for the last days: a burst of attacks, then it runs low on Posts. Yours refill {pushpct}% faster, so spend them."
-TUT23,23,FirstLead,"You lead the board. The other games pile onto whoever is first, so expect closing rings in every colour."
-TUT24,24,PackHit,The other games fight too: they pile onto the leader and can take a hub from it. A note says who took what.
-TUT25,25,Sympathy,"You lead by more than {sympathy} points, so voters start rooting for the underdog. Your lead drifts back: keep reinforcing."
-TUT26,26,Grudge,"Take a voter from a colour and it hits back for {grudge}s: a hard ring in its colour on that voter. Click the voter to parry, or lose it."
+TUT01,1,JamStart,"Your game is good, but other games are more famous. Votes follow fame, so let us change that!"
+TUT02,2,FirstHover,Hover over a voter (move the mouse there). A card shows what you can do.
+TUT03,3,FirstPlug,Click a voter to Plug it. A Plug costs 1 Post and moves the voter towards your game.
+TUT04,4,FirstConvictionRing,The circle is conviction: how sure the voter is. Plug until the circle is empty. Then the voter joins you.
+TUT05,5,PostsLow,You are out of Posts. They come back slowly. Plug voters with many followers first.
+TUT06,6,FirstReinforce,"You can also click your own voters. This makes them stronger, so they stay with you."
+TUT07,7,FirstGateSeen,A padlock is a gate. The voter ignores you until enough of its followers back you. This is true for the other games too.
+TUT08,8,FirstGateOpened,The gate opened because its followers joined you. This is the honest way.
+TUT09,9,ShiftUnlocked,Hold SHIFT for night shift. Sockpuppets (fake votes) ignore gates. Sticky Keys in the way? Press N.
+TUT10,10,FirstHeat,Each sockpuppet adds {sockheat} Heat. Holding SHIFT adds {heatrate} a second. Heat goes down only when you let go of SHIFT.
+TUT11,11,FirstModEye,"The Mod Eye checks you every 12 to 35 seconds (see the countdown at the top). If Heat is above the red mark, you get a strike."
+TUT12,12,FirstStrike,Strike! Your sockpuppets are removed and you are blocked for {ban} seconds. {strikes} strikes and you are out. Strikes never go away.
+TUT13,13,BlameRule,"One more strike and you are out. Once per game, Shift the Blame (press B) if you have under {blamefake}% fake votes."
+TUT14,14,KeysHint,Space pauses. M mutes. Esc opens the menu. H shows how to play. The rest is up to you!
+TUT15,15,FirstLostVoter,A voter changed sides. A shaking voter is about to leave. A coloured ring closing in on a voter is an attack.
+TUT16,16,FirstSockpuppet,Fake votes keep your Heat high while you hold them. A strike removes them all. Plug one until it is {launder} full to make it real.
+TUT17,17,FinalAudit,"Final check: all fake votes are removed. Sockpuppet votes from the last {review} seconds are removed too, even if you made them real."
+TUT18,18,RallyHint,Right-click your own voter to Rally: {rallycost} Post protects it and its neighbours for {rallylock}s. Ready again in {rallycd}s.
+TUT19,19,ThreatRing,"A coloured ring closing in on your voter is an attack. Click the voter to parry it, or Rally it and its neighbours."
+TUT20,20,EyeAway,"The Mod Eye looks away! For {eyeaway} seconds, night shift adds no Heat. Hold SHIFT, sockpuppet a big voter, then plug it to make it real."
+TUT21,21,FirstFake,Sockpuppet votes are fake. They add Heat while you hold them. Keep them under {fakelimit}% or a strike removes them all.
+TUT22,22,FinalPush,"The rival attacks a lot in the last days, then it runs out of Posts. Your Posts come back {pushpct}% faster, so use them!"
+TUT23,23,FirstLead,"You are in first place! The other games attack the leader, so expect rings in every colour."
+TUT24,24,PackHit,The other games fight too. They attack the leader and can take a big voter from it. A note says who took what.
+TUT25,25,Sympathy,"You lead by more than {sympathy} points, so voters start to support the other games. Your lead shrinks. Keep reinforcing."
+TUT26,26,Grudge,"If you take a voter from a game, it hits back for {grudge} seconds. Click the voter when its ring closes in, or you lose it."
