@@ -221,6 +221,28 @@ void AShiftPlayerController::BeginPlay()
 	}
 	JamIndex = FMath::Clamp(JamIndex, 0, 2);
 	FParse::Value(Cmd, TEXT("ShiftNight="), NightOverride);
+
+	// -ShiftLesson=<chapter>[:<step>] starts a guided lesson directly (a QA run: nothing is saved); -ShiftLessonAuto performs every step by itself and exits when it is done
+	int32 LessonFlagChapter = 0;
+	int32 LessonFlagStep = 1;
+	FString LessonFlag;
+	if (FParse::Value(Cmd, TEXT("ShiftLesson="), LessonFlag, false))
+	{
+		FString Chap, Stp;
+		if (!LessonFlag.Split(TEXT(":"), &Chap, &Stp))
+		{
+			Chap = LessonFlag;
+			Stp = TEXT("1");
+		}
+		LessonFlagChapter = FMath::Clamp(FCString::Atoi(*Chap), 1, FShiftLesson::ChapterCount());
+		LessonFlagStep = FMath::Max(1, FCString::Atoi(*Stp));
+		bQaRun = true;
+	}
+	bLessonAuto = FParse::Param(Cmd, TEXT("ShiftLessonAuto"));
+	if (bLessonAuto && NightOverride < 0.0f)
+	{
+		NightOverride = 0.0f;
+	}
 	bQaRun |= FParse::Param(Cmd, TEXT("ShiftBot")) || FString(Cmd).Contains(TEXT("ShiftBot=")) || FString(Cmd).Contains(TEXT("ShiftClicks="))
 		|| FString(Cmd).Contains(TEXT("ShiftWarp=")) || FString(Cmd).Contains(TEXT("ShiftSpeed="));
 	if (!bFixedSeed)
@@ -324,6 +346,7 @@ void AShiftPlayerController::BeginPlay()
 	bAutoPauseOnFocusLoss = !bQaRun && !FParse::Param(Cmd, TEXT("ShiftNoAutoPause"));
 	bQaRunFlag = bQaRun;
 	bMuted = ShiftSave::IsMuted();
+	bLessonNudge = !bQaRun && (ShiftSave::LessonsDone() & 1) == 0;
 	EdgeMode = ShiftSave::EdgeMode();
 	LeaderboardMode = ShiftSave::LeaderboardMode();
 	ApplyMute();
@@ -341,7 +364,11 @@ void AShiftPlayerController::BeginPlay()
 		else if (ScreenArg.Equals(TEXT("play"), ESearchCase::IgnoreCase)) { Start = EShiftScreen::Play; }
 	}
 
-	if (Start == EShiftScreen::Play)
+	if (LessonFlagChapter > 0)
+	{
+		StartLesson(LessonFlagChapter, LessonFlagStep);
+	}
+	else if (Start == EShiftScreen::Play)
 	{
 		Screen = EShiftScreen::Play;
 		StartRun(JamIndex, Seed, false);
@@ -406,6 +433,7 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 {
 	SaveRecording(TEXT("abandoned"));   // the jam that is being replaced, if it was left unfinished
 	bAttract = bInAttract;
+	const bool bLesson = bLessonRun && !bInAttract && Lesson.IsValid();   // a guided lesson: the practice board of ShiftLesson.h
 	const int32 RunJam = FMath::Clamp(InJamIndex, 0, 2);
 	if (!bAttract)
 	{
@@ -414,6 +442,11 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 	}
 
 	Run = MakeShared<FShiftRun>();
+	FShiftLessonSetup LessonSetup;
+	if (bLesson)
+	{
+		FShiftLesson::Configure(Lesson->Chapter(), LessonSetup);
+	}
 	FString SetArg;
 	if (!bAttract && FParse::Value(FCommandLine::Get(), TEXT("ShiftSet="), SetArg, false))
 	{
@@ -431,13 +464,17 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 		}
 		Run->SetOverrides(Overrides);
 	}
-	if (!Run->Start(RunJam, InSeed, bAttract ? FShiftBuild() : Build, /*bInModsEnabled*/ true))
+	if (bLesson)
+	{
+		Run->SetOverrides(LessonSetup.Overrides);   // the lesson's world, whatever -ShiftSet said
+	}
+	if (!Run->Start(RunJam, InSeed, bAttract ? FShiftBuild() : (bLesson ? LessonSetup.Build : Build), /*bInModsEnabled*/ bLesson ? LessonSetup.bMods : true))
 	{
 		Run.Reset();
 		return;
 	}
 	CosmeticRng.Initialize(static_cast<int32>(InSeed * 7919u + 13u));
-	if (!FParse::Param(FCommandLine::Get(), TEXT("ShiftNoStateTree")))
+	if (!bLesson && !FParse::Param(FCommandLine::Get(), TEXT("ShiftNoStateTree")))
 	{
 		Run->SetDriver(FShiftBehavior::Create(*Run));   // null (native policies) when the StateTree assets are missing
 	}
@@ -449,7 +486,7 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 		{
 			Run->SetReplay(ReplaySource);
 		}
-		else if (!bQaRunFlag || bForceRecord)
+		else if (!bLesson && (!bQaRunFlag || bForceRecord))
 		{
 			Run->StartRecording();   // every jam a person plays is recorded: a few kilobytes that replay it
 		}
@@ -497,6 +534,10 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 	}
 
 	FShiftContent::BuildIdentities(S, InSeed, NodeHandles, NodeBios);
+	if (bLesson)
+	{
+		Lesson->Attach(*Run);
+	}
 
 	if (Board)
 	{
@@ -548,6 +589,8 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 	bAuditWarned = false;
 	RallyFxNode = -1;
 	RallyFxAge = 99.0f;
+	bHowTo = false;
+	LessonAutoTimer = 0.0f;
 	CoachQueue.Reset();
 	CoachQueuedMask = 0;
 	CoachCurrent = -1;
@@ -557,6 +600,145 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 	UE_LOG(LogShift, Log, TEXT("Run started: jam=%d (%hs) seed=%u attract=%d nodes=%d edges=%d rival=%.1f%% you=%.1f%% bot=%d speed=%.1f warp=%.0fs build=%d/%d/%d"),
 		RunJam, S.Jam().name.c_str(), InSeed, bAttract ? 1 : 0, S.NodeCount(), Board->EdgeCount(), S.Share(S.RivalId()) * 100.0,
 		S.Share(ShiftSim::kPlayerId) * 100.0, Run->HasBot() ? 1 : 0, Speed, Warp, Build.Quality, Build.Thumbnail, Build.Network);
+}
+
+void AShiftPlayerController::StartLesson(int32 Chapter, int32 FirstStep)
+{
+	ForecastService.Cancel();
+	Lesson = MakeUnique<FShiftLesson>();
+	Lesson->Expand = [this](const FString& Text) { return ExpandTutorialText(Text); };
+	Lesson->Begin(Chapter, FirstStep);
+	bLessonRun = true;
+	bLessonDone = false;
+	LessonChapter = Lesson->Chapter();
+	LessonAutoWall = 0.0f;
+	LessonAutoDone = 0.0f;
+	bHowTo = false;
+	FShiftLessonSetup Setup;
+	FShiftLesson::Configure(LessonChapter, Setup);
+	Screen = EShiftScreen::Play;
+	StartRun(Setup.Jam, Setup.Seed, false);
+	if (!Run.IsValid())
+	{
+		LeaveLesson(EShiftScreen::Title);
+	}
+}
+
+void AShiftPlayerController::LeaveLesson(EShiftScreen NewScreen)
+{
+	bLessonRun = false;
+	Lesson.Reset();
+	bHowTo = false;
+	bPaused = false;
+	EnterScreen(NewScreen);
+}
+
+void AShiftPlayerController::TickLesson(float DeltaTime)
+{
+	if (!bLessonRun || !Lesson.IsValid() || !Run.IsValid() || Screen != EShiftScreen::Play)
+	{
+		return;
+	}
+	Lesson->Tick(*Run, DeltaTime, EventScratch, HoverNode);
+	const FString Notice = Lesson->ConsumeNotice();
+	if (!Notice.IsEmpty())
+	{
+		PlaySfx(EShiftSfx::Locked);
+		ShowToast(Notice, AmberColor(), 3.0f);
+	}
+	if (Lesson->IsComplete() && !bLessonDone)
+	{
+		bLessonDone = true;
+		PlaySfx(EShiftSfx::Win);
+		if (!bQaRunFlag)
+		{
+			ShiftSave::SetLessonsDone(ShiftSave::LessonsDone() | (1 << (LessonChapter - 1)));
+			bLessonNudge = (ShiftSave::LessonsDone() & 1) == 0;
+			// the pop-up cards this lesson covered need not say it again
+			const int32 Covered = LessonChapter == 1
+				? 0xFF | (1 << TutRally) | (1 << TutThreat)
+				: (1 << TutShiftUnlocked) | (1 << TutFirstHeat) | (1 << TutFirstModEye) | (1 << TutFirstSockpuppet);
+			CoachSeenMask |= Covered;
+			if (bCoachPersist)
+			{
+				ShiftSave::SetTutorialSeenMask(CoachSeenMask);
+			}
+		}
+	}
+
+	if (!bLessonAuto)
+	{
+		return;
+	}
+	// QA autoplay: what a player would do, through the same paths a click or a key takes
+	LessonAutoWall += DeltaTime;
+	if (Lesson->IsComplete())
+	{
+		LessonAutoDone += DeltaTime;
+		if (LessonAutoDone > 0.8f)
+		{
+			UE_LOG(LogShift, Display, TEXT("Lesson %d autoplay: complete"), LessonChapter);
+			FPlatformMisc::RequestExitWithStatus(false, 0);
+		}
+		return;
+	}
+	if (LessonAutoWall > 900.0f)
+	{
+		UE_LOG(LogShift, Error, TEXT("Lesson %d autoplay: timed out at step %d"), LessonChapter, Lesson->View().Step);
+		FPlatformMisc::RequestExitWithStatus(false, 4);
+		return;
+	}
+	// a reader takes a moment; a player in the middle of a step acts every half second of the jam's own time, whatever the fast-forward is
+	const double SimNow = Run->GetSim().Time();
+	if (Lesson->IsFrozen())
+	{
+		LessonAutoTimer += DeltaTime;
+		LessonAutoSim = SimNow;
+		if (LessonAutoTimer < 0.4f)
+		{
+			return;
+		}
+		LessonAutoTimer = 0.0f;
+	}
+	else
+	{
+		if (SimNow - LessonAutoSim < 0.5)
+		{
+			return;
+		}
+		LessonAutoSim = SimNow;
+	}
+	const FShiftLessonAuto Act = Lesson->Auto(Run->GetSim());
+	switch (Act.Kind)
+	{
+	case FShiftLessonAuto::EKind::Continue:
+		HandleUi(EShiftUi::LessonContinue, 0.0f);
+		break;
+	case FShiftLessonAuto::EKind::Hover:
+		if (Act.Node >= 0)
+		{
+			const ShiftSim::GraphNode& N = Run->GetSim().GetGraph().nodes[static_cast<size_t>(Act.Node)];
+			bFakeCursor = true;
+			FakeCursorDesign = FVector2D(N.x, N.y);
+		}
+		break;
+	case FShiftLessonAuto::EKind::Click:
+		bPlayerActed = true;
+		Run->QueueAction(Act.Node, Act.bNight);
+		break;
+	case FShiftLessonAuto::EKind::RightClick:
+		bPlayerActed = true;
+		Run->QueueRally(Act.Node);
+		break;
+	case FShiftLessonAuto::EKind::NightOn:
+		NightOverride = 1.0f;
+		break;
+	case FShiftLessonAuto::EKind::NightOff:
+		NightOverride = 0.0f;
+		break;
+	default:
+		break;
+	}
 }
 
 void AShiftPlayerController::StartAttract()
@@ -577,6 +759,11 @@ void AShiftPlayerController::RestartRun()
 {
 	if (Screen != EShiftScreen::Play)
 	{
+		return;
+	}
+	if (bLessonRun)
+	{
+		StartLesson(LessonChapter, 1);   // Restart in a lesson starts the lesson again
 		return;
 	}
 	StartRun(JamIndex, bReplayMode ? Seed : Seed + 1u, false);
@@ -735,6 +922,15 @@ void AShiftPlayerController::ToggleMute()
 }
 
 bool AShiftPlayerController::IsNightHeldNow() const
+{
+	if (bLessonRun && Lesson.IsValid() && !Lesson->NightAllowed())
+	{
+		return false;   // night shift is the second lesson
+	}
+	return IsNightHeldRaw();
+}
+
+bool AShiftPlayerController::IsNightHeldRaw() const
 {
 	if (Run.IsValid() && Run->IsReplaying())
 	{
@@ -914,13 +1110,46 @@ void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 		}
 		break;
 	case EShiftUi::Menu:
+		if (bLessonRun)
+		{
+			LeaveLesson(EShiftScreen::Title);
+			break;
+		}
 		EnterScreen(EShiftScreen::JamSelect);
+		break;
+	case EShiftUi::LearnToPlay:
+		bHowTo = false;
+		StartLesson(1, 1);
+		break;
+	case EShiftUi::HowTo:
+		bHowTo = !bHowTo;
+		break;
+	case EShiftUi::Pause:
+		SetPaused(!bPaused);
+		break;
+	case EShiftUi::LessonContinue:
+		if (bLessonRun && Lesson.IsValid() && Run.IsValid())
+		{
+			Lesson->Continue(*Run);
+		}
+		break;
+	case EShiftUi::LessonLeave:
+		LeaveLesson(EShiftScreen::Title);
+		break;
+	case EShiftUi::LessonNext:
+		if (bLessonRun && LessonChapter < FShiftLesson::ChapterCount())
+		{
+			StartLesson(LessonChapter + 1, 1);
+		}
+		break;
+	case EShiftUi::LessonPlay:
+		LeaveLesson(EShiftScreen::JamSelect);
 		break;
 	case EShiftUi::Resume:
 		SetPaused(false);
 		break;
 	case EShiftUi::Blame:
-		if (Run.IsValid())
+		if (Run.IsValid() && !bLessonRun)
 		{
 			Run->TakeBlame();
 		}
@@ -944,7 +1173,7 @@ void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 
 void AShiftPlayerController::HandleHudClick(const FVector2D& LocalPos, bool bShift, bool bRightButton)
 {
-	if (Screen != EShiftScreen::Play || !Run.IsValid() || !Board || Run->IsOver() || bPaused)
+	if (Screen != EShiftScreen::Play || !Run.IsValid() || !Board || Run->IsOver() || bPaused || bHowTo)
 	{
 		return;
 	}
@@ -957,6 +1186,20 @@ void AShiftPlayerController::HandleHudClick(const FVector2D& LocalPos, bool bShi
 	if (Node < 0)
 	{
 		return;
+	}
+	if (bLessonRun && Lesson.IsValid())
+	{
+		// a lesson allows only what the step teaches, on the voters it points at; anything else is turned away with a line that says what to do
+		FString Why;
+		if (!Lesson->AllowClick(Run->GetSim(), Node, bRightButton, bShift || IsNightHeldRaw(), Why))
+		{
+			if (!Why.IsEmpty())
+			{
+				PlaySfx(EShiftSfx::Locked);
+				ShowToast(Why, AmberColor(), 2.2f);
+			}
+			return;
+		}
 	}
 	bPlayerActed = true;
 	if (bRightButton)
@@ -973,6 +1216,25 @@ void AShiftPlayerController::HandleHudKey(const FKey& Key)
 	if (Key == EKeys::M)
 	{
 		ToggleMute();
+		return;
+	}
+	if (bHowTo)
+	{
+		if (Key == EKeys::H || Key == EKeys::Escape || Key == EKeys::Enter || Key == EKeys::SpaceBar)
+		{
+			bHowTo = false;   // the reference page closes
+		}
+		return;
+	}
+	if (Key == EKeys::H && !(Screen == EShiftScreen::Play && ResultsShown()))
+	{
+		bHowTo = true;   // one screen with everything: the goal, the controls, the three dangers
+		PlaySfx(EShiftSfx::Click);
+		return;
+	}
+	if (bLessonRun && Lesson.IsValid() && Screen == EShiftScreen::Play && !bPaused && Lesson->View().bReading && (Key == EKeys::Enter || Key == EKeys::SpaceBar))
+	{
+		HandleUi(EShiftUi::LessonContinue, 0.0f);
 		return;
 	}
 
@@ -1522,7 +1784,7 @@ void AShiftPlayerController::DismissCoach()
 
 void AShiftPlayerController::TickTutorial(float DeltaTime)
 {
-	const bool bActive = bCoachEnabled && Screen == EShiftScreen::Play && !bAttract && Run.IsValid() && !Run->IsOver();
+	const bool bActive = bCoachEnabled && !bLessonRun && Screen == EShiftScreen::Play && !bAttract && Run.IsValid() && !Run->IsOver();
 	if (!bActive)
 	{
 		CoachAlpha = 0.0f;
@@ -1948,6 +2210,15 @@ void AShiftPlayerController::BuildMenuModel(FShiftHudModel& M)
 {
 	M.Screen = Screen;
 	M.bMuted = bMuted;
+	M.bLessonNudge = bLessonNudge;
+	M.bHowTo = bHowTo;
+	if (bHowTo)
+	{
+		for (int32 Block = 1; Block <= FShiftContent::LessonStepCount(0); ++Block)
+		{
+			M.HowToText.Add(ExpandTutorialText(FShiftContent::LessonText(0, Block)));
+		}
+	}
 	M.bShiftDown = IsNightHeldNow();
 	M.Night = NightBlend;
 	M.bNightActive = M.bShiftDown;
@@ -2155,6 +2426,20 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 		M.RecordingPath = RecordingPath;
 	}
 	M.bReplay = Run->IsReplaying();
+	M.bInLesson = bLessonRun;
+	if (bLessonRun && Lesson.IsValid())
+	{
+		M.Lesson = Lesson->View();
+		M.bModsEnabled = M.bModsEnabled && M.Lesson.bModEye;
+	}
+	M.bHowTo = bHowTo;
+	if (bHowTo)
+	{
+		for (int32 Block = 1; Block <= FShiftContent::LessonStepCount(0); ++Block)
+		{
+			M.HowToText.Add(ExpandTutorialText(FShiftContent::LessonText(0, Block)));
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -2231,7 +2516,8 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 	}
 	const bool bNight = IsNightHeldNow();
 	Run->SetNightHeld(bPlaying && bNight);
-	Run->SetPaused(bPlaying && bPaused);
+	// the world stands still in the pause menu, behind the reference page, and while a lesson card is being read
+	Run->SetPaused(bPlaying && (bPaused || bHowTo || (bLessonRun && Lesson.IsValid() && Lesson->IsFrozen())));
 	Run->Tick(DeltaTime);
 
 	const float NightTarget = NightOverride >= 0.0f ? NightOverride : (bNight ? 1.0f : 0.0f);
@@ -2250,19 +2536,20 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 			CursorWorld = FVector2D(WorldLoc.X, WorldLoc.Y);
 		}
 	}
-	HoverNode = (bPlaying && !bPaused && !Run->IsOver()) ? Board->NodeAtWorld(CursorWorld) : -1;
+	HoverNode = (bPlaying && !bPaused && !bHowTo && !Run->IsOver()) ? Board->NodeAtWorld(CursorWorld) : -1;
 
 	EventScratch.Reset();
 	Run->DrainEvents(EventScratch);
 	if (bPlaying && !bAttract)
 	{
+		TickLesson(DeltaTime);
 		HandleEvents(EventScratch);
 		TickLostVoters(DeltaTime);
 		TickShareTrend();
 
 		const ShiftSim::Sim& Sim = Run->GetSim();
 		const int32 Leader = Sim.Leader();
-		if (LastLeader >= 0 && Leader != LastLeader && !Run->IsOver())
+		if (LastLeader >= 0 && Leader != LastLeader && !Run->IsOver() && !bLessonRun)
 		{
 			ShowHeadline(TEXT("LeadChange"), EntryName(Leader));
 		}

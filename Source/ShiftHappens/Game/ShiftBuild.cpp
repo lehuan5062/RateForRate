@@ -94,6 +94,25 @@ void ShiftSave::SetTutorialSeenMask(int32 Mask)
 	}
 }
 
+int32 ShiftSave::LessonsDone()
+{
+	int32 Value = 0;
+	if (GConfig)
+	{
+		GConfig->GetInt(SaveSection, TEXT("LessonsDone"), Value, GGameUserSettingsIni);
+	}
+	return Value;
+}
+
+void ShiftSave::SetLessonsDone(int32 Mask)
+{
+	if (GConfig)
+	{
+		GConfig->SetInt(SaveSection, TEXT("LessonsDone"), Mask, GGameUserSettingsIni);
+		GConfig->Flush(false, GGameUserSettingsIni);
+	}
+}
+
 int32 ShiftSave::EdgeMode()
 {
 	int32 Value = 0;

@@ -36,10 +36,12 @@ Everything here runs **headless** (no window, no console, no sound) unless state
 | `-ShiftNight=0..1` | Force the night blend (also counts as SHIFT held) |
 | `-ShiftCursor=X,Y` | Fake cursor in design pixels (1280 x 720) |
 | `-ShiftClicks="T,X,Y[,n];..."` | Scripted board clicks at game time T (`n` = sockpuppet) |
-| `-ShiftUi="T,Id[,V];..."` | Scripted UI actions by id (`EShiftUi` in `UI/ShiftHudModel.h`; V = slider position 0..1) |
+| `-ShiftUi="T,Id[,V];..."` | Scripted UI actions by id (`EShiftUi` in `UI/ShiftHudModel.h`; V = slider position 0..1; id 5 toggles the pause menu, 3 starts Learn to play, the How to play page has its own id) |
 | `-ShiftMouse="T,X,Y,m\|d\|u;..."` | Mouse move / left down / left up injected through the real widget (tests hit regions and slider drags) |
 | `-ShiftShot=<png> -ShiftShotDelay=S -ShiftQuit` | Screenshot (with UI) after S seconds, then exit |
 | `-ShiftTutorial` / `-ShiftNoTutorial` | Force or skip the coach cards (QA runs skip them by default) |
+| `-ShiftLesson=<chapter>[:<step>]` | Start a guided lesson (1 = The basics, 2 = Night shift) directly, optionally at a step; it is a QA run (no ini, no recordings, no coach cards, no ranks). `-ShiftScreen` is implied |
+| `-ShiftLessonAuto` | The lesson plays itself through the same click/key paths a person uses (it acts on the jam's own time, so `-ShiftSpeed=4` is fine); the log ends with `Lesson <c> autoplay: complete` and exit code 0, or `autoplay: FAILED` |
 | `-ShiftNoStateTree` | Native stand-in policies instead of the StateTrees |
 | `-ShiftNoAudio`, `-ShiftMasterVolume=0..1` | Skip audio; scale all sound |
 | `-ShiftAudioMeter=all\|sfx\|music\|<asset names>` | Audio QA: plays MetaSound sources inaudibly and logs their in-graph meters (needs `-Sound`; nothing is recorded, no .wav); exit code 3 on failure. The run starts with a warm-up that is replayed until meter data really arrives, and a one-shot that ends without any data is retried twice before it fails |

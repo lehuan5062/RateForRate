@@ -12,6 +12,7 @@
 #include "Game/ShiftBuild.h"
 #include "Game/ShiftForecast.h"
 #include "Game/ShiftForecastService.h"
+#include "Game/ShiftLesson.h"
 #include "Game/ShiftRecording.h"
 #include "Game/ShiftRun.h"
 #include "GameFramework/PlayerController.h"
@@ -21,6 +22,7 @@
 #include "Math/MathFwd.h"
 #include "Math/RandomStream.h"
 #include "Templates/SharedPointer.h"
+#include "Templates/UniquePtr.h"
 #include "UI/ShiftHudModel.h"
 #include "UI/SShiftHud.h"
 #include "UObject/ObjectMacros.h"
@@ -62,6 +64,9 @@ private:
 	void StartAttract();
 	void StartPlay();
 	void RestartRun();
+	void StartLesson(int32 Chapter, int32 FirstStep);
+	void LeaveLesson(EShiftScreen NewScreen);
+	void TickLesson(float DeltaTime);
 	void EnterScreen(EShiftScreen NewScreen);
 	void RefreshJamCards();
 	void RefreshForecast();
@@ -81,6 +86,7 @@ private:
 	void HandleHudClick(const FVector2D& LocalPos, bool bShift, bool bRightButton);
 	void HandleHudKey(const FKey& Key);
 	bool IsNightHeldNow() const;
+	bool IsNightHeldRaw() const;
 
 	// ---- model
 	void BuildHudModel(FShiftHudModel& Out);
@@ -234,6 +240,19 @@ private:
 	float HeartbeatTimer = 0.0f;
 	double LastWarnedSweep = -1.0;
 	bool bAuditWarned = false;
+
+	// guided lessons (see ShiftLesson.h): a lesson run records nothing, saves no rank and shows no pop-up cards
+	TUniquePtr<FShiftLesson> Lesson;
+	bool bLessonRun = false;
+	int32 LessonChapter = 1;
+	bool bLessonDone = false;
+	bool bLessonNudge = false;         // the basics were never finished: the title screen points at Learn to play
+	bool bHowTo = false;               // the reference page is open
+	bool bLessonAuto = false;          // -ShiftLessonAuto: QA performs every step by itself
+	float LessonAutoTimer = 0.0f;
+	double LessonAutoSim = 0.0;
+	float LessonAutoWall = 0.0f;
+	float LessonAutoDone = 0.0f;
 	int32 RallyFxNode = -1;         // the voter a Rally just went off on, for the teal lines on the board
 	float RallyFxAge = 99.0f;
 	int32 LastHoverNode = -1;

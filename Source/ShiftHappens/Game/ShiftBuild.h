@@ -34,6 +34,8 @@ namespace ShiftSave
 	void SetMuted(bool bMuted);
 	int32 TutorialSeenMask();                       // bit per tutorial card already shown
 	void SetTutorialSeenMask(int32 Mask);
+	int32 LessonsDone();                            // bit per guided lesson finished (bit 0 = the basics, bit 1 = night shift)
+	void SetLessonsDone(int32 Mask);
 	int32 EdgeMode();                               // relation lines: 0 faint, 1 off, 2 full
 	void SetEdgeMode(int32 Mode);
 	int32 LeaderboardMode();                        // 0 compact, 1 full, 2 hidden

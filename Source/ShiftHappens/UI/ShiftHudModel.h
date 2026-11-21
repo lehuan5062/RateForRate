@@ -39,8 +39,51 @@ namespace EShiftUi
 		Share = 51,
 		FakeInfo = 52,            // hover only: the explanation of the sockpuppet-votes chip
 		Recordings = 53,          // results: open the folder the recordings of your jams are saved in
+		LearnToPlay = 3,          // title and reference page: start the guided lessons
+		Pause = 5,                // QA only (-ShiftUi): toggles the pause menu
+		HowTo = 4,                // title and pause menu: the one-page reference (also the key H)
+		LessonContinue = 46,      // the lesson card: read, go on
+		LessonLeave = 47,         // leave the lessons for the title screen
+		LessonNext = 48,          // the end of a lesson: the next lesson
+		LessonPlay = 49,          // the end of a lesson: pick a jam
 	};
 }
+
+/** A part of the HUD a lesson step points at (the HUD knows where each one is drawn). */
+enum class EShiftLessonAnchor : uint8
+{
+	None,
+	Leaderboard,
+	Posts,
+	NightChip,
+	Heat,
+};
+
+/** A voter to point at, in design pixels (1280 x 720). */
+struct FShiftLessonSpot
+{
+	FVector2f Center = FVector2f::ZeroVector;
+	float Radius = 14.0f;
+	FString Label;
+};
+
+/** What the HUD draws for the step the player is on. */
+struct FShiftLessonView
+{
+	bool bActive = false;
+	int32 Chapter = 0;          // 1-based
+	int32 Step = 0;             // 1-based
+	int32 Steps = 0;
+	FString Title;
+	FString Body;
+	bool bReading = false;      // the world is frozen and the card waits for Continue
+	bool bCheer = false;        // the step was just done
+	bool bFinish = false;       // the lesson is over: the card offers what to do next
+	bool bHasNext = false;      // ... and there is another lesson after this one
+	bool bModEye = false;       // the Mod Eye countdown belongs on screen yet (it is the subject of the last steps of the night shift lesson)
+	EShiftLessonAnchor Anchor = EShiftLessonAnchor::None;
+	TArray<FShiftLessonSpot> Spots;
+};
 
 /** One jam card on the select screen. */
 struct FShiftHudJamCard
@@ -265,6 +308,13 @@ struct FShiftHudModel
 	FString PlaysLine;
 	FString RecordingPath;                 // where the recording of this jam was saved ("" = none)
 	bool bReplay = false;                  // a recording is being replayed: your clicks do nothing
+
+	// guided lessons and the reference page
+	FShiftLessonView Lesson;
+	bool bInLesson = false;                // the run on screen is a lesson (the pause menu says so)
+	bool bHowTo = false;                   // the reference page is open
+	TArray<FString> HowToText;             // its blocks, "Title: text" each
+	bool bLessonNudge = false;             // never finished the basics: the title screen points at Learn to play
 	FLinearColor OutcomeColor = FLinearColor::White;
 	float HonestShare = 0.0f;
 	float SockShare = 0.0f;

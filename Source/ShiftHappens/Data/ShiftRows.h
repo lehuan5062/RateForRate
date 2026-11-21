@@ -89,3 +89,14 @@ struct SHIFTHAPPENS_API FShiftTutorialRow : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shift") FString Trigger;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shift") FString Text;
 };
+
+/** One step of the guided tutorial (chapter 0 is the "How to play" reference page, 1 the basics, 2 night shift). */
+USTRUCT(BlueprintType)
+struct SHIFTHAPPENS_API FShiftLessonRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shift") int32 Chapter = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shift") int32 Step = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shift") FString Text;
+};

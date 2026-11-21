@@ -22,6 +22,7 @@ TABLES = (
     ("Blurbs", "DT_Blurbs", "ShiftBlurbRow"),
     ("Achievements", "DT_Achievements", "ShiftAchievementRow"),
     ("Tutorial", "DT_Tutorial", "ShiftTutorialRow"),
+    ("Lessons", "DT_Lessons", "ShiftLessonRow"),
 )
 
 

@@ -38,4 +38,8 @@ public:
 	static FString PickHeadline(const FString& Event, FRandomStream& Rng);
 	static FString PickBlurb(const FString& Outcome, const FString& Condition, FRandomStream& Rng);
 	static FString PickTutorial(const FString& Trigger);
+
+	/** The guided tutorial: text of one step of a chapter (0 = the "How to play" reference page, 1 = the basics, 2 = night shift), and how many steps a chapter has. */
+	static FString LessonText(int32 Chapter, int32 Step);
+	static int32 LessonStepCount(int32 Chapter);
 };

@@ -33,6 +33,7 @@ namespace
 		TMap<FString, TArray<FString>> HeadlinesByEvent;
 		TMap<FString, TArray<FString>> BlurbsByKey;       // key = Outcome + "/" + Condition
 		TMap<FString, FString> TutorialByTrigger;
+		TMap<int32, TMap<int32, FString>> LessonText;     // chapter -> step -> text
 		TMap<FString, TArray<FShiftEntryRow>> EntriesByJam; // key = jam key (Other and Rival rows)
 		TArray<FShiftEntryRow> YouRows;
 	};
@@ -128,6 +129,13 @@ bool FShiftContent::EnsureLoaded()
 				{
 					C.TutorialByTrigger.Add(Row.Trigger, Row.Text);
 				}
+			});
+	}
+	if (UDataTable* T = LoadTable<FShiftLessonRow>(TEXT("DT_Lessons")))
+	{
+		T->ForeachRow<FShiftLessonRow>(TEXT("Lessons"), [&C](const FName&, const FShiftLessonRow& Row)
+			{
+				C.LessonText.FindOrAdd(Row.Chapter).Add(Row.Step, Row.Text);
 			});
 	}
 	if (UDataTable* T = LoadTable<FShiftEntryRow>(TEXT("DT_Entries")))
@@ -345,6 +353,21 @@ FString FShiftContent::PickBlurb(const FString& Outcome, const FString& Conditio
 {
 	EnsureLoaded();
 	return PickFrom(Cache().BlurbsByKey.Find(Outcome + TEXT("/") + Condition), Rng);
+}
+
+FString FShiftContent::LessonText(int32 Chapter, int32 Step)
+{
+	EnsureLoaded();
+	const TMap<int32, FString>* Steps = Cache().LessonText.Find(Chapter);
+	const FString* Text = Steps ? Steps->Find(Step) : nullptr;
+	return Text ? *Text : FString(TEXT("(lesson text missing: run Tools/py/build_data.py)"));
+}
+
+int32 FShiftContent::LessonStepCount(int32 Chapter)
+{
+	EnsureLoaded();
+	const TMap<int32, FString>* Steps = Cache().LessonText.Find(Chapter);
+	return Steps ? Steps->Num() : 0;
 }
 
 FString FShiftContent::PickTutorial(const FString& Trigger)

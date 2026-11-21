@@ -403,6 +403,15 @@ void SShiftHud::PaintTitle(FShiftPainter& P, const FPal& C) const
 	P.Text(TEXT("GitHub Game Off 2026  -  theme: SHIFT"), 640.0f, 672.0f, 12.0f, C.InkDim, EShiftAlign::Center);
 	P.Text(TEXT("Made with Unreal Engine 5.8, AI-assisted development"), 640.0f, 690.0f, 12.0f, C.InkDim, EShiftAlign::Center);
 
+	// New here? The guided lessons teach the game hands-on; the reference page is one screen. The lessons button glows until the basics have been finished once.
+	const float LessonsPulse = 0.5f + 0.5f * FMath::Sin(AnimTime * 4.0f);
+	if (Model.bLessonNudge)
+	{
+		P.Rect(380.0f, 612.0f, 270.0f, 56.0f, WithAlpha(C.Teal, 0.20f + 0.25f * LessonsPulse), 28.0f);
+	}
+	Button(P, C, EShiftUi::LearnToPlay, 386.0f, 618.0f, 258.0f, 44.0f, TEXT("LEARN TO PLAY"), Model.bLessonNudge, 17.0f);
+	Button(P, C, EShiftUi::HowTo, 664.0f, 618.0f, 230.0f, 44.0f, TEXT("How to play  (H)"), false, 16.0f);
+
 	MuteButton(P, C, 1246.0f, 24.0f);
 }
 
@@ -1121,10 +1130,20 @@ void SShiftHud::PaintPause(FShiftPainter& P, const FPal& C) const
 {
 	Hits.Reset();
 	P.Rect(0, 41, DesignW, 635, Hex(0x000000, 0.45f));
-	P.Text(TEXT("PAUSED"), 640, 240, 52, FLinearColor::White, EShiftAlign::Center, true);
-	Button(P, C, EShiftUi::Resume, 520.0f, 340.0f, 240.0f, 50.0f, TEXT("Resume  (SPACE)"), true, 18.0f);
-	Button(P, C, EShiftUi::Retry, 520.0f, 404.0f, 240.0f, 46.0f, TEXT("Restart  (R)"), false, 17.0f);
-	Button(P, C, EShiftUi::Menu, 520.0f, 464.0f, 240.0f, 46.0f, TEXT("Quit to menu"), false, 17.0f);
+	P.Text(TEXT("PAUSED"), 640, Model.bInLesson ? 270.0f : 210.0f, 52, FLinearColor::White, EShiftAlign::Center, true);
+	float By = Model.bInLesson ? 350.0f : 290.0f;
+	Button(P, C, EShiftUi::Resume, 520.0f, By, 240.0f, 50.0f, TEXT("Resume  (SPACE)"), true, 18.0f);
+	By += 64.0f;
+	Button(P, C, EShiftUi::Retry, 520.0f, By, 240.0f, 46.0f, Model.bInLesson ? TEXT("Restart lesson  (R)") : TEXT("Restart  (R)"), false, 17.0f);
+	By += 60.0f;
+	Button(P, C, EShiftUi::HowTo, 520.0f, By, 240.0f, 46.0f, TEXT("How to play  (H)"), false, 17.0f);
+	By += 60.0f;
+	Button(P, C, EShiftUi::Menu, 520.0f, By, 240.0f, 46.0f, Model.bInLesson ? TEXT("Leave lesson") : TEXT("Quit to menu"), false, 17.0f);
+	if (Model.bInLesson)
+	{
+		MuteButton(P, C, 1250.0f, 20.0f);
+		return;
+	}
 
 	// what the build the player uploaded comes to, in numbers
 	P.Rect(400.0f, 530.0f, 480.0f, 104.0f, WithAlpha(C.PanelSolid, 0.92f), 12.0f);
@@ -1137,6 +1156,151 @@ void SShiftHud::PaintPause(FShiftPainter& P, const FPal& C) const
 		P.Text(P.Fit(Model.Build.Effects[i], 300.0f, 12.0f), 560.0f, Ly + 1.0f, 12.0f, C.InkDim);
 	}
 	MuteButton(P, C, 1250.0f, 20.0f);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// guided lessons and the reference page
+
+void SShiftHud::PaintLesson(FShiftPainter& P, const FPal& C) const
+{
+	const FShiftLessonView& L = Model.Lesson;
+	const float Pulse = 0.5f + 0.5f * FMath::Sin(AnimTime * 6.0f);
+	const FLinearColor Glow = Hex(0xFFB020);
+
+	// the part of the HUD the step points at (the rectangles are where PaintPlay draws them)
+	float Ax = 0.0f, Ay = 0.0f, Aw = 0.0f, Ah = 0.0f;
+	switch (L.Anchor)
+	{
+	case EShiftLessonAnchor::Leaderboard: Ax = 1080.0f; Ay = 44.0f; Aw = 194.0f; Ah = 110.0f; break;
+	case EShiftLessonAnchor::Posts: Ax = 12.0f; Ay = 680.0f; Aw = 240.0f; Ah = 38.0f; break;
+	case EShiftLessonAnchor::NightChip: Ax = 494.0f; Ay = 680.0f; Aw = 164.0f; Ah = 36.0f; break;
+	case EShiftLessonAnchor::Heat: Ax = 794.0f; Ay = 680.0f; Aw = 270.0f; Ah = 38.0f; break;
+	default: break;
+	}
+	if (Aw > 0.0f)
+	{
+		P.Rect(Ax - 4.0f, Ay - 4.0f, Aw + 8.0f, Ah + 8.0f, WithAlpha(Glow, 0.16f + 0.22f * Pulse), 12.0f);
+	}
+
+	// the card: room for the text, the buttons and the step dots
+	const float W = 440.0f;
+	const TArray<FString> Lines = P.Wrap(L.Body, W - 36.0f, 14.0f);
+	const float Footer = L.bFinish ? 64.0f : (L.bReading ? 58.0f : 34.0f);
+	const float H = 46.0f + 19.0f * static_cast<float>(Lines.Num()) + Footer;
+	const FVector2f Candidates[4] = { FVector2f(22.0f, 54.0f), FVector2f(22.0f, 668.0f - H), FVector2f(596.0f, 54.0f), FVector2f(596.0f, 668.0f - H) };
+	int32 Chosen = 0;
+	for (int32 i = 0; i < 4; ++i)
+	{
+		bool bFree = true;
+		for (const FShiftLessonSpot& Spot : L.Spots)
+		{
+			const float Pad = Spot.Radius + 44.0f;
+			bFree = bFree && !(Spot.Center.X > Candidates[i].X - Pad && Spot.Center.X < Candidates[i].X + W + Pad && Spot.Center.Y > Candidates[i].Y - Pad && Spot.Center.Y < Candidates[i].Y + H + Pad);
+		}
+		if (Aw > 0.0f)
+		{
+			bFree = bFree && !(Ax < Candidates[i].X + W && Ax + Aw > Candidates[i].X && Ay < Candidates[i].Y + H && Ay + Ah > Candidates[i].Y);
+		}
+		if (bFree)
+		{
+			Chosen = i;
+			break;
+		}
+	}
+	const float X = Candidates[Chosen].X;
+	const float Y = Candidates[Chosen].Y;
+
+	// the voters to use: two pulsing rings and a label, joined to the card by a line
+	for (const FShiftLessonSpot& Spot : L.Spots)
+	{
+		P.Line(FVector2f(X + W * 0.5f, Y + H * 0.5f), Spot.Center, WithAlpha(Glow, 0.45f), 2.0f);
+	}
+	P.Rect(X - 2.0f, Y - 2.0f, W + 4.0f, H + 4.0f, Glow, 16.0f);
+	P.Rect(X, Y, W, H, WithAlpha(C.PanelSolid, 0.98f), 14.0f);
+	for (const FShiftLessonSpot& Spot : L.Spots)
+	{
+		P.Arc(Spot.Center.X, Spot.Center.Y, Spot.Radius + 10.0f + 4.0f * Pulse, 0.0f, 1.0f, WithAlpha(Glow, 0.95f), 3.5f);
+		P.Arc(Spot.Center.X, Spot.Center.Y, Spot.Radius + 20.0f + 6.0f * Pulse, 0.0f, 1.0f, WithAlpha(Glow, 0.45f), 2.5f);
+		if (!Spot.Label.IsEmpty())
+		{
+			const float LabelW = P.Measure(Spot.Label, 13.0f, true).X + 22.0f;
+			float Ly = Spot.Center.Y - Spot.Radius - 50.0f;
+			if (Ly < 48.0f)
+			{
+				Ly = Spot.Center.Y + Spot.Radius + 26.0f;
+			}
+			P.Rect(Spot.Center.X - LabelW * 0.5f, Ly, LabelW, 24.0f, WithAlpha(Glow, 0.96f), 12.0f);
+			P.Text(Spot.Label, Spot.Center.X, Ly + 4.0f, 13.0f, Hex(0x3A2600), EShiftAlign::Center, true);
+		}
+	}
+
+	P.Text(L.Title, X + 18.0f, Y + 12.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
+	for (int32 i = 0; i < L.Steps; ++i)
+	{
+		const float Dx = X + W - 18.0f - 12.0f * static_cast<float>(L.Steps - 1 - i);
+		P.Disc(Dx, Y + 19.0f, i == L.Step - 1 ? 4.5f : 3.5f, i < L.Step - 1 ? C.Teal : (i == L.Step - 1 ? Glow : C.Track));
+	}
+	P.TextBlock(L.Body, X + 18.0f, Y + 36.0f, W - 36.0f, 14.0f, 19.0f, C.Ink);
+
+	const float Fy = Y + H - Footer + 8.0f;
+	if (L.bFinish)
+	{
+		float Bx = X + 18.0f;
+		if (L.bHasNext)
+		{
+			Button(P, C, EShiftUi::LessonNext, Bx, Fy, 138.0f, 38.0f, TEXT("Next lesson"), true, 15.0f);
+			Bx += 148.0f;
+		}
+		Button(P, C, EShiftUi::LessonPlay, Bx, Fy, 138.0f, 38.0f, TEXT("Play a jam"), !L.bHasNext, 15.0f);
+		Bx += 148.0f;
+		Button(P, C, EShiftUi::LessonLeave, Bx, Fy, 100.0f, 38.0f, TEXT("Menu"), false, 15.0f);
+	}
+	else if (L.bReading)
+	{
+		Button(P, C, EShiftUi::LessonContinue, X + W - 18.0f - 176.0f, Fy, 176.0f, 38.0f, TEXT("Continue  (ENTER)"), true, 15.0f);
+		const bool bHoverLeave = AddHit(X + 18.0f, Fy + 8.0f, 110.0f, 24.0f, EShiftUi::LessonLeave);
+		P.Text(TEXT("Leave lesson"), X + 18.0f, Fy + 10.0f, 12.0f, bHoverLeave ? C.Red : C.InkDim);
+	}
+	else if (L.bCheer)
+	{
+		P.Text(TEXT("Nice."), X + 18.0f, Fy, 17.0f, C.Teal, EShiftAlign::Left, true);
+	}
+	else
+	{
+		P.Text(TEXT("Do it to carry on."), X + 18.0f, Fy, 12.0f, C.InkDim);
+		const bool bHoverLeave = AddHit(X + W - 128.0f, Fy - 4.0f, 110.0f, 24.0f, EShiftUi::LessonLeave);
+		P.Text(TEXT("Leave lesson"), X + W - 18.0f, Fy - 2.0f, 12.0f, bHoverLeave ? C.Red : C.InkDim, EShiftAlign::Right);
+	}
+}
+
+void SShiftHud::PaintHowTo(FShiftPainter& P, const FPal& C) const
+{
+	Hits.Reset();
+	bModal = true;
+	AddHit(0.0f, 0.0f, DesignW, DesignH, EShiftUi::HowTo);   // a click anywhere closes it; the button sits on top
+	P.Rect(0.0f, 0.0f, DesignW, DesignH, Hex(0x000000, 0.62f));
+	const float X = 130.0f;
+	const float Y = 60.0f;
+	const float W = 1020.0f;
+	const float H = 600.0f;
+	P.Rect(X, Y, W, H, C.PanelSolid, 18.0f);
+	P.Text(TEXT("HOW TO PLAY"), X + W * 0.5f, Y + 20.0f, 34.0f, C.Ink, EShiftAlign::Center, true);
+	const float ColW = (W - 108.0f) * 0.5f;
+	for (int32 i = 0; i < Model.HowToText.Num(); ++i)
+	{
+		const float Bx = X + 36.0f + static_cast<float>(i % 2) * (ColW + 36.0f);
+		const float By = Y + 86.0f + static_cast<float>(i / 2) * 150.0f;
+		FString Head, Body;
+		if (!Model.HowToText[i].Split(TEXT(":"), &Head, &Body))
+		{
+			Body = Model.HowToText[i];
+		}
+		Body.TrimStartInline();
+		P.Text(Head, Bx, By, 16.0f, C.Teal, EShiftAlign::Left, true);
+		P.TextBlock(Body, Bx, By + 26.0f, ColW, 14.0f, 19.0f, C.Ink);
+	}
+	Button(P, C, EShiftUi::LearnToPlay, X + W * 0.5f - 105.0f, Y + H - 64.0f, 210.0f, 42.0f, TEXT("Learn to play"), true, 16.0f);
+	P.Text(TEXT("Click anywhere or press H to close"), X + W * 0.5f, Y + H - 18.0f, 11.0f, C.InkDim, EShiftAlign::Center);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -1192,7 +1356,15 @@ int32 SShiftHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeomet
 			bModal = true;
 			PaintPause(P, C);
 		}
+		else if (Model.Lesson.bActive)
+		{
+			PaintLesson(P, C);
+		}
 		break;
+	}
+	if (Model.bHowTo)
+	{
+		PaintHowTo(P, C);
 	}
 
 	return P.Layer + 1;

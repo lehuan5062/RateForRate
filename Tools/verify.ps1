@@ -13,6 +13,7 @@
 #   4. audio meters   every sound audible and below -1 dBFS, music day / night / tension as designed, Harmonix clock steady, every pattern lane and
 #                     voice firing (the game plays them inaudibly and reads the in-graph meters; see UShiftAudioMeter). The run starts with a warm-up that is
 #                     replayed until meter data really arrives, and a one-shot that loses its meter data to a busy game thread is retried before it fails
+#   5b. lessons       both guided lessons (Learn to play) are played through by the QA autoplay, every step ended by its own proof (the sim or an event)
 #   5. slow first start  the cold-start failure path forced on purpose (-ShiftAudioMeterDrop throws away the meter data of the first warm-up play and of the
 #                     first real case, as a busy game thread does on a cold first run): the warm-up is replayed, the case retried, and both still pass
 param(
@@ -119,6 +120,13 @@ if ($Forecast) {
 }
 else {
 	Write-Host '[skip] forecast gate (-Forecast)'
+}
+
+# ---- 5b. guided lessons ----------------------------------------------------------------------------------------------------------
+foreach ($chapter in 1, 2) {
+	& (Join-Path $PSScriptRoot 'run.ps1') -TimeoutSec 400 -Extra @("-ShiftLesson=$chapter", '-ShiftLessonAuto', '-ShiftSpeed=4') | Out-Null
+	$lessonExit = $LASTEXITCODE
+	Check "lessons: lesson $chapter completes by itself (every step proven by the sim or an event)" ($lessonExit -eq 0 -and (LogHas $runLog "Lesson $chapter autoplay: complete")) ''
 }
 
 Write-Host ''

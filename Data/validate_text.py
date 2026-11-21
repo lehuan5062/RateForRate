@@ -357,6 +357,26 @@ check_placeholders("Tutorial.csv", T, "Text", lambda d: TUT_ALLOWED)
 check_dups("Tutorial.csv", T, "Text")
 summary.append(("Tutorial.csv", len(T)))
 
+# ----------------------------------------------------------------------------- Lessons (the guided tutorial: chapter 0 is the reference page)
+LS = load("Lessons.csv", ["Id", "Chapter", "Step", "Text"])
+check_len("Lessons.csv", LS, "Text", 260)
+chapters = {}
+for d in LS:
+    if not (d["Chapter"].isdigit() and d["Step"].isdigit()):
+        err(f"Lessons.csv:{d['_line']}: Chapter and Step must be integers")
+        continue
+    chapters.setdefault(int(d["Chapter"]), []).append(int(d["Step"]))
+    if d["Id"] != f"L{d['Chapter']}S{int(d['Step']):02d}":
+        err(f"Lessons.csv:{d['_line']}: Id {d['Id']!r} should be L{d['Chapter']}S{int(d['Step']):02d}")
+if sorted(chapters) != [0, 1, 2]:
+    err(f"Lessons.csv: chapters {sorted(chapters)} (expected 0 = reference, 1 = basics, 2 = night shift)")
+for ch, steps in chapters.items():
+    if steps != list(range(1, len(steps) + 1)):
+        err(f"Lessons.csv: chapter {ch}: Step must run 1..{len(steps)} in file order, got {steps}")
+check_placeholders("Lessons.csv", LS, "Text", lambda d: TUT_ALLOWED)
+check_dups("Lessons.csv", LS, "Text")
+summary.append(("Lessons.csv", len(LS)))
+
 # ----------------------------------------------------------------------------- report
 print("Row counts:")
 for n, c in summary:

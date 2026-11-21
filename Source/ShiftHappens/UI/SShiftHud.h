@@ -118,6 +118,8 @@ private:
 	void PaintTooltip(FShiftPainter& P, const FPal& C) const;
 	void PaintResults(FShiftPainter& P, const FPal& C) const;
 	void PaintPause(FShiftPainter& P, const FPal& C) const;
+	void PaintLesson(FShiftPainter& P, const FPal& C) const;
+	void PaintHowTo(FShiftPainter& P, const FPal& C) const;
 	void PaintScatter(FShiftPainter& P, const FPal& C, float X, float Y, float W, float H, const FString& Title, const TArray<FShiftHudDot>& Dots,
 		const FShiftHudFit& Fit, const FString& Caption) const;
 	void PaintKeycap(FShiftPainter& P, const FPal& C, float Cx, float Cy, bool bPressed) const;
