@@ -85,11 +85,12 @@ private:
 	struct FStep
 	{
 		uint32 Allow = 0;
-		bool bRead = false;                                                  // no action to wait for: Continue ends the step
+		bool bRead = false;                                                  // no action to wait for: Continue ends the step (a step with an action starts at once: no Continue first)
+		float GoDelay = 0.0f;                                                // seconds after the step starts before Go runs (time to read the card)
 		EShiftLessonAnchor Anchor = EShiftLessonAnchor::None;
 		FString Label;                                                       // written beside the spotlit voters
 		TFunction<void(FShiftRun&)> Stage;                                   // sets the scene (the world is frozen while it is read)
-		TFunction<void(FShiftRun&)> Go;                                      // when the player presses Continue
+		TFunction<void(FShiftRun&)> Go;                                      // a thing the world does to the player in this step (an announced attack)
 		TFunction<bool(FShiftRun&)> Done;
 		TFunction<void(const ShiftSim::Sim&, TArray<int32>&)> Targets;       // the voters to point at, and the only ones a click may use
 		TFunction<FShiftLessonAuto(const ShiftSim::Sim&)> AutoAct;
@@ -119,6 +120,7 @@ private:
 	float PhaseTime = 0.0f;
 	float HoverTime = 0.0f;
 	float NightTime = 0.0f;
+	bool bGoPending = false;            // Go has not run yet in this step
 	int32 StepKey = -1;                 // the voter a step is about: when it is lost the scene is put back
 	TArray<FStep> Steps;
 	TArray<FShiftEvent> StepEvents;

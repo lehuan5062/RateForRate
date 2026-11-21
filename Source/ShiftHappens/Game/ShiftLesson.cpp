@@ -388,6 +388,7 @@ void FShiftLesson::BuildSteps()
 					Sm.SetNodeState(L->Picks.Strong, kPlayer, 0.6, 0.0);
 					Sm.SetPosts(Sm.GetParams().PostsMax);
 				};
+			S.GoDelay = 4.0f;   // the time to read the card
 			S.Go = [L](FShiftRun& R) { R.GetSim().Plug(R.GetSim().RivalId(), L->Picks.Strong, 1.5); };   // the ring starts to close
 			S.Targets = [L](const Sim&, TArray<int32>& Out) { Out.Add(L->Picks.Strong); };
 			S.Done = [L](FShiftRun&) { return L->Saw(EShiftEventType::PlayerParried, L->Picks.Strong); };
@@ -482,8 +483,8 @@ void FShiftLesson::BuildSteps()
 				Sim& Sm = R.GetSim();
 				L->StepKey = -1;
 				Sm.ForgiveStrike();
-				Sm.SetHeat(Sm.GetParams().HeatRedZone + 12.0);
-				R.SetNextModSweep(Sm.Time() + 12.0);
+				Sm.SetHeat(Sm.GetParams().HeatRedZone + 5.0);   // just above the tick: a couple of seconds of cooling
+				R.SetNextModSweep(Sm.Time() + 7.0);
 			};
 		S.Targets = [](const Sim&, TArray<int32>&) {};
 		S.Done = [L](FShiftRun&) { return L->Saw(EShiftEventType::ModSweepClear, -1); };
@@ -507,6 +508,7 @@ void FShiftLesson::EnterStep(FShiftRun& Run)
 	PhaseTime = 0.0f;
 	HoverTime = 0.0f;
 	NightTime = 0.0f;
+	bGoPending = false;
 	StepEvents.Reset();
 	Targets.Reset();
 	if (Steps.IsValidIndex(StepIx))
@@ -519,6 +521,12 @@ void FShiftLesson::EnterStep(FShiftRun& Run)
 		if (St.Targets)
 		{
 			St.Targets(Run.GetSim(), Targets);
+		}
+		if (!St.bRead)
+		{
+			// nothing to read first: the card is up and the player may act right away
+			Phase = EPhase::Doing;
+			bGoPending = St.Go != nullptr;
 		}
 	}
 	RefreshView(Run.GetSim());
@@ -535,18 +543,8 @@ void FShiftLesson::Continue(FShiftRun& Run)
 	{
 		return;
 	}
-	const FStep& St = Steps[StepIx];
-	if (St.bRead)
-	{
-		Advance(Run);
-		return;
-	}
-	Phase = EPhase::Doing;
-	PhaseTime = 0.0f;
-	if (St.Go)
-	{
-		St.Go(Run);
-	}
+	// only a text step is ever read first: Continue ends it
+	Advance(Run);
 }
 
 void FShiftLesson::Advance(FShiftRun& Run)
@@ -576,6 +574,11 @@ void FShiftLesson::Tick(FShiftRun& Run, float DeltaTime, const TArray<FShiftEven
 
 	if (Phase == EPhase::Doing)
 	{
+		if (bGoPending && PhaseTime >= St.GoDelay)
+		{
+			bGoPending = false;
+			St.Go(Run);
+		}
 		StepEvents.Append(Events);
 		// The voter the step is about was lost to the world (a shaking voter, a ring that landed): put the scene back and say so.
 		for (const FShiftEvent& E : Events)
@@ -583,7 +586,8 @@ void FShiftLesson::Tick(FShiftRun& Run, float DeltaTime, const TArray<FShiftEven
 			if (E.Type == EShiftEventType::PlayerLostVoter && StepKey >= 0 && E.Node == StepKey)
 			{
 				if (St.Stage) { St.Stage(Run); }
-				if (St.Go) { St.Go(Run); }
+				bGoPending = St.Go != nullptr;   // the delay runs again
+				PhaseTime = 0.0f;
 				StepEvents.Reset();
 				Notice = TEXT("It got away. Same again.");
 				break;
@@ -592,7 +596,8 @@ void FShiftLesson::Tick(FShiftRun& Run, float DeltaTime, const TArray<FShiftEven
 			{
 				// the Mod Eye found Heat too high: the lesson wants the other outcome
 				if (St.Stage) { St.Stage(Run); }
-				if (St.Go) { St.Go(Run); }
+				bGoPending = St.Go != nullptr;   // the delay runs again
+				PhaseTime = 0.0f;
 				StepEvents.Reset();
 				Notice = TEXT("A strike: Heat was above the red tick. Let go of SHIFT and wait.");
 				break;
@@ -663,7 +668,7 @@ bool FShiftLesson::AllowClick(const ShiftSim::Sim& S, int32 Node, bool bRight, b
 {
 	if (Phase != EPhase::Doing || !Steps.IsValidIndex(StepIx))
 	{
-		Why = Phase == EPhase::Reading ? TEXT("Press Continue first.") : FString();
+		Why = Phase == EPhase::Reading ? TEXT("Read the card, then press Continue.") : FString();
 		return false;
 	}
 	const uint32 Allow = Steps[StepIx].Allow;

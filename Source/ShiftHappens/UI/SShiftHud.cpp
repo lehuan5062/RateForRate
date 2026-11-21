@@ -235,6 +235,10 @@ FReply SShiftHud::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyE
 {
 	if (OnKey.IsBound())
 	{
+		if (InKeyEvent.IsRepeat())
+		{
+			return FReply::Handled();   // holding a key is one press, not a stream of them
+		}
 		OnKey.Execute(InKeyEvent.GetKey());
 		return FReply::Handled();
 	}

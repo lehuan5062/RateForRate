@@ -12,7 +12,7 @@ Nine games enter. Yours is fine. The rival's is fine too. The rival has 1.2 mill
 
 ## How to play
 
-**New here? Press *Learn to play* on the title screen.** Two short guided lessons on a small practice board (about three minutes each): the world waits while you read, the voter to use is spotlighted, and a step is done only when you really do it (plug, reinforce, open a gate, parry, Rally; then the night shift, a sockpuppet, backing it, the Mod Eye). Nothing in a lesson counts for your ranks or recordings, and you can leave at any time. The one-page *How to play* reference is on the title screen, in the pause menu and on **H**.
+**New here? Press *Learn to play* on the title screen.** Two short guided lessons on a small practice board (about three minutes each): the voter to use is spotlighted from the moment a card appears (a card with nothing to do waits for Continue and freezes the board while you read), and a step is done only when you really do it (plug, reinforce, open a gate, parry, Rally; then the night shift, a sockpuppet, backing it, the Mod Eye). Nothing in a lesson counts for your ranks or recordings, and you can leave at any time. The one-page *How to play* reference is on the title screen, in the pause menu and on **H**.
 
 The board is the jam's follower network: every face is a voter, every line is "listens to". Each voter backs one of the nine entries (colour = entry).
 Hubs and celebrities carry most of the vote weight. Flip them and their followers follow.
