@@ -20,6 +20,6 @@ L2S02,2,2,There is a faster way. Hold the SHIFT key (or press N). The board turn
 L2S03,2,3,Keep holding SHIFT and click the voter with the yellow ring. The gate does not stop a sockpuppet. It adds {sockheat} Heat. The small visor on the voter means that it is fake.
 L2S04,2,4,"This vote is fake, and fake votes keep your Heat high. Make it real: click it again and again until its circle is {launder} full."
 L2S05,2,5,"Heat is high now. See the red mark on the Heat bar? The Mod Eye (top of the screen) checks you from time to time. If Heat is above the red mark when it checks, you get a strike."
-L2S06,2,6,Let go of SHIFT. Heat goes down by itself. Wait until the Heat bar is below the red mark.
+L2S06,2,6,Let go of SHIFT (or press N again). Heat goes down by itself. Wait until the Heat bar is below the red mark.
 L2S07,2,7,"A strike removes all your fake votes. {strikes} strikes and you are out. Strikes never go away. At the end, a final check removes fake votes that are not real. Once, you can press B to Shift the Blame, if you have few fake votes."
 L2S08,2,8,"Now you know the whole game. Night shift is strong but risky: use it early, then make the votes real. Pick a jam, build your game with 12 hours, and win!"

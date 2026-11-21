@@ -639,6 +639,14 @@ void AShiftPlayerController::TickLesson(float DeltaTime)
 	{
 		return;
 	}
+	if (!Lesson->NightAllowed())
+	{
+		if (bNightLatch)
+		{
+			UE_LOG(LogShift, Log, TEXT("Lesson: the night toggle ended with its step"));
+		}
+		bNightLatch = false;   // a toggled night shift ends with the step that allowed it, it does not come back with the next one
+	}
 	Lesson->Tick(*Run, DeltaTime, EventScratch, HoverNode);
 	const FString Notice = Lesson->ConsumeNotice();
 	if (!Notice.IsEmpty())
@@ -731,10 +739,12 @@ void AShiftPlayerController::TickLesson(float DeltaTime)
 		Run->QueueRally(Act.Node);
 		break;
 	case FShiftLessonAuto::EKind::NightOn:
-		NightOverride = 1.0f;
+		NightOverride = -1.0f;
+		bNightLatch = true;    // like a person who presses N: the toggle is what the lesson has to cope with
 		break;
 	case FShiftLessonAuto::EKind::NightOff:
 		NightOverride = 0.0f;
+		bNightLatch = false;
 		break;
 	default:
 		break;

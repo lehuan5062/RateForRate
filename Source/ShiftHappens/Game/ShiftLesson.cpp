@@ -410,12 +410,20 @@ void FShiftLesson::BuildSteps()
 			S.Stage = [L](FShiftRun& R)
 				{
 					Sim& Sm = R.GetSim();
-					L->StepKey = -1;
+					L->StepKey = L->Picks.Weak;
 					Sm.SetNodeState(L->Picks.Weak, kPlayer, 0.6, 0.0);
 					Sm.SetPosts(Sm.GetParams().PostsMax);
 				};
 			S.Targets = [L](const Sim&, TArray<int32>& Out) { Out.Add(L->Picks.Weak); };
 			S.Done = [L](FShiftRun&) { return L->Saw(EShiftEventType::PlayerRallied, -1); };
+			S.Keep = [L](FShiftRun& R)
+				{
+					Sim& Sm = R.GetSim();
+					if (Sm.Opinion(L->Picks.Weak) != kPlayer || Sm.Conviction(L->Picks.Weak) < 0.3)
+					{
+						Sm.SetNodeState(L->Picks.Weak, kPlayer, 0.6, 0.0);   // the voter to Rally stays yours until it is Rallied, whatever its neighbours think
+					}
+				};
 			S.AutoAct = [L](const Sim&) { return FShiftLessonAuto{ FShiftLessonAuto::EKind::RightClick, L->Picks.Weak, false }; };
 		}
 		// 10. the end
@@ -647,10 +655,22 @@ void FShiftLesson::Tick(FShiftRun& Run, float DeltaTime, const TArray<FShiftEven
 		{
 			St.Keep(Run);
 		}
+		if (PhaseTime > 120.0f)
+		{
+			// A safety net: whatever went wrong in the scene, a step never stays stuck. Two minutes without finishing it and the scene is put back.
+			if (St.Stage)
+			{
+				St.Stage(Run);
+			}
+			bGoPending = St.Go != nullptr;
+			PhaseTime = 0.0f;
+			StepEvents.Reset();
+			Notice = TEXT("The scene is put back. Try this step again.");
+		}
 		if (ChapterIx == 2 && StepIx == 5 && !bNagged && NightTime > 6.0f)
 		{
 			bNagged = true;
-			Notice = TEXT("Let go of SHIFT. Heat goes down by itself.");
+			Notice = TEXT("Let go of SHIFT (or press N again). Heat goes down by itself.");
 		}
 		if (St.Done && St.Done(Run))
 		{
