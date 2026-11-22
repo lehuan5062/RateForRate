@@ -179,10 +179,22 @@ struct FShiftHudAction
 	bool bAvailable = true;      // false: drawn dim (no Posts, immune, gated)
 };
 
+/** The game's own cursor shapes, chosen from what is under the pointer. */
+enum class EShiftCursor : uint8
+{
+	Arrow,      // nothing special
+	Button,     // over a button
+	Plug,       // a voter you can flip
+	Reinforce,  // one of your own voters
+	Sock,       // night shift: a sockpuppet can go here
+	Blocked,    // a voter you cannot act on (immune, overheated, gated)
+};
+
 /** Hover card for a voter. Positions are in design units (1280 x 720). */
 struct FShiftHudTooltip
 {
 	bool bVisible = false;
+	EShiftCursor Cursor = EShiftCursor::Arrow;
 	FVector2f Anchor = FVector2f::ZeroVector;
 	float AnchorRadius = 14.0f;
 	FString Title;
@@ -251,6 +263,9 @@ struct FShiftHudModel
 {
 	EShiftScreen Screen = EShiftScreen::Play;
 	bool bShiftDown = false;
+	bool bSystemCursor = false;        // -ShiftSystemCursor: keep the operating system's arrow instead of the game's own cursor
+	bool bPseudoCursor = false;        // -ShiftPseudoCursor: a scripted cursor (trailer footage) is drawn at PseudoCursor even with no mouse over the window
+	FVector2f PseudoCursor = FVector2f::ZeroVector;   // design units
 	bool bMuted = false;
 	int32 WindowMode = 2;              // EWindowMode as an int: 0 fullscreen, 1 borderless (windowed fullscreen), 2 windowed
 	bool bSettingsOpen = false;        // the settings menu (sound, window mode) dropped from the gear button

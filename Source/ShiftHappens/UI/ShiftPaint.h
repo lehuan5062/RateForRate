@@ -47,6 +47,8 @@ struct FShiftPainter
 		EShiftAlign Align = EShiftAlign::Left, bool bBold = false);
 	/** Closed polyline from design-unit points. */
 	void Polygon(const TArray<FVector2f>& Points, const FLinearColor& Color, float Thickness = 2.0f);
+	/** Filled simple polygon (convex or concave) in design units, drawn as thin horizontal rows: use opaque colors, outline it with Polygon. */
+	void FillPolygon(const TArray<FVector2f>& Points, const FLinearColor& Color);
 
 	FSlateWindowElementList& Out;
 	const FGeometry& Geo;

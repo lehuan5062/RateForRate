@@ -33,6 +33,7 @@ namespace
 	constexpr float RowHeight = 31.0f;
 	constexpr float CompactRowH = 16.0f;
 	constexpr float CompactLeaderboardW = 186.0f;
+	constexpr float RippleSeconds = 0.55f;
 
 	/** sRGB hex to the linear colour Slate expects. */
 	FLinearColor Hex(uint32 Rgb, float Alpha = 1.0f)
@@ -110,6 +111,7 @@ void SShiftHud::QaMouse(int32 Kind, const FVector2f& Design)
 		Pressed.Add(EKeys::LeftMouseButton);
 	}
 	const FPointerEvent Event(0, Absolute, Absolute, Pressed, EKeys::LeftMouseButton, 0.0f, FModifierKeysState());
+	bQaInjecting = true;
 	if (Kind == 0)
 	{
 		OnMouseMove(Geo, Event);
@@ -122,6 +124,29 @@ void SShiftHud::QaMouse(int32 Kind, const FVector2f& Design)
 	{
 		OnMouseButtonUp(Geo, Event);
 	}
+	bQaInjecting = false;
+}
+
+FVector2f SShiftHud::DesignToLocal(const FVector2f& Design) const
+{
+	const FVector2f Size = FVector2f(GetCachedGeometry().GetLocalSize());
+	const float Scale = FMath::Max(0.01f, FMath::Min(Size.X / DesignW, Size.Y / DesignH));
+	const FVector2f Origin = (Size - FVector2f(DesignW, DesignH) * Scale) * 0.5f;
+	return Origin + Design * Scale;
+}
+
+void SShiftHud::PushRipple(const FVector2f& Design, int32 Kind)
+{
+	FRipple Ripple;
+	Ripple.Pos = Design;
+	Ripple.Start = AnimTime;
+	Ripple.Kind = Kind;
+	if (Ripples.Num() >= 8)
+	{
+		Ripples.RemoveAt(0);
+	}
+	Ripples.Add(Ripple);
+	PressUntil = AnimTime + 0.12f;
 }
 
 bool SShiftHud::AddHit(float X, float Y, float W, float H, int32 Id, bool bSlider, float SliderX0, float SliderX1) const
@@ -166,6 +191,14 @@ FReply SShiftHud::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerE
 	const FVector2D Local = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
 	const FVector2f Design = LocalToDesign(MyGeometry, FVector2f(Local));
 	MouseDesign = Design;
+	if (!bQaInjecting)
+	{
+		bMouseInside = true;
+		if (!Model.bSystemCursor)
+		{
+			PushRipple(Design, Button == EKeys::RightMouseButton ? 2 : ((Model.bNightActive || MouseEvent.IsShiftDown()) ? 1 : 0));
+		}
+	}
 
 	FReply Reply = FReply::Handled().SetUserFocus(SharedThis(this), EFocusCause::Mouse);
 	if (Button == EKeys::LeftMouseButton)
@@ -204,12 +237,21 @@ FReply SShiftHud::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& 
 {
 	const FVector2D Local = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
 	MouseDesign = LocalToDesign(MyGeometry, FVector2f(Local));
+	bMouseInside = bMouseInside || !bQaInjecting;
 	if (DragId >= 0)
 	{
 		OnUi.ExecuteIfBound(DragHit.Id, SliderValue(DragHit, MouseDesign.X));
 		return FReply::Handled();
 	}
 	return FReply::Unhandled();
+}
+
+void SShiftHud::OnMouseLeave(const FPointerEvent& MouseEvent)
+{
+	if (DragId < 0)
+	{
+		bMouseInside = false;
+	}
 }
 
 void SShiftHud::OnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent)
@@ -219,6 +261,14 @@ void SShiftHud::OnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent)
 
 FCursorReply SShiftHud::OnCursorQuery(const FGeometry& MyGeometry, const FPointerEvent& CursorEvent) const
 {
+	if (!Model.bSystemCursor)
+	{
+		// The game draws its own cursor (PaintCursor); the operating system's arrow is hidden over the window. The query also tells us the mouse is here, even before it moves.
+		const FVector2D LocalPos = MyGeometry.AbsoluteToLocal(CursorEvent.GetScreenSpacePosition());
+		MouseDesign = LocalToDesign(MyGeometry, FVector2f(LocalPos));
+		bMouseInside = true;
+		return FCursorReply::Cursor(EMouseCursor::None);
+	}
 	const FVector2D Local = MyGeometry.AbsoluteToLocal(CursorEvent.GetScreenSpacePosition());
 	const FVector2f Design = LocalToDesign(MyGeometry, FVector2f(Local));
 	if (const FHit* Hit = FindHit(Design))
@@ -248,6 +298,7 @@ FReply SShiftHud::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyE
 void SShiftHud::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	AnimTime += InDeltaTime;
+	Ripples.RemoveAll([this](const FRipple& R) { return AnimTime - R.Start > RippleSeconds; });
 	const float Rate = FMath::Min(1.0f, InDeltaTime * 9.0f);
 	for (const FShiftHudRow& Row : Model.Rows)
 	{
@@ -1351,6 +1402,107 @@ void SShiftHud::PaintHowTo(FShiftPainter& P, const FPal& C) const
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
+// the cursor set
+
+void SShiftHud::PaintCursor(FShiftPainter& P, const FPal& C) const
+{
+	// Click rings first, so the pointer is above them.
+	for (const FRipple& R : Ripples)
+	{
+		const float T = (AnimTime - R.Start) / RippleSeconds;
+		if (T < 0.0f || T >= 1.0f)
+		{
+			continue;
+		}
+		const float Ease = 1.0f - (1.0f - T) * (1.0f - T);
+		const FLinearColor Tint = R.Kind == 1 ? C.Violet : (R.Kind == 2 ? C.Amber : C.Teal);
+		P.Disc(R.Pos.X, R.Pos.Y, 4.0f + 8.0f * Ease, WithAlpha(Tint, 0.35f * (1.0f - T)));
+		P.Arc(R.Pos.X, R.Pos.Y, 5.0f + 30.0f * Ease, 0.0f, 1.0f, WithAlpha(Tint, 0.9f * (1.0f - T)), 1.0f + 2.5f * (1.0f - T));
+	}
+
+	const bool bPseudo = Model.bPseudoCursor;
+	if (!bPseudo && (Model.bSystemCursor || !bMouseInside))
+	{
+		return;
+	}
+	const FVector2f Pos = bPseudo ? Model.PseudoCursor : MouseDesign;
+
+	EShiftCursor Shape = Model.Tooltip.bVisible ? Model.Tooltip.Cursor : EShiftCursor::Arrow;
+	if (const FHit* Hit = FindHit(Pos))
+	{
+		if (Hit->Id != EShiftUi::TitleStart && Hit->Id != EShiftUi::SettingsClose && Hit->Id != EShiftUi::SettingsPanel)
+		{
+			Shape = EShiftCursor::Button;
+		}
+	}
+
+	const bool bPressed = AnimTime < PressUntil;
+	float S = Shape == EShiftCursor::Button ? 1.12f : 1.0f;
+	if (bPressed)
+	{
+		S *= 0.86f;
+	}
+
+	FLinearColor Fill = FLinearColor::White;
+	switch (Shape)
+	{
+	case EShiftCursor::Button: Fill = C.Teal; break;
+	case EShiftCursor::Sock: Fill = C.Violet; break;
+	case EShiftCursor::Blocked: Fill = Hex(0xB9B7C9); break;
+	default: break;
+	}
+	const FLinearColor Edge = Hex(0x1B1930);
+
+	static const FVector2f Shape0[] = {
+		FVector2f(0.0f, 0.0f), FVector2f(0.0f, 17.0f), FVector2f(4.3f, 13.1f), FVector2f(7.2f, 19.4f),
+		FVector2f(9.9f, 18.2f), FVector2f(7.0f, 12.1f), FVector2f(12.4f, 12.1f) };
+	TArray<FVector2f> Pointer;
+	TArray<FVector2f> Shadow;
+	for (const FVector2f& Pt : Shape0)
+	{
+		Pointer.Add(Pos + Pt * S);
+		Shadow.Add(Pos + Pt * S + FVector2f(1.2f, 1.8f));
+	}
+	P.Polygon(Shadow, Hex(0x000000, 0.22f), 3.6f);
+	P.FillPolygon(Pointer, Fill);
+	P.Polygon(Pointer, Edge, 1.6f);
+
+	// The badge: a small disc at the lower right of the pointer that says what a click would do here.
+	const FVector2f B = Pos + FVector2f(17.0f, 19.0f) * S;
+	const float R = 7.0f * S;
+	switch (Shape)
+	{
+	case EShiftCursor::Plug:
+		P.Disc(B.X, B.Y, R + 1.2f, Edge);
+		P.Disc(B.X, B.Y, R, C.Teal);
+		P.Arc(B.X, B.Y, 3.6f * S, 0.0f, 1.0f, FLinearColor::White, 1.5f);
+		P.Disc(B.X, B.Y, 1.3f * S, FLinearColor::White);
+		break;
+	case EShiftCursor::Reinforce:
+		P.Disc(B.X, B.Y, R + 1.2f, Edge);
+		P.Disc(B.X, B.Y, R, C.Teal);
+		P.Line(B + FVector2f(-3.6f, 0.0f) * S, B + FVector2f(3.6f, 0.0f) * S, FLinearColor::White, 2.0f);
+		P.Line(B + FVector2f(0.0f, -3.6f) * S, B + FVector2f(0.0f, 3.6f) * S, FLinearColor::White, 2.0f);
+		break;
+	case EShiftCursor::Sock:
+		P.Disc(B.X, B.Y, R + 1.2f, Edge);
+		P.Disc(B.X, B.Y, R, Hex(0x2A2550));
+		P.Rect(B.X - 4.2f * S, B.Y - 1.8f * S, 8.4f * S, 3.6f * S, C.Violet, 1.8f * S);
+		P.Disc(B.X - 1.8f * S, B.Y, 0.9f * S, FLinearColor::White);
+		P.Disc(B.X + 1.8f * S, B.Y, 0.9f * S, FLinearColor::White);
+		break;
+	case EShiftCursor::Blocked:
+		P.Disc(B.X, B.Y, R + 1.2f, Edge);
+		P.Disc(B.X, B.Y, R, FLinearColor::White);
+		P.Arc(B.X, B.Y, 4.6f * S, 0.0f, 1.0f, C.Red, 2.0f);
+		P.Line(B + FVector2f(-3.3f, 3.3f) * S, B + FVector2f(3.3f, -3.3f) * S, C.Red, 2.0f);
+		break;
+	default:
+		break;
+	}
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
 
 int32 SShiftHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
 	FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
@@ -1417,6 +1569,7 @@ int32 SShiftHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeomet
 	{
 		PaintSettings(P, C);
 	}
+	PaintCursor(P, C);
 
 	return P.Layer + 1;
 }

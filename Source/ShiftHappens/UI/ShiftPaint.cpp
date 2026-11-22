@@ -197,6 +197,43 @@ void FShiftPainter::Polygon(const TArray<FVector2f>& Points, const FLinearColor&
 	FSlateDrawElement::MakeLines(Out, ++Layer, Geo.ToPaintGeometry(), Scaled, ESlateDrawEffect::None, Color, true, Thickness * Scale);
 }
 
+void FShiftPainter::FillPolygon(const TArray<FVector2f>& Points, const FLinearColor& Color)
+{
+	if (Points.Num() < 3 || Color.A <= 0.001f)
+	{
+		return;
+	}
+	float MinY = Points[0].Y;
+	float MaxY = Points[0].Y;
+	for (const FVector2f& Pt : Points)
+	{
+		MinY = FMath::Min(MinY, Pt.Y);
+		MaxY = FMath::Max(MaxY, Pt.Y);
+	}
+	// Rows a third of a design unit tall, each overlapping the next a little so no seam shows between them.
+	const float Step = 0.34f;
+	TArray<float> Xs;
+	for (float Y = MinY + Step * 0.5f; Y < MaxY; Y += Step)
+	{
+		Xs.Reset();
+		const int32 N = Points.Num();
+		for (int32 i = 0; i < N; ++i)
+		{
+			const FVector2f& A = Points[i];
+			const FVector2f& B = Points[(i + 1) % N];
+			if ((A.Y <= Y && B.Y > Y) || (B.Y <= Y && A.Y > Y))
+			{
+				Xs.Add(A.X + (Y - A.Y) / (B.Y - A.Y) * (B.X - A.X));
+			}
+		}
+		Xs.Sort();
+		for (int32 i = 0; i + 1 < Xs.Num(); i += 2)
+		{
+			Rect(Xs[i], Y - Step * 0.5f, Xs[i + 1] - Xs[i], Step + 0.3f, Color);
+		}
+	}
+}
+
 void FShiftPainter::Text(const FString& Str, float X, float Y, float Px, const FLinearColor& Color, EShiftAlign Align, bool bBold)
 {
 	if (Str.IsEmpty() || Color.A <= 0.001f)

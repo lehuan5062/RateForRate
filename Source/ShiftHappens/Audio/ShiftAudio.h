@@ -2,12 +2,15 @@
 
 #pragma once
 
+#include "Audio/ShiftMixTap.h"
 #include "Components/AudioComponent.h"
 #include "Containers/Array.h"
 #include "Engine/World.h"
 #include "HAL/Platform.h"
 #include "HarmonixMetasound/Components/MusicClockComponent.h"
 #include "Sound/SoundBase.h"
+#include "Templates/SharedPointer.h"
+#include "Templates/SharedPointerFwd.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/ObjectPtr.h"
@@ -70,6 +73,12 @@ public:
 
 	void Play(EShiftSfx Sfx, float Volume = 1.0f);
 
+	/** Silences music and effects in the game's own mix, whatever the engine's device volume does. */
+	void SetMuted(bool bMute);
+
+	/** QA (-ShiftMixTap): logs the peak and RMS of the engine's final mix four times a second, "MixTap t=.. muted=.. peak=.. rms=..". Only this game's own output. */
+	void BeginMixTap();
+
 	/** 0..1 position inside the current beat (112.5 BPM), from the Harmonix clock (wall clock only if the clock is unavailable). */
 	float BeatPhase() const;
 	/** 1 on the beat, decaying quickly: drives the board's beat pulse. */
@@ -107,4 +116,8 @@ private:
 	float NightGain = 0.0f;
 	float TensionGain = 0.0f;
 	float MasterVolume = 0.0f;
+	bool bMuted = false;
+	TSharedPtr<FShiftMixTap, ESPMode::ThreadSafe> MixTap;
+	double MixTapStart = 0.0;
+	double MixTapLastLog = 0.0;
 };

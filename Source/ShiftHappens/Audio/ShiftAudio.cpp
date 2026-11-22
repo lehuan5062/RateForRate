@@ -2,9 +2,11 @@
 
 #include "Audio/ShiftAudio.h"
 
+#include "AudioDevice.h"
 #include "Components/AudioComponent.h"
 #include "Containers/UnrealString.h"
 #include "Delegates/Delegate.h"
+#include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "HAL/Platform.h"
 #include "HAL/PlatformTime.h"
@@ -13,8 +15,12 @@
 #include "Kismet/GameplayStatics.h"
 #include "Logging/LogMacros.h"
 #include "Math/UnrealMathUtility.h"
+#include "Misc/App.h"
 #include "ShiftHappens.h"
+#include "ShiftMixTap.h"
 #include "Sound/SoundBase.h"
+#include "Templates/SharedPointer.h"
+#include "Templates/SharedPointerFwd.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/UObjectGlobals.h"
@@ -106,8 +112,30 @@ void UShiftAudio::OnMusicBeat(int32 BeatNumber, int32 BeatInBar)
 	++BeatEvents;
 }
 
+void UShiftAudio::BeginMixTap()
+{
+	FAudioDevice* Device = GEngine ? GEngine->GetMainAudioDeviceRaw() : nullptr;
+	if (!Device)
+	{
+		UE_LOG(LogShift, Warning, TEXT("MixTap: no audio device, nothing to measure"));
+		return;
+	}
+	MixTap = MakeShared<FShiftMixTap, ESPMode::ThreadSafe>();
+	Device->RegisterSubmixBufferListener(MixTap.ToSharedRef(), Device->GetMainSubmixObject());
+	MixTapStart = MixTapLastLog = FPlatformTime::Seconds();
+	UE_LOG(LogShift, Log, TEXT("MixTap: listening to the engine's main submix (this game's own output only)"));
+}
+
 void UShiftAudio::Shutdown()
 {
+	if (MixTap)
+	{
+		if (FAudioDevice* Device = GEngine ? GEngine->GetMainAudioDeviceRaw() : nullptr)
+		{
+			Device->UnregisterSubmixBufferListener(MixTap.ToSharedRef(), Device->GetMainSubmixObject());
+		}
+		MixTap.Reset();
+	}
 	UE_LOG(LogShift, Log, TEXT("Audio: Harmonix clock delivered %d beat events"), BeatEvents);
 	if (MusicClock)
 	{
@@ -125,6 +153,23 @@ void UShiftAudio::Shutdown()
 
 void UShiftAudio::Tick(float DeltaTime, float Night, float Intensity, float Volume)
 {
+	if (MixTap)
+	{
+		// A headless run never has window focus, and the engine silences an unfocused app (FApp unfocused multiplier, 0 by default): measure the real mix instead.
+		FApp::SetVolumeMultiplier(1.0f);
+		const double Now = FPlatformTime::Seconds();
+		if (Now - MixTapLastLog >= 0.25)
+		{
+			float TapPeak = 0.0f;
+			float TapRms = 0.0f;
+			int32 TapBuffers = 0;
+			MixTap->Take(TapPeak, TapRms, TapBuffers);
+			FAudioDevice* TapDevice = GEngine ? GEngine->GetMainAudioDeviceRaw() : nullptr;
+			UE_LOG(LogShift, Log, TEXT("MixTap t=%.2f muted=%d musicVolume=%.3f playing=%d devicePrimary=%.3f appVolume=%.3f peak=%.6f rms=%.6f buffers=%d"), Now - MixTapStart,
+				bMuted ? 1 : 0, MasterVolume, IsMusicPlaying() ? 1 : 0, TapDevice ? TapDevice->GetPrimaryVolume() : -1.0f, FApp::GetVolumeMultiplier(), TapPeak, TapRms, TapBuffers);
+			MixTapLastLog = Now;
+		}
+	}
 	if (!Music)
 	{
 		return;
@@ -134,15 +179,34 @@ void UShiftAudio::Tick(float DeltaTime, float Night, float Intensity, float Volu
 	DayGain = FMath::FInterpTo(DayGain, TargetDay, DeltaTime, 6.0f);
 	NightGain = FMath::FInterpTo(NightGain, TargetNight, DeltaTime, 6.0f);
 	TensionGain = FMath::FInterpTo(TensionGain, FMath::Clamp(Intensity, 0.0f, 1.0f) * 1.4f, DeltaTime, 2.5f);
-	MasterVolume = FMath::FInterpTo(MasterVolume, FMath::Clamp(Volume, 0.0f, 1.5f), DeltaTime, 2.5f);
+	// Muted keeps the generator running at zero: the Harmonix clock behind the beat pulse must not stop.
+	MasterVolume = bMuted ? 0.0f : FMath::FInterpTo(MasterVolume, FMath::Clamp(Volume, 0.0f, 1.5f), DeltaTime, 2.5f);
 	Music->SetFloatParameter(TEXT("DayGain"), DayGain);
 	Music->SetFloatParameter(TEXT("NightGain"), NightGain);
 	Music->SetFloatParameter(TEXT("TensionGain"), TensionGain);
 	Music->SetFloatParameter(TEXT("Volume"), MasterVolume);
 }
 
+void UShiftAudio::SetMuted(bool bMute)
+{
+	bMuted = bMute;
+	if (bMuted)
+	{
+		MasterVolume = 0.0f;
+		if (Music)
+		{
+			Music->SetFloatParameter(TEXT("Volume"), 0.0f);
+		}
+	}
+	UE_LOG(LogShift, Log, TEXT("Audio: muted=%d, music Volume=%.3f"), bMuted ? 1 : 0, MasterVolume);
+}
+
 void UShiftAudio::Play(EShiftSfx Which, float Volume)
 {
+	if (bMuted)
+	{
+		return;
+	}
 	const int32 Index = static_cast<int32>(Which);
 	UWorld* W = World.Get();
 	if (!W || !Sfx.IsValidIndex(Index) || !Sfx[Index])

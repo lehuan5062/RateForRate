@@ -156,6 +156,10 @@ public:
 	/** QA autoplay: a scripted bot plays the player's side (idle, random, greedy, greedy+sock). */
 	void SetBot(ShiftSim::BotKind Kind);
 	bool HasBot() const { return bBotActive; }
+	/** What the bot did last, for the scripted cursor of the trailer footage (presentation only): how many actions so far, on which voter, and of which kind (0 plug, 1 sockpuppet, 2 Rally). */
+	int32 BotActionCount() const { return bBotActive ? static_cast<int32>(Bot.Actions) : 0; }
+	int32 BotLastNode() const { return static_cast<int32>(Bot.LastOutcome.node); }
+	int32 BotLastKind() const { return Bot.LastOutcome.result == ShiftSim::ActionResult::Rallied ? 2 : (Bot.LastOutcome.sockpuppet ? 1 : 0); }
 	/** Multiplies the simulated time per real second (QA fast-forward). */
 	void SetTimeScale(double Scale) { TimeScale = FMath::Clamp(Scale, 0.1, 60.0); }
 

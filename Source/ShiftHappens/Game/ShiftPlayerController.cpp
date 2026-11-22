@@ -278,6 +278,9 @@ void AShiftPlayerController::BeginPlay()
 		}
 	}
 
+	bPseudoCursor = FParse::Param(Cmd, TEXT("ShiftPseudoCursor"));
+	bSystemCursor = FParse::Param(Cmd, TEXT("ShiftSystemCursor"));
+
 	FString CursorText;
 	// bShouldStopOnSeparator = false: otherwise the value would stop at the comma.
 	if (FParse::Value(Cmd, TEXT("ShiftCursor="), CursorText, false))
@@ -403,6 +406,11 @@ void AShiftPlayerController::BeginPlay()
 	{
 		Audio = NewObject<UShiftAudio>(this);
 		Audio->Init(GetWorld());
+		Audio->SetMuted(bMuted);
+		if (FParse::Param(FCommandLine::Get(), TEXT("ShiftMixTap")))
+		{
+			Audio->BeginMixTap();
+		}
 	}
 
 	if (!FParse::Param(Cmd, TEXT("ShiftNoUI")) && GEngine && GEngine->GameViewport)
@@ -742,16 +750,33 @@ void AShiftPlayerController::TickLesson(float DeltaTime)
 		if (Act.Node >= 0)
 		{
 			const ShiftSim::GraphNode& N = Run->GetSim().GetGraph().nodes[static_cast<size_t>(Act.Node)];
-			bFakeCursor = true;
-			FakeCursorDesign = FVector2D(N.x, N.y);
+			if (bPseudoCursor)
+			{
+				PseudoMoveTo(FVector2D(N.x, N.y), 0.45f);   // the scripted cursor glides there; TickPseudoCursor drives the fake cursor
+			}
+			else
+			{
+				bFakeCursor = true;
+				FakeCursorDesign = FVector2D(N.x, N.y);
+			}
 		}
 		break;
 	case FShiftLessonAuto::EKind::Click:
 		bPlayerActed = true;
+		if (bPseudoCursor && Act.Node >= 0)
+		{
+			const ShiftSim::GraphNode& N = Run->GetSim().GetGraph().nodes[static_cast<size_t>(Act.Node)];
+			PseudoClick(FVector2D(N.x, N.y), Act.bNight ? 1 : 0);
+		}
 		Run->QueueAction(Act.Node, Act.bNight);
 		break;
 	case FShiftLessonAuto::EKind::RightClick:
 		bPlayerActed = true;
+		if (bPseudoCursor && Act.Node >= 0)
+		{
+			const ShiftSim::GraphNode& N = Run->GetSim().GetGraph().nodes[static_cast<size_t>(Act.Node)];
+			PseudoClick(FVector2D(N.x, N.y), 2);
+		}
 		Run->QueueRally(Act.Node);
 		break;
 	case FShiftLessonAuto::EKind::NightOn:
@@ -932,6 +957,10 @@ void AShiftPlayerController::SetPaused(bool bInPaused)
 
 void AShiftPlayerController::ApplyMute() const
 {
+	if (Audio)
+	{
+		Audio->SetMuted(bMuted);
+	}
 	if (GEngine)
 	{
 		if (FAudioDevice* Device = GEngine->GetMainAudioDeviceRaw())
@@ -2094,6 +2123,7 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 	const ShiftSim::GraphNode& Node = S.GetGraph().nodes[HoverNode];
 
 	T.bVisible = true;
+	T.Cursor = EShiftCursor::Plug;
 	T.Anchor = FVector2f(Node.x, Node.y);
 	T.AnchorRadius = Board->NodeRadius(HoverNode);
 	T.Title = TEXT("@") + NodeHandle(HoverNode);
@@ -2119,6 +2149,7 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 	const FLinearColor SockColor = FLinearColor::FromSRGBColor(FColor(0xB7, 0x9B, 0xFF));
 	if (OwnerId == ShiftSim::kPlayerId)
 	{
+		T.Cursor = EShiftCursor::Reinforce;
 		int32 ThreatWho = -1;
 		double ThreatLeft = 0.0;
 		double ThreatTotal = 0.0;
@@ -2170,16 +2201,19 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 	}
 	else if (S.LockRemaining(HoverNode) > 0.0)
 	{
+		T.Cursor = EShiftCursor::Blocked;
 		T.Status = FString::Printf(TEXT("Immune for %.1fs"), S.LockRemaining(HoverNode));
 		T.StatusColor = AmberColor();
 	}
 	else if (bNight && P.SockOverheatRefuse > 0.5 && S.Heat() + P.SockHeat >= P.HeatMax - 1.0e-9)
 	{
+		T.Cursor = EShiftCursor::Blocked;
 		T.Status = TEXT("Overheated: let Heat cool before the next sockpuppet");
 		T.StatusColor = RedColor();
 	}
 	else if (bNight)
 	{
+		T.Cursor = EShiftCursor::Sock;
 		const double HeatAfter = FMath::Min(S.Heat() + P.SockHeat, P.HeatMax);
 		const bool bRed = HeatAfter > P.HeatRedZone;
 		T.Status = FString::Printf(TEXT("%s. Heat %.0f -> %.0f%s"), S.IsGated(HoverNode) ? TEXT("Sockpuppet: ignores the gate") : TEXT("Sockpuppet: fast but fragile"),
@@ -2189,12 +2223,14 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 	else if (S.IsGated(HoverNode))
 	{
 		const ShiftSim::GateInfo Gate = S.Gate(HoverNode);
+		T.Cursor = EShiftCursor::Blocked;
 		T.Status = FString::Printf(TEXT("Gated: %.0f%% of followers back you, need %.0f%%"), Gate.progress * 100.0, Gate.needed * 100.0);
 		T.StatusColor = RedColor();
 	}
 	else
 	{
 		const int32 Need = S.PlugsNeeded(ShiftSim::kPlayerId, HoverNode, 1.0, true);
+		T.Cursor = Need >= ShiftSim::kUnreachable ? EShiftCursor::Blocked : EShiftCursor::Plug;
 		T.Status = Need >= ShiftSim::kUnreachable ? FString(TEXT("Cannot be flipped right now")) : FString::Printf(TEXT("%d %s to flip it"), Need, Need == 1 ? TEXT("Plug") : TEXT("Plugs"));
 		T.StatusColor = TealColor();
 	}
@@ -2202,6 +2238,7 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 	// What the player can do with this voter, and with which keys (a replay has no controls)
 	if (Run->IsReplaying())
 	{
+		T.Cursor = EShiftCursor::Arrow;
 		return;
 	}
 	auto PostsText = [](double Cost) -> FString
@@ -2696,7 +2733,16 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 		const FScriptedClick Click = ScriptedClicks[0];
 		ScriptedClicks.RemoveAt(0);
 		UE_LOG(LogShift, Log, TEXT("scripted click at t=%.1f design=(%.0f,%.0f) night=%d"), Click.Time, Click.Design.X, Click.Design.Y, Click.bNight ? 1 : 0);
-		HandleHudClick(Click.Design, Click.bNight, false);
+		if (bPseudoCursor)
+		{
+			// The scripted cursor rings where it clicks, and the click is aimed in the widget's own pixels so the footage is right at any window size.
+			PseudoClick(Click.Design, Click.bNight ? 1 : 0);
+			HandleHudClick(Hud.IsValid() ? FVector2D(Hud->DesignToLocal(FVector2f(Click.Design))) : Click.Design, Click.bNight, false);
+		}
+		else
+		{
+			HandleHudClick(Click.Design, Click.bNight, false);
+		}
 	}
 
 	if (Screen != EShiftScreen::Play && Run->IsOver())
@@ -2723,6 +2769,7 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 	const float NightTarget = NightOverride >= 0.0f ? NightOverride : (bNight ? 1.0f : 0.0f);
 	NightBlend = FMath::FInterpTo(NightBlend, NightTarget, DeltaTime, 7.0f);
 
+	TickPseudoCursor(DeltaTime);
 	if (bFakeCursor)
 	{
 		CursorWorld = Board->SimToWorld(FakeCursorDesign.X, FakeCursorDesign.Y);
@@ -2800,7 +2847,88 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 	{
 		FShiftHudModel Model;
 		BuildHudModel(Model);
+		Model.bSystemCursor = bSystemCursor;
+		Model.bPseudoCursor = bPseudoCursor && bPseudoShown;
+		Model.PseudoCursor = FVector2f(PseudoPos);
 		Hud->SetModel(MoveTemp(Model));
+	}
+}
+
+void AShiftPlayerController::PseudoMoveTo(const FVector2D& Design, float Seconds)
+{
+	if (!bPseudoShown)
+	{
+		// the first waypoint: the cursor enters from the lower right instead of appearing out of nowhere
+		bPseudoShown = true;
+		PseudoPos = FVector2D(FMath::Clamp(Design.X + 260.0, 40.0, 1240.0), FMath::Clamp(Design.Y + 170.0, 40.0, 700.0));
+	}
+	PseudoFrom = PseudoPos;
+	PseudoTo = Design;
+	PseudoClock = 0.0f;
+	PseudoSeconds = FMath::Max(0.02f, Seconds);
+}
+
+void AShiftPlayerController::PseudoClick(const FVector2D& Design, int32 Kind)
+{
+	if (!bPseudoShown || FVector2D::Distance(PseudoPos, Design) > 6.0)
+	{
+		PseudoMoveTo(Design, bPseudoShown ? 0.12f : 0.3f);
+	}
+	if (Hud.IsValid())
+	{
+		Hud->PushRipple(FVector2f(Design), Kind);
+	}
+}
+
+void AShiftPlayerController::TickPseudoCursor(float DeltaTime)
+{
+	if (!bPseudoCursor || !Run.IsValid())
+	{
+		return;
+	}
+
+	// Scripted clicks: head for the next one so the cursor has arrived and rested about half a second before it lands.
+	if (Screen == EShiftScreen::Play && ScriptedClicks.Num() > 0)
+	{
+		const FScriptedClick& Next = ScriptedClicks[0];
+		if (Next.Time != PseudoPlannedClick)
+		{
+			const float Travel = FMath::Clamp(static_cast<float>(FVector2D::Distance(PseudoPos, Next.Design)) / 1500.0f + 0.2f, 0.25f, 0.65f);
+			if (ScriptClock >= Next.Time - (Travel + 0.45f))
+			{
+				PseudoMoveTo(Next.Design, FMath::Clamp(Next.Time - ScriptClock - 0.2f, 0.12f, Travel));
+				PseudoPlannedClick = Next.Time;
+			}
+		}
+	}
+
+	// A bot plays: the cursor follows each of its actions and rings on the voter it acted on.
+	if (Run->HasBot())
+	{
+		const int32 Count = Run->BotActionCount();
+		if (Count != PseudoBotActions)
+		{
+			PseudoBotActions = Count;
+			const int32 Node = Run->BotLastNode();
+			if (Node >= 0 && Node < Run->GetSim().NodeCount())
+			{
+				const ShiftSim::GraphNode& N = Run->GetSim().GetGraph().nodes[static_cast<size_t>(Node)];
+				PseudoClick(FVector2D(N.x, N.y), Run->BotLastKind());
+			}
+		}
+	}
+
+	if (PseudoClock < PseudoSeconds)
+	{
+		PseudoClock = FMath::Min(PseudoClock + DeltaTime, PseudoSeconds);
+		const double T = static_cast<double>(PseudoClock) / static_cast<double>(PseudoSeconds);
+		const double Ease = T * T * T * (T * (T * 6.0 - 15.0) + 10.0);   // smootherstep: it leaves and arrives gently
+		PseudoPos = PseudoFrom + (PseudoTo - PseudoFrom) * Ease;
+	}
+	if (bPseudoShown)
+	{
+		bFakeCursor = true;   // the hover card and the voter highlight follow the scripted cursor
+		FakeCursorDesign = PseudoPos;
 	}
 }
 

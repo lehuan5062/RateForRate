@@ -50,6 +50,12 @@ public:
 	/** Converts a local widget position to design units (1280 x 720). */
 	FVector2f LocalToDesign(const FGeometry& Geo, const FVector2f& Local) const;
 
+	/** Converts design units to a local widget position (the inverse of LocalToDesign), using the geometry of the last frame. */
+	FVector2f DesignToLocal(const FVector2f& Design) const;
+
+	/** A click ring at a design-unit position with a short press on the cursor. Kind: 0 = plug (teal), 1 = sockpuppet (violet), 2 = Rally (amber). Used for the real mouse and for the scripted cursor. */
+	void PushRipple(const FVector2f& Design, int32 Kind);
+
 	/** QA: injects a mouse event at a design-unit position. Kind: 0 = move, 1 = left button down, 2 = left button up. */
 	void QaMouse(int32 Kind, const FVector2f& Design);
 
@@ -59,6 +65,7 @@ public:
 	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual FReply OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	virtual void OnMouseLeave(const FPointerEvent& MouseEvent) override;
 	virtual void OnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent) override;
 	virtual FCursorReply OnCursorQuery(const FGeometry& MyGeometry, const FPointerEvent& CursorEvent) const override;
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
@@ -126,6 +133,15 @@ private:
 	void PaintScatter(FShiftPainter& P, const FPal& C, float X, float Y, float W, float H, const FString& Title, const TArray<FShiftHudDot>& Dots,
 		const FShiftHudFit& Fit, const FString& Caption) const;
 	void PaintKeycap(FShiftPainter& P, const FPal& C, float Cx, float Cy, bool bPressed) const;
+	/** The game's own cursor and the click rings, painted last so they sit above everything, the hover card included. */
+	void PaintCursor(FShiftPainter& P, const FPal& C) const;
+
+	struct FRipple
+	{
+		FVector2f Pos = FVector2f::ZeroVector;
+		float Start = 0.0f;
+		int32 Kind = 0;
+	};
 
 	FShiftHudModel Model;
 	FOnShiftHudClick OnClick;
@@ -138,8 +154,12 @@ private:
 	TMap<int32, FRowAnim> BuildAnims;      // the build screen's two lists: key = list * 32 + entry id, Y in rows (list 0 = quality, 1 = the vote forecast)
 	float ForecastFade = 0.0f;             // 0..1: the vote forecast fading in once its plays are in
 
-	FVector2f MouseDesign = FVector2f(-1000.0f, -1000.0f);
+	mutable FVector2f MouseDesign = FVector2f(-1000.0f, -1000.0f);
+	mutable bool bMouseInside = false;     // the real mouse is over the window: the game's cursor is drawn at MouseDesign
+	bool bQaInjecting = false;             // QaMouse is calling the handlers: those events draw no cursor and no ring
 	int32 DragId = -1;
 	FHit DragHit;
 	float AnimTime = 0.0f;
+	float PressUntil = -1.0f;              // AnimTime until which the cursor is drawn pressed
+	TArray<FRipple> Ripples;
 };

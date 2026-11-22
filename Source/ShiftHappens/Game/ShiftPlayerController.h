@@ -233,6 +233,22 @@ private:
 	bool bFakeCursor = false;
 	FVector2D FakeCursorDesign = FVector2D::ZeroVector;
 
+	// -ShiftPseudoCursor: a scripted cursor for trailer footage. It glides between waypoints (scripted clicks, lesson autoplay, bot actions),
+	// drives the fake cursor above so the hover cards show, and rings where a click lands. Presentation only: nothing here touches the sim.
+	bool bPseudoCursor = false;
+	bool bPseudoShown = false;            // false until the first waypoint: the cursor glides in from the side instead of sitting at a corner
+	bool bSystemCursor = false;           // -ShiftSystemCursor: the operating system's own arrow instead of the game's cursor
+	FVector2D PseudoPos = FVector2D(640.0, 360.0);
+	FVector2D PseudoFrom = FVector2D(640.0, 360.0);
+	FVector2D PseudoTo = FVector2D(640.0, 360.0);
+	float PseudoClock = 1.0f;             // seconds into the current glide
+	float PseudoSeconds = 0.3f;           // how long the glide takes
+	float PseudoPlannedClick = -1.0f;     // the time of the scripted click the cursor is already heading for
+	int32 PseudoBotActions = 0;           // bot actions already shown
+	void PseudoMoveTo(const FVector2D& Design, float Seconds);
+	void PseudoClick(const FVector2D& Design, int32 Kind);
+	void TickPseudoCursor(float DeltaTime);
+
 	// pause when the window loses focus (a held SHIFT would otherwise get stuck); off for unattended QA runs
 	bool bAutoPauseOnFocusLoss = true;
 	bool bQaRunFlag = false;           // unattended QA run: never touch the player's saved progress
