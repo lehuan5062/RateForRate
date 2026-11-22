@@ -2,6 +2,8 @@
 
 #include "Behavior/StateTree/ShiftStateTreeBuilder.h"
 
+#if WITH_EDITOR
+
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Behavior/ShiftTags.h"
 #include "Behavior/StateTree/ShiftStateTreeNodes.h"
@@ -25,8 +27,6 @@
 #include "UObject/Package.h"
 #include "UObject/SavePackage.h"
 #include "UObject/UObjectGlobals.h"
-
-#if WITH_EDITOR
 
 namespace
 {
@@ -165,6 +165,7 @@ namespace
 		return bSaved;
 	}
 }
+
 #endif
 
 int32 UShiftStateTreeBuilder::BuildAll()

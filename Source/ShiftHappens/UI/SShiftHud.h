@@ -109,7 +109,10 @@ private:
 
 	/** Pill button with hover; returns whether the mouse is over it. */
 	bool Button(FShiftPainter& P, const FPal& C, int32 Id, float X, float Y, float W, float H, const FString& Label, bool bPrimary, float Px = 16.0f) const;
-	void MuteButton(FShiftPainter& P, const FPal& C, float Cx, float Cy) const;
+	/** The gear button in the top right corner; it opens the settings menu (PaintSettings). A red dot on it means the sound is off. */
+	void SettingsButton(FShiftPainter& P, const FPal& C, float Cx, float Cy) const;
+	/** The settings menu dropped from the gear: sound on / off and the window mode. Painted last; it makes everything behind it inert. */
+	void PaintSettings(FShiftPainter& P, const FPal& C) const;
 
 	void PaintTitle(FShiftPainter& P, const FPal& C) const;
 	void PaintJamSelect(FShiftPainter& P, const FPal& C) const;

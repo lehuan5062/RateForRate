@@ -74,7 +74,11 @@ private:
 	uint32 NewSeed() const;
 	void SetPaused(bool bInPaused);
 	void ToggleMute();
+	void SetMuted(bool bMute);
 	void ApplyMute() const;
+	/** The window mode buttons: 0 fullscreen, 1 borderless (windowed fullscreen), 2 windowed (the EWindowMode values). Applied through the game user settings and saved with them. */
+	void SetWindowMode(int32 Mode);
+	int32 CurrentWindowMode() const;
 	void CopyResultToClipboard();
 	/** Saves the recording of the jam being played (Game/ShiftRecording.h): finished when the jam ended, "abandoned" when it is left unfinished. */
 	void SaveRecording(const TCHAR* AbandonedResult);
@@ -248,6 +252,7 @@ private:
 	bool bLessonDone = false;
 	bool bLessonNudge = false;         // the basics were never finished: the title screen points at Learn to play
 	bool bHowTo = false;               // the reference page is open
+	bool bSettingsOpen = false;        // the settings menu (sound, window mode) is dropped from the gear button
 	bool bLessonAuto = false;          // -ShiftLessonAuto: QA performs every step by itself
 	float LessonAutoTimer = 0.0f;
 	double LessonAutoSim = 0.0;

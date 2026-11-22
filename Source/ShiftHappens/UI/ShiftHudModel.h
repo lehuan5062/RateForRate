@@ -46,6 +46,14 @@ namespace EShiftUi
 		LessonLeave = 47,         // leave the lessons for the title screen
 		LessonNext = 48,          // the end of a lesson: the next lesson
 		LessonPlay = 49,          // the end of a lesson: pick a jam
+		Settings = 54,            // the gear button (top right): opens and closes the settings menu
+		SettingsClose = 55,       // behind the open menu: a click anywhere outside it closes it
+		SettingsPanel = 56,       // the open menu itself: swallows clicks on its padding
+		WindowFullscreen = 60,    // settings menu: window mode buttons; the id minus 60 is the EWindowMode value (0 fullscreen, 1 borderless, 2 windowed)
+		WindowBorderless = 61,
+		WindowWindowed = 62,
+		SoundOn = 63,             // settings menu: sound on / off (the M key and id 50 toggle)
+		SoundOff = 64,
 	};
 }
 
@@ -244,6 +252,8 @@ struct FShiftHudModel
 	EShiftScreen Screen = EShiftScreen::Play;
 	bool bShiftDown = false;
 	bool bMuted = false;
+	int32 WindowMode = 2;              // EWindowMode as an int: 0 fullscreen, 1 borderless (windowed fullscreen), 2 windowed
+	bool bSettingsOpen = false;        // the settings menu (sound, window mode) dropped from the gear button
 	TArray<FShiftHudJamCard> JamCards;
 	int32 SelectedJam = 0;
 	FShiftHudBuild Build;

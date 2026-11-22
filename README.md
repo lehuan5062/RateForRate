@@ -27,6 +27,7 @@ Hubs and celebrities carry most of the vote weight. Flip them and their follower
 | **Space / Esc** | Pause and menu |
 | **H** | The *How to play* reference page |
 | **M** | Mute |
+| **Gear button** (top right) | Settings menu: sound on / off and the window mode (Fullscreen, Borderless = a window the size of the desktop, Windowed). Esc or a click outside closes it. The choice is saved; the game starts in Fullscreen. **Alt+Enter** / **F11** also toggle fullscreen. A red dot on the gear means the sound is off |
 | **E** | Relation lines: faint (default) / off / full |
 | **L** | Leaderboard: compact (default) / full / hidden |
 | **R** | Retry (when paused or on the results screen) |

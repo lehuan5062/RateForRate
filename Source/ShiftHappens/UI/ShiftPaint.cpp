@@ -120,8 +120,10 @@ FVector2f FShiftPainter::Measure(const FString& Str, float Px, bool bBold) const
 		return FVector2f::ZeroVector;
 	}
 	const TSharedRef<FSlateFontMeasure> MeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
-	const FVector2D Size = MeasureService->Measure(Str, MakeFont(Px, bBold), 1.0f);
-	return FVector2f(static_cast<float>(Size.X), static_cast<float>(Size.Y));
+	// Measure at the scale the text is drawn at: glyph advances do not scale linearly, so a width taken at scale 1 is too narrow in a larger window.
+	const float DrawScale = FMath::Max(0.01f, Geo.GetAccumulatedLayoutTransform().GetScale() * Scale);
+	const FVector2D Size = MeasureService->Measure(Str, MakeFont(Px, bBold), DrawScale);
+	return FVector2f(static_cast<float>(Size.X) / DrawScale, static_cast<float>(Size.Y) / DrawScale);
 }
 
 FString FShiftPainter::Fit(const FString& Str, float MaxWidth, float Px, bool bBold) const

@@ -223,7 +223,7 @@ FCursorReply SShiftHud::OnCursorQuery(const FGeometry& MyGeometry, const FPointe
 	const FVector2f Design = LocalToDesign(MyGeometry, FVector2f(Local));
 	if (const FHit* Hit = FindHit(Design))
 	{
-		if (Hit->Id != EShiftUi::TitleStart)
+		if (Hit->Id != EShiftUi::TitleStart && Hit->Id != EShiftUi::SettingsClose && Hit->Id != EShiftUi::SettingsPanel)
 		{
 			return FCursorReply::Cursor(EMouseCursor::Hand);
 		}
@@ -321,27 +321,58 @@ bool SShiftHud::Button(FShiftPainter& P, const FPal& C, int32 Id, float X, float
 	return bHover;
 }
 
-void SShiftHud::MuteButton(FShiftPainter& P, const FPal& C, float Cx, float Cy) const
+void SShiftHud::SettingsButton(FShiftPainter& P, const FPal& C, float Cx, float Cy) const
 {
-	const bool bHover = AddHit(Cx - 16.0f, Cy - 16.0f, 32.0f, 32.0f, EShiftUi::Mute);
-	P.Disc(Cx, Cy, 15.0f, bHover ? WithAlpha(C.Teal, 0.30f) : C.Track);
-	const FLinearColor Ink = Model.bMuted ? WithAlpha(C.Ink, 0.55f) : C.Ink;
-	TArray<FVector2f> Body;
-	Body.Add(FVector2f(Cx - 9.0f, Cy - 4.0f));
-	Body.Add(FVector2f(Cx - 4.0f, Cy - 4.0f));
-	Body.Add(FVector2f(Cx + 2.0f, Cy - 9.0f));
-	Body.Add(FVector2f(Cx + 2.0f, Cy + 9.0f));
-	Body.Add(FVector2f(Cx - 4.0f, Cy + 4.0f));
-	Body.Add(FVector2f(Cx - 9.0f, Cy + 4.0f));
-	P.Polygon(Body, Ink, 1.8f);
+	const bool bHover = AddHit(Cx - 16.0f, Cy - 16.0f, 32.0f, 32.0f, EShiftUi::Settings);
+	const bool bOpen = Model.bSettingsOpen;
+	P.Disc(Cx, Cy, 15.0f, (bHover || bOpen) ? WithAlpha(C.Teal, 0.30f) : C.Track);
+	// a gear: eight teeth around a ring
+	const FLinearColor Ink = bOpen ? C.Teal : C.Ink;
+	const FVector2f Centre(Cx, Cy);
+	for (int32 i = 0; i < 8; ++i)
+	{
+		const float Angle = static_cast<float>(i) * UE_TWO_PI / 8.0f;
+		const FVector2f Dir(FMath::Sin(Angle), -FMath::Cos(Angle));
+		P.Line(Centre + Dir * 8.0f, Centre + Dir * 12.0f, Ink, 3.4f);
+	}
+	P.Arc(Cx, Cy, 6.6f, 0.0f, 1.0f, Ink, 3.2f);
 	if (Model.bMuted)
 	{
-		P.Line(FVector2f(Cx - 11.0f, Cy + 11.0f), FVector2f(Cx + 11.0f, Cy - 11.0f), C.Red, 2.6f);
+		P.Disc(Cx + 11.0f, Cy - 11.0f, 4.6f, C.Red);   // sound is off: a red dot on the gear
 	}
-	else
+}
+
+void SShiftHud::PaintSettings(FShiftPainter& P, const FPal& C) const
+{
+	// The menu dropped from the gear button. Everything behind it stops listening: a click outside it closes it.
+	Hits.Reset();
+	bModal = true;
+	AddHit(0.0f, 0.0f, DesignW, DesignH, EShiftUi::SettingsClose);
+
+	const float W = 340.0f;
+	const float H = 176.0f;
+	const float Pad = 18.0f;
+	const float X = DesignW - W - 14.0f;
+	const float Y = 48.0f;
+	P.Rect(X + 2.0f, Y + 8.0f, W, H, Hex(0x000000, 0.22f), 18.0f);
+	P.Rect(X - 1.0f, Y - 1.0f, W + 2.0f, H + 2.0f, C.Stroke, 19.0f);
+	P.Rect(X, Y, W, H, C.PanelSolid, 18.0f);
+	AddHit(X, Y, W, H, EShiftUi::SettingsPanel);   // the padding swallows clicks, so only a click outside closes it
+
+	P.Text(TEXT("SETTINGS"), X + Pad, Y + 14.0f, 13.0f, C.Ink, EShiftAlign::Left, true);
+	P.Text(TEXT("Esc closes"), X + W - Pad, Y + 16.0f, 11.0f, C.InkDim, EShiftAlign::Right);
+
+	P.Text(TEXT("SOUND  (M)"), X + Pad, Y + 46.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
+	const float Half = (W - 2.0f * Pad - 8.0f) * 0.5f;
+	Button(P, C, EShiftUi::SoundOn, X + Pad, Y + 64.0f, Half, 30.0f, TEXT("On"), !Model.bMuted, 13.0f);
+	Button(P, C, EShiftUi::SoundOff, X + Pad + Half + 8.0f, Y + 64.0f, Half, 30.0f, TEXT("Off"), Model.bMuted, 13.0f);
+
+	P.Text(TEXT("WINDOW"), X + Pad, Y + 110.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
+	static const TCHAR* const Labels[3] = { TEXT("Fullscreen"), TEXT("Borderless"), TEXT("Windowed") };
+	const float Third = (W - 2.0f * Pad - 16.0f) / 3.0f;
+	for (int32 i = 0; i < 3; ++i)
 	{
-		P.Arc(Cx + 2.0f, Cy, 7.0f, 0.18f, 0.32f, Ink, 1.8f);
-		P.Arc(Cx + 2.0f, Cy, 12.0f, 0.16f, 0.34f, Ink, 1.8f);
+		Button(P, C, EShiftUi::WindowFullscreen + i, X + Pad + static_cast<float>(i) * (Third + 8.0f), Y + 128.0f, Third, 30.0f, Labels[i], Model.WindowMode == i, 13.0f);
 	}
 }
 
@@ -404,9 +435,6 @@ void SShiftHud::PaintTitle(FShiftPainter& P, const FPal& C) const
 	P.Text(TEXT("Click anywhere to start"), 640.0f, 560.0f, 26.0f, WithAlpha(C.Teal, Blink), EShiftAlign::Center, true);
 	P.Text(TEXT("or press ENTER      ESC quits"), 640.0f, 596.0f, 13.0f, C.InkDim, EShiftAlign::Center);
 
-	P.Text(TEXT("GitHub Game Off 2026  -  theme: SHIFT"), 640.0f, 672.0f, 12.0f, C.InkDim, EShiftAlign::Center);
-	P.Text(TEXT("Made with Unreal Engine 5.8, AI-assisted development"), 640.0f, 690.0f, 12.0f, C.InkDim, EShiftAlign::Center);
-
 	// New here? The guided lessons teach the game hands-on; the reference page is one screen. The lessons button glows until the basics have been finished once.
 	const float LessonsPulse = 0.5f + 0.5f * FMath::Sin(AnimTime * 4.0f);
 	if (Model.bLessonNudge)
@@ -416,7 +444,7 @@ void SShiftHud::PaintTitle(FShiftPainter& P, const FPal& C) const
 	Button(P, C, EShiftUi::LearnToPlay, 386.0f, 618.0f, 258.0f, 44.0f, TEXT("LEARN TO PLAY"), Model.bLessonNudge, 17.0f);
 	Button(P, C, EShiftUi::HowTo, 664.0f, 618.0f, 230.0f, 44.0f, TEXT("How to play  (H)"), false, 16.0f);
 
-	MuteButton(P, C, 1246.0f, 24.0f);
+	SettingsButton(P, C, 1246.0f, 24.0f);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -473,7 +501,7 @@ void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 	}
 
 	Button(P, C, EShiftUi::Back, 24.0f, 22.0f, 104.0f, 36.0f, TEXT("< Back"), false, 14.0f);
-	MuteButton(P, C, 1246.0f, 24.0f);
+	SettingsButton(P, C, 1246.0f, 24.0f);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -591,7 +619,7 @@ void SShiftHud::PaintBuild(FShiftPainter& P, const FPal& C) const
 	P.Text(TEXT("ENTER"), 820.0f, 631.0f, 12.0f, C.InkDim, EShiftAlign::Right);
 
 	Button(P, C, EShiftUi::Back, 24.0f, 22.0f, 104.0f, 36.0f, TEXT("< Back"), false, 14.0f);
-	MuteButton(P, C, 1246.0f, 24.0f);
+	SettingsButton(P, C, 1246.0f, 24.0f);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -658,7 +686,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	P.Rect(510, 33, 260, 3, C.Track, 1.5f);
 	P.Rect(510, 33, 260.0f * FMath::Clamp(Model.RunProgress, 0.0f, 1.0f), 3, C.Teal, 1.5f);
 	P.Text(Model.DeadlineLabel, 1224, 12, 13, C.InkDim, EShiftAlign::Right);
-	MuteButton(P, C, 1250.0f, 20.0f);
+	SettingsButton(P, C, 1250.0f, 20.0f);
 	if (Model.bModsEnabled && Model.NextSweepIn >= 0.0f)
 	{
 		const bool bAway = Model.EyeAwayLeft > 0.0f;
@@ -1142,7 +1170,7 @@ void SShiftHud::PaintResults(FShiftPainter& P, const FPal& C) const
 	{
 		Button(P, C, EShiftUi::Recordings, X, By, WFiles, 46.0f, TEXT("Files  (O)"), false, 15.0f);
 	}
-	MuteButton(P, C, 1250.0f, 20.0f);
+	SettingsButton(P, C, 1250.0f, 20.0f);
 }
 
 void SShiftHud::PaintPause(FShiftPainter& P, const FPal& C) const
@@ -1160,7 +1188,7 @@ void SShiftHud::PaintPause(FShiftPainter& P, const FPal& C) const
 	Button(P, C, EShiftUi::Menu, 520.0f, By, 240.0f, 46.0f, Model.bInLesson ? TEXT("Leave lesson") : TEXT("Quit to menu"), false, 17.0f);
 	if (Model.bInLesson)
 	{
-		MuteButton(P, C, 1250.0f, 20.0f);
+		SettingsButton(P, C, 1250.0f, 20.0f);
 		return;
 	}
 
@@ -1174,7 +1202,7 @@ void SShiftHud::PaintPause(FShiftPainter& P, const FPal& C) const
 		P.Text(FString::Printf(TEXT("%s %d h"), Labels[i], Model.Build.Hours[i]), 420.0f, Ly, 13.0f, C.Ink, EShiftAlign::Left, true);
 		P.Text(P.Fit(Model.Build.Effects[i], 300.0f, 12.0f), 560.0f, Ly + 1.0f, 12.0f, C.InkDim);
 	}
-	MuteButton(P, C, 1250.0f, 20.0f);
+	SettingsButton(P, C, 1250.0f, 20.0f);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -1384,6 +1412,10 @@ int32 SShiftHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeomet
 	if (Model.bHowTo)
 	{
 		PaintHowTo(P, C);
+	}
+	else if (Model.bSettingsOpen)
+	{
+		PaintSettings(P, C);
 	}
 
 	return P.Layer + 1;

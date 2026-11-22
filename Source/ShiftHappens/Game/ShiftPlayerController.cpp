@@ -12,6 +12,7 @@
 #include "Camera/CameraTypes.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Containers/Array.h"
+#include "Containers/Map.h"
 #include "Containers/StringConv.h"
 #include "Containers/UnrealString.h"
 #include "Engine/Engine.h"
@@ -20,11 +21,15 @@
 #include "Engine/GameViewportClient.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Game/ShiftContent.h"
+#include "GameFramework/GameUserSettings.h"
 #include "GameFramework/PlayerController.h"
+#include "GenericPlatform/GenericPlatformMisc.h"
+#include "GenericPlatform/GenericWindow.h"
 #include "HAL/FileManager.h"
 #include "HAL/Platform.h"
-#include "HAL/PlatformMisc.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "HAL/PlatformMisc.h"
+#include "HAL/PlatformProcess.h"
 #include "InputCoreTypes.h"
 #include "Jams/ShiftJamPack.h"
 #include "Logging/LogMacros.h"
@@ -38,13 +43,18 @@
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "ShiftBuild.h"
+#include "ShiftForecast.h"
 #include "ShiftHappens.h"
+#include "ShiftLesson.h"
+#include "ShiftRecording.h"
 #include "ShiftRun.h"
+#include "Sim/ShiftBuildRules.h"
 #include "Sim/ShiftGraph.h"
 #include "Sim/ShiftParams.h"
 #include "Sim/ShiftSim.h"
 #include <string>
 #include "Templates/SharedPointer.h"
+#include "Templates/UniquePtr.h"
 #include "Templates/UnrealTemplate.h"
 #include "TimerManager.h"
 #include "UI/ShiftHudModel.h"
@@ -53,6 +63,11 @@
 #include "UObject/UObjectGlobals.h"
 #include <vector>
 #include "Widgets/DeclarativeSyntaxSupport.h"
+
+#if WITH_EDITOR
+#include "Editor.h"
+#include "Editor/EditorEngine.h"
+#endif
 
 namespace
 {
@@ -590,6 +605,7 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 	RallyFxNode = -1;
 	RallyFxAge = 99.0f;
 	bHowTo = false;
+	bSettingsOpen = false;
 	LessonAutoTimer = 0.0f;
 	CoachQueue.Reset();
 	CoachQueuedMask = 0;
@@ -788,6 +804,7 @@ void AShiftPlayerController::EnterScreen(EShiftScreen NewScreen)
 	}
 	Screen = NewScreen;
 	bPaused = false;
+	bSettingsOpen = false;
 	if (Previous != NewScreen)
 	{
 		PlaySfx(EShiftSfx::Transition);
@@ -926,9 +943,67 @@ void AShiftPlayerController::ApplyMute() const
 
 void AShiftPlayerController::ToggleMute()
 {
-	bMuted = !bMuted;
+	SetMuted(!bMuted);
+}
+
+void AShiftPlayerController::SetMuted(bool bMute)
+{
+	bMuted = bMute;
 	ShiftSave::SetMuted(bMuted);
 	ApplyMute();
+}
+
+int32 AShiftPlayerController::CurrentWindowMode() const
+{
+	// Alt+Enter and F11 update the game user settings too, so the buttons stay in step with them.
+	const UGameUserSettings* Settings = GEngine ? GEngine->GetGameUserSettings() : nullptr;
+	return Settings ? static_cast<int32>(Settings->GetFullscreenMode()) : static_cast<int32>(EWindowMode::Windowed);
+}
+
+void AShiftPlayerController::SetWindowMode(int32 Mode)
+{
+#if WITH_EDITOR
+	if (GetWorld() && GetWorld()->IsPlayInEditor())
+	{
+		// Inside Play In Editor the game window is the editor itself: changing its mode would act on the editor.
+		ShowToast(TEXT("The editor cannot change the window mode. Run the game on its own."), AmberColor(), 2.8f);
+		return;
+	}
+#endif
+	UGameUserSettings* Settings = GEngine ? GEngine->GetGameUserSettings() : nullptr;
+	if (!Settings)
+	{
+		return;
+	}
+	const EWindowMode::Type NewMode = EWindowMode::ConvertIntToWindowMode(FMath::Clamp(Mode, 0, 2));
+	FIntPoint Desktop = Settings->GetDesktopResolution();
+	if (Desktop.X <= 0 || Desktop.Y <= 0)
+	{
+		Desktop = FIntPoint(1920, 1080);
+	}
+	// Fullscreen and borderless fill the monitor. A window is the biggest 16:9 size that leaves a margin around it (the game letterboxes to 16:9).
+	FIntPoint Size = Desktop;
+	if (NewMode == EWindowMode::Windowed)
+	{
+		static const FIntPoint Sizes[3] = { FIntPoint(2560, 1440), FIntPoint(1920, 1080), FIntPoint(1280, 720) };
+		Size = Sizes[2];
+		for (const FIntPoint& Candidate : Sizes)
+		{
+			if (Candidate.X * 10 <= Desktop.X * 9 && Candidate.Y * 10 <= Desktop.Y * 9)
+			{
+				Size = Candidate;
+				break;
+			}
+		}
+	}
+	Settings->SetFullscreenMode(NewMode);
+	Settings->SetScreenResolution(Size);
+	Settings->ApplyResolutionSettings(false);
+	if (!bQaRunFlag)
+	{
+		Settings->SaveSettings();   // QA runs never touch the player's saved settings
+	}
+	UE_LOG(LogShift, Log, TEXT("Window mode %d: %dx%d (desktop %dx%d)"), Mode, Size.X, Size.Y, Desktop.X, Desktop.Y);
 }
 
 bool AShiftPlayerController::IsNightHeldNow() const
@@ -1078,7 +1153,7 @@ void AShiftPlayerController::CopyResultToClipboard()
 void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 {
 	const bool bSilent = Id == EShiftUi::SliderQuality || Id == EShiftUi::SliderThumbnail || Id == EShiftUi::SliderNetwork
-		|| Id == EShiftUi::Upload || Id == EShiftUi::Blame || Id == EShiftUi::TitleStart || Id == EShiftUi::FakeInfo;
+		|| Id == EShiftUi::Upload || Id == EShiftUi::Blame || Id == EShiftUi::TitleStart || Id == EShiftUi::FakeInfo || Id == EShiftUi::SettingsPanel;
 	if (!bSilent)
 	{
 		PlaySfx(EShiftSfx::Click);
@@ -1133,6 +1208,7 @@ void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 		break;
 	case EShiftUi::HowTo:
 		bHowTo = !bHowTo;
+		bSettingsOpen = false;
 		break;
 	case EShiftUi::Pause:
 		SetPaused(!bPaused);
@@ -1169,6 +1245,25 @@ void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 		break;
 	case EShiftUi::Mute:
 		ToggleMute();
+		break;
+	case EShiftUi::Settings:
+		bSettingsOpen = !bSettingsOpen;
+		break;
+	case EShiftUi::SettingsClose:
+		bSettingsOpen = false;
+		break;
+	case EShiftUi::SettingsPanel:
+		break;   // a click on the menu's padding does nothing
+	case EShiftUi::SoundOn:
+		SetMuted(false);
+		break;
+	case EShiftUi::SoundOff:
+		SetMuted(true);
+		break;
+	case EShiftUi::WindowFullscreen:
+	case EShiftUi::WindowBorderless:
+	case EShiftUi::WindowWindowed:
+		SetWindowMode(Id - EShiftUi::WindowFullscreen);
 		break;
 	case EShiftUi::Share:
 		CopyResultToClipboard();
@@ -1228,6 +1323,11 @@ void AShiftPlayerController::HandleHudKey(const FKey& Key)
 		ToggleMute();
 		return;
 	}
+	if (bSettingsOpen && Key == EKeys::Escape)
+	{
+		bSettingsOpen = false;   // Esc closes the settings menu first, before it pauses or goes back
+		return;
+	}
 	if (bHowTo)
 	{
 		if (Key == EKeys::H || Key == EKeys::Escape || Key == EKeys::Enter || Key == EKeys::SpaceBar)
@@ -1239,6 +1339,7 @@ void AShiftPlayerController::HandleHudKey(const FKey& Key)
 	if (Key == EKeys::H && !(Screen == EShiftScreen::Play && ResultsShown()))
 	{
 		bHowTo = true;   // one screen with everything: the goal, the controls, the three dangers
+		bSettingsOpen = false;
 		PlaySfx(EShiftSfx::Click);
 		return;
 	}
@@ -1257,6 +1358,14 @@ void AShiftPlayerController::HandleHudKey(const FKey& Key)
 		}
 		else if (Key == EKeys::Escape)
 		{
+#if WITH_EDITOR
+			// In Play In Editor, Esc ends the play session. RequestExit would shut the whole editor down with PIE still running, which crashes in EndPlayMap.
+			if (GEditor && GetWorld() && GetWorld()->IsPlayInEditor())
+			{
+				GEditor->RequestEndPlayMap();
+				break;
+			}
+#endif
 			FPlatformMisc::RequestExit(false);   // Esc on the title quits the game
 		}
 		break;
@@ -2297,6 +2406,8 @@ void AShiftPlayerController::BuildMenuModel(FShiftHudModel& M)
 {
 	M.Screen = Screen;
 	M.bMuted = bMuted;
+	M.WindowMode = CurrentWindowMode();
+	M.bSettingsOpen = bSettingsOpen;
 	M.bLessonNudge = bLessonNudge;
 	M.bHowTo = bHowTo;
 	if (bHowTo)
@@ -2360,6 +2471,8 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 
 	M.Screen = EShiftScreen::Play;
 	M.bMuted = bMuted;
+	M.WindowMode = CurrentWindowMode();
+	M.bSettingsOpen = bSettingsOpen;
 	M.JamName = FString(UTF8_TO_TCHAR(S.Jam().name.c_str()));
 	const int32 Day = S.DayIndex();
 	M.Day = Day + 1;
@@ -2623,7 +2736,7 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 			CursorWorld = FVector2D(WorldLoc.X, WorldLoc.Y);
 		}
 	}
-	HoverNode = (bPlaying && !bPaused && !bHowTo && !Run->IsOver()) ? Board->NodeAtWorld(CursorWorld) : -1;
+	HoverNode = (bPlaying && !bPaused && !bHowTo && !bSettingsOpen && !Run->IsOver()) ? Board->NodeAtWorld(CursorWorld) : -1;
 
 	EventScratch.Reset();
 	Run->DrainEvents(EventScratch);

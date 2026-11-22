@@ -36,7 +36,7 @@ Everything here runs **headless** (no window, no console, no sound) unless state
 | `-ShiftNight=0..1` | Force the night blend (also counts as SHIFT held) |
 | `-ShiftCursor=X,Y` | Fake cursor in design pixels (1280 x 720) |
 | `-ShiftClicks="T,X,Y[,n];..."` | Scripted board clicks at game time T (`n` = sockpuppet) |
-| `-ShiftUi="T,Id[,V];..."` | Scripted UI actions by id (`EShiftUi` in `UI/ShiftHudModel.h`; V = slider position 0..1; id 5 toggles the pause menu, 3 starts Learn to play, the How to play page has its own id) |
+| `-ShiftUi="T,Id[,V];..."` | Scripted UI actions by id (`EShiftUi` in `UI/ShiftHudModel.h`; V = slider position 0..1; id 5 toggles the pause menu, 3 starts Learn to play, 54 opens / closes the settings menu, 60 / 61 / 62 pick Fullscreen / Borderless / Windowed, 63 / 64 sound on / off, the How to play page has its own id) |
 | `-ShiftMouse="T,X,Y,m\|d\|u;..."` | Mouse move / left down / left up injected through the real widget (tests hit regions and slider drags) |
 | `-ShiftShot=<png> -ShiftShotDelay=S -ShiftQuit` | Screenshot (with UI) after S seconds, then exit |
 | `-ShiftTutorial` / `-ShiftNoTutorial` | Force or skip the coach cards (QA runs skip them by default) |
