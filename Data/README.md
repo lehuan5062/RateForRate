@@ -221,6 +221,9 @@ Coachmarks for the first jam (Tiny Jam #7). No placeholders.
 | BlameRule | One strike from the end (the second strike lands): how Shift the Blame works as a last chance. The row used to be "BlameAvailable" (retired: its seen-bit 12 is never set again, the new card has its own, so players who read the old one are taught the new rule). May use `{blamefake}`. |
 | KeysHint | A calm moment after the other coachmarks (pause, mute, menu keys). |
 
+### Trailer.csv  (`Id,Bar,Cmd,Args`)  the cue script of the trailer run
+Not a text table: it is not imported into a Data Table and `validate_text.py` does not read it. It is the cue script of the scripted trailer run (in the editor and Development builds, not in Shipping) (`Source/ShiftHappens/Trailer/ShiftTrailer.h`; how it is played, authored and recorded: `Docs/QA.md`, Trailer). The director reads the file when the run starts, so it can be edited without a rebuild. `Bar` is the position in bars of the music (112.5 BPM, 1 bar = 2.1333 s, 0.25 = one beat), `Cmd` is one of `black`, `flash`, `title`, `run`, `warp`, `bot`, `speed`, `night`, `tension`, `click`, `hover`, `spot`, `zoom`, `slam`, `caption`, `end`, and `Args` are space separated (the words of a `slam` or `caption` come last, a `|` starts a new line, no commas). Lines starting with `#` are comments. The rules of this README for words on screen apply: pure ASCII, no real people, brands or URLs.
+
 ## Validation
 
 ```

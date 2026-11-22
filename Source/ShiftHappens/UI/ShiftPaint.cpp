@@ -7,18 +7,23 @@
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "Containers/UnrealString.h"
+#include "Fonts/CompositeFont.h"
 #include "Fonts/FontMeasure.h"
 #include "Fonts/SlateFontInfo.h"
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/Platform.h"
 #include "Layout/PaintGeometry.h"
+#include "Logging/LogMacros.h"
 #include "Math/Color.h"
 #include "Math/MathFwd.h"
 #include "Math/UnrealMathUtility.h"
+#include "Misc/Build.h"
+#include "Misc/Paths.h"
 #include "Rendering/DrawElementTypes.h"
 #include "Rendering/RenderingCommon.h"
 #include "Rendering/SlateLayoutTransform.h"
 #include "Rendering/SlateRenderer.h"
+#include "ShiftHappens.h"
 #include "Styling/CoreStyle.h"
 #include "Styling/SlateBrush.h"
 #include "Templates/SharedPointer.h"
@@ -62,6 +67,52 @@ namespace
 		// Slate font sizes are points: 1 pt = 4/3 px at DPI scale 1.
 		return FCoreStyle::GetDefaultFontStyle(bBold ? TEXT("Bold") : TEXT("Regular"), static_cast<float>(FMath::Max(6, FMath::RoundToInt(Px * 0.75f))));
 	}
+
+#if !UE_BUILD_SHIPPING
+	/** A composite font with one face read from the engine's own Roboto files; null (and a log line) when the file is missing, then the default bold face stands in. */
+	TSharedPtr<const FCompositeFont> TrailerComposite(EShiftTrailerFont Kind)
+	{
+		static TSharedPtr<const FCompositeFont> Cache[2];
+		static bool bTried[2] = { false, false };
+		const int32 K = static_cast<int32>(Kind);
+		if (!bTried[K])
+		{
+			bTried[K] = true;
+			const FString File = FPaths::EngineContentDir() / TEXT("Slate/Fonts") / (Kind == EShiftTrailerFont::Black ? TEXT("Roboto-Black.ttf") : TEXT("Roboto-BoldCondensed.ttf"));
+			if (FPaths::FileExists(File))
+			{
+				TSharedRef<FStandaloneCompositeFont> Font = MakeShared<FStandaloneCompositeFont>();
+				Font->DefaultTypeface.AppendFont(TEXT("Face"), File, EFontHinting::Default, EFontLoadingPolicy::LazyLoad);
+				Cache[K] = Font;
+			}
+			else
+			{
+				UE_LOG(LogShift, Warning, TEXT("Trailer font not found (%s): the default bold face is used instead"), *File);
+			}
+		}
+		return Cache[K];
+	}
+
+	FSlateFontInfo TrailerFont(EShiftTrailerFont Kind, float Px, int32 Tracking, float Outline, const FLinearColor& OutlineColor)
+	{
+		const float Points = static_cast<float>(FMath::Max(6, FMath::RoundToInt(Px * 0.75f)));
+		FSlateFontInfo Info;
+		if (const TSharedPtr<const FCompositeFont> Composite = TrailerComposite(Kind))
+		{
+			Info = FSlateFontInfo(Composite, Points, TEXT("Face"));
+		}
+		else
+		{
+			Info = FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), Points);
+		}
+		Info.LetterSpacing = Tracking;
+		if (Outline > 0.0f)
+		{
+			Info.OutlineSettings = FFontOutlineSettings(FMath::Max(1, FMath::RoundToInt(Outline)), OutlineColor);
+		}
+		return Info;
+	}
+#endif
 }
 
 FPaintGeometry FShiftPainter::Geom(float X, float Y, float W, float H) const
@@ -233,6 +284,44 @@ void FShiftPainter::FillPolygon(const TArray<FVector2f>& Points, const FLinearCo
 		}
 	}
 }
+
+#if !UE_BUILD_SHIPPING
+FVector2f FShiftPainter::MeasureFx(const FString& Str, float Px, EShiftTrailerFont Font, int32 Tracking) const
+{
+	if (Str.IsEmpty())
+	{
+		return FVector2f::ZeroVector;
+	}
+	const TSharedRef<FSlateFontMeasure> MeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+	const float DrawScale = FMath::Max(0.01f, Geo.GetAccumulatedLayoutTransform().GetScale() * Scale);
+	const FVector2D Size = MeasureService->Measure(Str, TrailerFont(Font, Px, Tracking, 0.0f, FLinearColor::Black), DrawScale);
+	return FVector2f(static_cast<float>(Size.X) / DrawScale, static_cast<float>(Size.Y) / DrawScale);
+}
+
+void FShiftPainter::TextFx(const FString& Str, float X, float Y, float Px, const FLinearColor& Color, EShiftAlign Align, EShiftTrailerFont Font, int32 Tracking,
+	float Outline, const FLinearColor& OutlineColor, float TextScale)
+{
+	if (Str.IsEmpty() || Color.A <= 0.001f)
+	{
+		return;
+	}
+	const FVector2f Size = MeasureFx(Str, Px, Font, Tracking);
+	float Left = X;
+	if (Align == EShiftAlign::Center)
+	{
+		Left = X - Size.X * 0.5f;
+	}
+	else if (Align == EShiftAlign::Right)
+	{
+		Left = X - Size.X;
+	}
+	// scale about the middle of the box
+	const FVector2f Pivot(Left + Size.X * 0.5f, Y + Size.Y * 0.5f);
+	const FVector2f TopLeft = Pivot + (FVector2f(Left, Y) - Pivot) * TextScale;
+	const FPaintGeometry Paint = Geo.ToPaintGeometry(FVector2f(Size.X + 4.0f, Size.Y), FSlateLayoutTransform(Scale * TextScale, Origin + TopLeft * Scale));
+	FSlateDrawElement::MakeText(Out, ++Layer, Paint, Str, TrailerFont(Font, Px, Tracking, Outline, OutlineColor), ESlateDrawEffect::None, Color);
+}
+#endif
 
 void FShiftPainter::Text(const FString& Str, float X, float Y, float Px, const FLinearColor& Color, EShiftAlign Align, bool bBold)
 {

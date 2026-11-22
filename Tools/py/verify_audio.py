@@ -3,7 +3,7 @@
   Tools\\run_py.ps1 -Script Tools\\py\\verify_audio.py        (Tools\\verify.ps1 runs it)
 
 Fails (error lines + a final "AUDIO ASSETS: FAIL") when
-  * an expected asset is missing (MS_Music, 26 MS_Sfx_*, the MSP_* voice patches),
+  * an expected asset is missing (MS_Music, 26 MS_Sfx_*; every one holds a single composite node),
   * /Game/Shift/Audio holds anything that is not a MetaSound Source or Patch (no SoundWave, no Wave Player assets),
   * any MetaSound asset has a package dependency on a SoundWave or on /Game/Shift/Audio/Waves,
   * a .wav file exists anywhere in the project folder (Saved, Intermediate and DerivedDataCache are scratch and skipped).
@@ -17,14 +17,13 @@ sys.path.append(os.path.join(unreal.SystemLibrary.get_project_directory(), "Tool
 from shift_common import EAL, PROJECT_DIR, error, finish, log  # noqa: E402
 from ms_graph import MS_DIR  # noqa: E402
 from ms_sfx import RECIPES  # noqa: E402
-from ms_voices import PATCHES  # noqa: E402
 
 SKIP_DIRS = {"Saved", "Intermediate", "DerivedDataCache", "Binaries", ".git", "Build"}
 
 
 def main():
     problems = []
-    expected = ["MS_Music"] + ["MS_Sfx_" + n for n in RECIPES] + list(PATCHES)
+    expected = ["MS_Music"] + ["MS_Sfx_" + n for n in RECIPES]
     for name in expected:
         if not EAL.does_asset_exist("{}/{}".format(MS_DIR, name)):
             problems.append("missing asset {}/{}".format(MS_DIR, name))

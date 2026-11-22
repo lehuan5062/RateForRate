@@ -26,8 +26,8 @@ Hubs and celebrities carry most of the vote weight. Flip them and their follower
 | **B** | **Shift the Blame**: the strike that would disqualify you can be handed to your rival, once per jam, if the fake votes of all your strikes together were few (under 20% of the vote). It is offered for 5 s as an orange bar in the middle of the bottom bar: click it or press B |
 | **Space / Esc** | Pause and menu |
 | **H** | The *How to play* reference page |
-| **M** | Mute |
-| **Gear button** (top right) | Settings menu: sound on / off and the window mode (Fullscreen, Borderless = a window the size of the desktop, Windowed). Esc or a click outside closes it. The choice is saved; the game starts in Fullscreen. **Alt+Enter** / **F11** also toggle fullscreen. A red dot on the gear means the sound is off |
+| **M** | Mute: effects and music both off, or both back on |
+| **Gear button** (top right) | Settings menu: **Effects** on / off, **Music** on / off, and the window mode (Fullscreen, Borderless = a window the size of the desktop, Windowed). Esc or a click outside closes it. The choices are saved; the game starts in Fullscreen. **Alt+Enter** / **F11** also toggle fullscreen. A red dot on the gear means some sound is off |
 | **Cursor** | The game draws its own cursor: an arrow, a hand over buttons, a teal target over a voter you can flip, a "+" over one of yours, a visor over a voter at night, and a slashed circle over one you cannot act on (immune, gated, overheated). A ring marks each click: teal for a plug, violet for a sockpuppet, amber for a Rally |
 | **E** | Relation lines: faint (default) / off / full |
 | **L** | Leaderboard: compact (default) / full / hidden |
@@ -60,7 +60,7 @@ Flow: **Title** → **Pick a jam** (Tiny Jam #7, 48h Pixel Rumble, GAME OFF 2026
 * **Behaviour**: the rival, the other entries, the Mod Eye and the ambient events (algorithm boosts, streamers, drama) are **StateTree** assets run through a custom schema and ticked by hand from the fixed step, with seeded randomness, so runs reproduce exactly. The rival's gates read **Gameplay Tags** (stock `Has Tags` condition fed by a small evaluator).
 * **Rendering**: the board is world-space 2D in a real level (orthographic camera): instanced quads with SDF materials (HLSL custom nodes into Substrate unlit BSDFs), bloom, one `MaterialParameterCollection` for the day/night look.
 * **Interface**: one custom-painted **Slate** widget (title, jam select, build, HUD, results). No UMG.
-* **Audio**: all **MetaSound** and **Harmonix**, no `.wav` and no sampled or AI-generated sound. The music is one MetaSound source clocked by a Harmonix Metronome (day / night / tension layers crossfaded by float parameters); each of the 26 effects is a MetaSound one-shot built from oscillators, noise, envelopes and filters, and the reusable instrument voices are MetaSound patches. See `Docs/Audio.md`.
+* **Audio**: all **MetaSound** and **Harmonix**, no `.wav` and no sampled or AI-generated sound. The music is one MetaSound source clocked by a Harmonix Metronome (day / night / tension layers crossfaded by float parameters); each of the 26 effects is a MetaSound one-shot built from oscillators, noise, envelopes and filters. Every audio asset is a single composite node (C++ that wires the engine's own and Harmonix nodes). See `Docs/Audio.md`.
 * **Content**: text and tuning are **Data Tables** imported from `Data/*.csv`. Each jam is a **Game Feature plugin** (`Plugins/GameFeatures/ShiftJam_*`) carrying its own entries; the jam select screen lists the active packs.
 * **Assets are generated**: materials, the level, data tables, MetaSounds, StateTrees and jam packs are produced by scripts (`Tools/py`, run headless), so the repository's sources are the CSVs, the HLSL, the Python and the C++.
 
@@ -79,8 +79,8 @@ Regenerating the generated assets (all headless, each logs to `Saved/py_<script>
 .\Tools\run_py.ps1 -Script Tools\py\build_materials.py      # materials + theme collection
 .\Tools\run_py.ps1 -Script Tools\py\build_level.py          # the level
 .\Tools\run_py.ps1 -Script Tools\py\build_data.py           # data tables from Data\*.csv
-.\Tools\build_audio.ps1                                     # all MetaSound patches, sound effects and the music (Python builder API)
-.\Tools\calibrate_audio.ps1                                 # optional: re-measure and re-trim levels with the in-graph meters
+.\Tools\build_audio.ps1                                     # the 27 one-node MetaSound assets (Python builder API)
+.\Tools\calibrate_audio.ps1                                 # optional: re-measure and re-trim levels with the QA taps
 .\Tools\run_py.ps1 -Script Tools\py\build_statetrees.py     # the behaviour StateTrees
 .\Tools\run_py.ps1 -Script Tools\py\build_jam_packs.py       # the jam packs (Game Feature plugins, via the PluginToolset)
 ```

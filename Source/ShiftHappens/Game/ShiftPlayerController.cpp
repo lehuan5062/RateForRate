@@ -7,6 +7,7 @@
 #include "AudioDevice.h"
 #include "Behavior/ShiftPolicies.h"
 #include "Behavior/StateTree/ShiftBehavior.h"
+#include "Trailer/ShiftTrailer.h"
 #include "Board/ShiftBoard.h"
 #include "Board/ShiftPalette.h"
 #include "Camera/CameraTypes.h"
@@ -259,7 +260,8 @@ void AShiftPlayerController::BeginPlay()
 		NightOverride = 0.0f;
 	}
 	bQaRun |= FParse::Param(Cmd, TEXT("ShiftBot")) || FString(Cmd).Contains(TEXT("ShiftBot=")) || FString(Cmd).Contains(TEXT("ShiftClicks="))
-		|| FString(Cmd).Contains(TEXT("ShiftWarp=")) || FString(Cmd).Contains(TEXT("ShiftSpeed="));
+		|| FString(Cmd).Contains(TEXT("ShiftWarp=")) || FString(Cmd).Contains(TEXT("ShiftSpeed=")) || FParse::Param(Cmd, TEXT("ShiftTrailer"))
+		|| FString(Cmd).Contains(TEXT("ShiftTrailer="));
 	if (!bFixedSeed)
 	{
 		Seed = bQaRun ? 7u : NewSeed();
@@ -363,11 +365,14 @@ void AShiftPlayerController::BeginPlay()
 	FParse::Value(Cmd, TEXT("ShiftAudioMeter="), QaAudioMeterSpec, false);
 	bAutoPauseOnFocusLoss = !bQaRun && !FParse::Param(Cmd, TEXT("ShiftNoAutoPause"));
 	bQaRunFlag = bQaRun;
-	bMuted = ShiftSave::IsMuted();
+	bEffectsOn = ShiftSave::IsEffectsOn();
+	bMusicOn = ShiftSave::IsMusicOn();
+	bForceNoSfx = FParse::Param(Cmd, TEXT("ShiftNoSfx"));
+	bForceNoMusic = FParse::Param(Cmd, TEXT("ShiftNoMusic"));
 	bLessonNudge = !bQaRun && (ShiftSave::LessonsDone() & 1) == 0;
 	EdgeMode = ShiftSave::EdgeMode();
 	LeaderboardMode = ShiftSave::LeaderboardMode();
-	ApplyMute();
+	ApplySoundSettings();
 
 	FShiftContent::EnsureLoaded();
 	RefreshJamCards();
@@ -406,7 +411,31 @@ void AShiftPlayerController::BeginPlay()
 	{
 		Audio = NewObject<UShiftAudio>(this);
 		Audio->Init(GetWorld());
-		Audio->SetMuted(bMuted);
+		// QA / capture: -ShiftSfxOff=Name,Name never plays those effects (names as in EShiftSfx: ModWarn, Heartbeat, Hover, ...); -ShiftTension=0..1 pins the music's tension layer
+		FString SfxOffText;
+		if (FParse::Value(Cmd, TEXT("ShiftSfxOff="), SfxOffText, false))
+		{
+			TArray<FString> Names;
+			SfxOffText.ParseIntoArray(Names, TEXT(","));
+			uint32 OffMask = 0;
+			for (const FString& Name : Names)
+			{
+				for (int32 i = 0; i < static_cast<int32>(EShiftSfx::Count); ++i)
+				{
+					if (Name.TrimStartAndEnd().Equals(ShiftSfxName(static_cast<EShiftSfx>(i)), ESearchCase::IgnoreCase))
+					{
+						OffMask |= 1u << i;
+					}
+				}
+			}
+			Audio->SetSfxOffMask(OffMask);
+		}
+		float TensionPinValue = -1.0f;
+		if (FParse::Value(Cmd, TEXT("ShiftTension="), TensionPinValue))
+		{
+			Audio->SetTensionPin(TensionPinValue);
+		}
+		ApplySoundSettings();
 		if (FParse::Param(FCommandLine::Get(), TEXT("ShiftMixTap")))
 		{
 			Audio->BeginMixTap();
@@ -429,6 +458,13 @@ void AShiftPlayerController::BeginPlay()
 	}
 
 	ScheduleScreenshotFromCommandLine();
+
+#if !UE_BUILD_SHIPPING
+	if (FParse::Param(Cmd, TEXT("ShiftTrailer")) || FString(Cmd).Contains(TEXT("ShiftTrailer=")))   // plain -ShiftTrailer, or -ShiftTrailer=<cue file>
+	{
+		StartTrailer();   // the scripted trailer run (not in Shipping builds) (Trailer/ShiftTrailer.h)
+	}
+#endif
 }
 
 void AShiftPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -524,7 +560,28 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 	else
 	{
 		FString BotName;
-		if (FParse::Value(FCommandLine::Get(), TEXT("ShiftBot="), BotName))
+		bool bHaveBot = false;
+		bool bHaveSpeed = false;
+		bool bHaveWarp = false;
+#if !UE_BUILD_SHIPPING
+		if (bRunOverride)
+		{
+			// the scripted trailer run (Trailer/ShiftTrailer.h) names the bot, the speed and the warp of each run itself
+			BotName = RunOverrideBot;
+			Speed = RunOverrideSpeed;
+			Warp = RunOverrideWarp;
+			bHaveBot = !BotName.IsEmpty();
+			bHaveSpeed = Speed != 1.0f;
+			bHaveWarp = Warp > 0.0f;
+		}
+		else
+#endif
+		{
+			bHaveBot = FParse::Value(FCommandLine::Get(), TEXT("ShiftBot="), BotName);
+			bHaveSpeed = FParse::Value(FCommandLine::Get(), TEXT("ShiftSpeed="), Speed);
+			bHaveWarp = FParse::Value(FCommandLine::Get(), TEXT("ShiftWarp="), Warp);
+		}
+		if (bHaveBot)
 		{
 			ShiftSim::BotKind Kind = ShiftSim::BotKind::Idle;
 			if (!ShiftSim::BotKindFromName(std::string(TCHAR_TO_UTF8(*BotName)), &Kind))
@@ -533,11 +590,11 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 			}
 			Run->SetBot(Kind);
 		}
-		if (FParse::Value(FCommandLine::Get(), TEXT("ShiftSpeed="), Speed))
+		if (bHaveSpeed)
 		{
 			Run->SetTimeScale(Speed);
 		}
-		if (FParse::Value(FCommandLine::Get(), TEXT("ShiftWarp="), Warp))
+		if (bHaveWarp)
 		{
 			for (float T = 0.0f; T < Warp && !Run->IsOver(); T += 0.2f)
 			{
@@ -955,31 +1012,43 @@ void AShiftPlayerController::SetPaused(bool bInPaused)
 	}
 }
 
-void AShiftPlayerController::ApplyMute() const
+void AShiftPlayerController::ApplySoundSettings() const
 {
+	const bool bEffectsHeard = bEffectsOn && !bForceNoSfx;
+	const bool bMusicHeard = bMusicOn && !bForceNoMusic;
 	if (Audio)
 	{
-		Audio->SetMuted(bMuted);
+		Audio->SetEffectsMuted(!bEffectsHeard);
+		Audio->SetMusicMuted(!bMusicHeard);
 	}
 	if (GEngine)
 	{
 		if (FAudioDevice* Device = GEngine->GetMainAudioDeviceRaw())
 		{
-			Device->SetTransientPrimaryVolume(bMuted ? 0.0f : QaMasterVolume);
+			Device->SetTransientPrimaryVolume((bEffectsHeard || bMusicHeard) ? QaMasterVolume : 0.0f);
 		}
 	}
 }
 
 void AShiftPlayerController::ToggleMute()
 {
-	SetMuted(!bMuted);
+	const bool bAnyOn = bEffectsOn || bMusicOn;
+	SetEffectsOn(!bAnyOn);
+	SetMusicOn(!bAnyOn);
 }
 
-void AShiftPlayerController::SetMuted(bool bMute)
+void AShiftPlayerController::SetEffectsOn(bool bOn)
 {
-	bMuted = bMute;
-	ShiftSave::SetMuted(bMuted);
-	ApplyMute();
+	bEffectsOn = bOn;
+	ShiftSave::SetEffectsOn(bOn);
+	ApplySoundSettings();
+}
+
+void AShiftPlayerController::SetMusicOn(bool bOn)
+{
+	bMusicOn = bOn;
+	ShiftSave::SetMusicOn(bOn);
+	ApplySoundSettings();
 }
 
 int32 AShiftPlayerController::CurrentWindowMode() const
@@ -1283,11 +1352,17 @@ void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 		break;
 	case EShiftUi::SettingsPanel:
 		break;   // a click on the menu's padding does nothing
-	case EShiftUi::SoundOn:
-		SetMuted(false);
+	case EShiftUi::EffectsOn:
+		SetEffectsOn(true);
 		break;
-	case EShiftUi::SoundOff:
-		SetMuted(true);
+	case EShiftUi::EffectsOff:
+		SetEffectsOn(false);
+		break;
+	case EShiftUi::MusicOn:
+		SetMusicOn(true);
+		break;
+	case EShiftUi::MusicOff:
+		SetMusicOn(false);
 		break;
 	case EShiftUi::WindowFullscreen:
 	case EShiftUi::WindowBorderless:
@@ -2442,7 +2517,8 @@ void AShiftPlayerController::FillBuildEffects(FShiftHudBuild& B) const
 void AShiftPlayerController::BuildMenuModel(FShiftHudModel& M)
 {
 	M.Screen = Screen;
-	M.bMuted = bMuted;
+	M.bEffectsOn = bEffectsOn;
+	M.bMusicOn = bMusicOn;
 	M.WindowMode = CurrentWindowMode();
 	M.bSettingsOpen = bSettingsOpen;
 	M.bLessonNudge = bLessonNudge;
@@ -2507,7 +2583,8 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 	const ShiftSim::Params& P = S.GetParams();
 
 	M.Screen = EShiftScreen::Play;
-	M.bMuted = bMuted;
+	M.bEffectsOn = bEffectsOn;
+	M.bMusicOn = bMusicOn;
 	M.WindowMode = CurrentWindowMode();
 	M.bSettingsOpen = bSettingsOpen;
 	M.JamName = FString(UTF8_TO_TCHAR(S.Jam().name.c_str()));
@@ -2693,6 +2770,19 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 		FPlatformMisc::RequestExitWithStatus(false, Failures == 0 ? 0 : 3);
 		return;
 	}
+#if !UE_BUILD_SHIPPING
+	if (Trailer)
+	{
+		Trailer->Tick(DeltaTime);   // may start a run or skip sim time, so before the run is looked at
+		if ((!Run.IsValid() || !Board) && Hud.IsValid())
+		{
+			// the game is still starting: the trailer's black cover already hides it
+			FShiftHudModel Cover;
+			Trailer->FillModel(Cover.Trailer);
+			Hud->SetModel(MoveTemp(Cover));
+		}
+	}
+#endif
 	if (!Run.IsValid() || !Board)
 	{
 		return;
@@ -2850,6 +2940,13 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 		Model.bSystemCursor = bSystemCursor;
 		Model.bPseudoCursor = bPseudoCursor && bPseudoShown;
 		Model.PseudoCursor = FVector2f(PseudoPos);
+#if !UE_BUILD_SHIPPING
+		if (Trailer)
+		{
+			Trailer->FillModel(Model.Trailer);
+			Model.bPseudoCursor = Model.bPseudoCursor && !Model.Trailer.bHideCursor;
+		}
+#endif
 		Hud->SetModel(MoveTemp(Model));
 	}
 }
@@ -2913,6 +3010,7 @@ void AShiftPlayerController::TickPseudoCursor(float DeltaTime)
 			if (Node >= 0 && Node < Run->GetSim().NodeCount())
 			{
 				const ShiftSim::GraphNode& N = Run->GetSim().GetGraph().nodes[static_cast<size_t>(Node)];
+				UE_LOG(LogShift, Log, TEXT("Pseudo bot action %d: node %d at design (%.0f,%.0f) kind %d, sim time %.1f"), Count, Node, N.x, N.y, Run->BotLastKind(), Run->GetSim().Time());
 				PseudoClick(FVector2D(N.x, N.y), Run->BotLastKind());
 			}
 		}
@@ -3026,6 +3124,33 @@ void AShiftPlayerController::ScheduleScreenshotFromCommandLine()
 	bQuitAfterShot = FParse::Param(FCommandLine::Get(), TEXT("ShiftQuit"));
 
 	IFileManager::Get().MakeDirectory(*FPaths::GetPath(ShotPath), /*Tree*/ true);
+
+	// -ShiftShotTimes=1.0,2.5,...: one screenshot per time in a single run, named <path without .png>_<time in hundredths>.png (the trailer is authored with these)
+	FString TimesText;
+	if (FParse::Value(FCommandLine::Get(), TEXT("ShiftShotTimes="), TimesText, false))
+	{
+		TArray<FString> Parts;
+		TimesText.ParseIntoArray(Parts, TEXT(","));
+		MultiShotTimers.SetNum(Parts.Num());
+		float Last = 0.0f;
+		for (int32 i = 0; i < Parts.Num(); ++i)
+		{
+			const float Time = FMath::Max(0.1f, FCString::Atof(*Parts[i]));
+			Last = FMath::Max(Last, Time);
+			const FString File = FPaths::GetPath(ShotPath) / FString::Printf(TEXT("%s_%04d.png"), *FPaths::GetBaseFilename(ShotPath), FMath::RoundToInt(Time * 100.0f));
+			GetWorldTimerManager().SetTimer(MultiShotTimers[i], FTimerDelegate::CreateWeakLambda(this, [File]()
+				{
+					FScreenshotRequest::RequestScreenshot(File, /*bInShowUI*/ true, /*bAddFilenameSuffix*/ false);
+				}), Time, false);
+		}
+		if (bQuitAfterShot)
+		{
+			GetWorldTimerManager().SetTimer(QuitTimer, this, &AShiftPlayerController::QuitNow, Last + 2.5f, false);
+		}
+		UE_LOG(LogShift, Log, TEXT("%d screenshots scheduled (-ShiftShotTimes), the last at %.1fs (quit after: %d)"), Parts.Num(), Last, bQuitAfterShot ? 1 : 0);
+		return;
+	}
+
 	GetWorldTimerManager().SetTimer(ShotTimer, this, &AShiftPlayerController::TakeScreenshot, FMath::Max(0.1f, Delay), false);
 	UE_LOG(LogShift, Log, TEXT("Screenshot scheduled in %.1fs -> %s (quit after: %d)"), Delay, *ShotPath, bQuitAfterShot ? 1 : 0);
 }

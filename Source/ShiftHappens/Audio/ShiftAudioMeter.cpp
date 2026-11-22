@@ -5,6 +5,7 @@
 #include "Async/Async.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "Audio/ShiftAudio.h"
+#include "Audio/ShiftAudioStats.h"
 #include "Components/AudioComponent.h"
 #include "Containers/Array.h"
 #include "Containers/UnrealString.h"
@@ -19,14 +20,9 @@
 #include "Kismet/GameplayStatics.h"
 #include "Logging/LogMacros.h"
 #include "Math/UnrealMathUtility.h"
-#include "MetasoundDocumentInterface.h"
-#include "MetasoundFrontendDocument.h"
 #include "MetasoundGeneratorHandle.h"
-#include "MetasoundOutput.h"
-#include "MetasoundOutputSubsystem.h"
 #include "MetasoundSource.h"
 #include "Misc/CommandLine.h"
-#include "Misc/CoreMiscDefines.h"
 #include "Misc/CString.h"
 #include "Misc/Parse.h"
 #include "ShiftHappens.h"
@@ -61,7 +57,42 @@ namespace
 void UShiftAudioMeter::Begin(UWorld* InWorld, const FString& Spec)
 {
 	World = InWorld;
+	bCpuMode = FParse::Param(FCommandLine::Get(), TEXT("ShiftAudioCpu"));
 	BuildCases(Spec);
+	if (bCpuMode)
+	{
+		// the cost does not need a loop and a half: a few bars of each music scenario are enough, and the clock check is not part of this run
+		for (int32 i = Cases.Num() - 1; i >= 0; --i)
+		{
+			if (Cases[i].bClock)
+			{
+				Cases.RemoveAt(i);
+			}
+			else if (Cases[i].bLooping)
+			{
+				Cases[i].Seconds = 9.0f;
+			}
+		}
+		UE_LOG(LogShift, Log, TEXT("AudioMeter: CPU mode: the QA taps stay off, the generator's render timing is read"));
+		// -ShiftMusicBench=<kind>:<count>[:loop],...: one case per spec, the music's day layer replaced by <count> copies of one node kind (see ShiftMusicNode.cpp)
+		FString BenchList;
+		if (FParse::Value(FCommandLine::Get(), TEXT("ShiftMusicBench="), BenchList, false))
+		{
+			Cases.Reset();
+			TArray<FString> Specs;
+			BenchList.ParseIntoArray(Specs, TEXT(","));
+			for (int32 i = 0; i < Specs.Num(); ++i)
+			{
+				FCase C;
+				C.Asset = TEXT("MS_Music");
+				C.Label = FString(TEXT("bench ")) + Specs[i];
+				C.bLooping = true;
+				C.Seconds = 6.0f;
+				C.Bench = i;
+				Cases.Add(C);
+			}
+		}
+	}
 	UE_LOG(LogShift, Log, TEXT("AudioMeter: %d cases (spec '%s')"), Cases.Num(), *Spec);
 
 	// QA hooks, both take start numbers (counted over every Play() of the run, warm-up and retries included):
@@ -166,7 +197,9 @@ void UShiftAudioMeter::BuildCases(const FString& Spec)
 				{ TEXT("music tension only"), 0.0f, 0.0f, 1.0f, 19.0f, false },
 				{ TEXT("music day+tension"), 1.0f, 0.0f, 1.4f, 19.0f, false },
 				{ TEXT("music night+tension"), 0.0f, 1.0f, 1.4f, 19.0f, false },
-				{ TEXT("music day x2 loops"), 1.0f, 0.0f, 0.0f, 36.0f, true },
+				// night and tension at -60 dB, not 0: a layer whose gain is 0 is not rendered at all, and this case checks every lane and voice
+				{ TEXT("music day x2 loops"), 1.0f, 0.001f, 0.001f, 36.0f, true },
+				{ TEXT("music day->night"), 1.0f, 0.0f, 0.0f, 14.0f, false },   // the night layer is skipped until the gain changes at 5 s
 			};
 			for (const FScenario& S : Scenarios)
 			{
@@ -179,6 +212,12 @@ void UShiftAudioMeter::BuildCases(const FString& Spec)
 				C.Day = S.Day;
 				C.Night = S.Night;
 				C.Tension = S.Tension;
+				if (FCString::Strcmp(S.Label, TEXT("music day->night")) == 0)
+				{
+					C.SwitchAt = 5.0f;
+					C.SwitchDay = 0.0f;
+					C.SwitchNight = 1.0f;
+				}
 				Cases.Add(C);
 			}
 		};
@@ -204,6 +243,19 @@ void UShiftAudioMeter::BuildCases(const FString& Spec)
 
 void UShiftAudioMeter::ReleaseComponents()
 {
+	FShiftAudioStats::Get().bShadowGating = false;
+	CpuHandle = nullptr;
+	FShiftAudioStats::Get().bEnabled = false;
+	FShiftAudioStats::Get().SelectedInstance = ~uint64(0);
+	if (SelectListener.IsValid())
+	{
+		if (UMetaSoundSource* MetaSound = SelectSource.Get())
+		{
+			MetaSound->OnGeneratorInstanceInfoCreated.Remove(SelectListener);
+		}
+		SelectListener.Reset();
+		SelectSource.Reset();
+	}
 	if (StallListener.IsValid())
 	{
 		if (UMetaSoundSource* MetaSound = StallSource.Get())
@@ -233,7 +285,7 @@ void UShiftAudioMeter::StartCase()
 {
 	UWorld* W = World.Get();
 	const FCase& C = Cases[CaseIndex];
-	Peak = Rms = Low = Mid = High = FStat();
+	Peak = Rms = Low = Mid = High = Cpu = FStat();
 	OutputUpdates = 0;
 	StepTimes.Reset();
 	StepValues.Reset();
@@ -247,6 +299,9 @@ void UShiftAudioMeter::StartCase()
 	FinishedAt = 0.0f;
 	WarmUp = C.bLooping ? 1.0f : 0.0f;
 	bCaseFinished = false;
+	bSwitched = false;
+	FShiftAudioStats::Get().BenchIndex = C.Bench;
+	FShiftAudioStats::Get().bShadowGating = C.bClock && !bCpuMode;   // the long music case proves the gated voices' windows (see Nodes/ShiftMusicNode.cpp)
 	Component = nullptr;
 	Clock = nullptr;
 
@@ -318,45 +373,32 @@ void UShiftAudioMeter::StartCase()
 	}
 	Component->OnAudioFinished.AddDynamic(this, &UShiftAudioMeter::HandleFinished);
 
-	TArray<FName> Names = { TEXT("Peak"), TEXT("Rms"), TEXT("Low"), TEXT("Mid"), TEXT("High") };
-	if (C.Asset == TEXT("MS_Music"))
+	// the composite nodes publish their numbers while the meter has this switched on
+	FShiftAudioStats::Get().ResetValues();
+	FShiftAudioStats::Get().SelectedInstance = ~uint64(0);
+	if (UMetaSoundSource* MetaSound = Cast<UMetaSoundSource>(Sound))
 	{
-		Names.Add(TEXT("StepCount"));
-		if (C.Seconds >= 30.0f)
-		{
-			// Find the lane taps in the source's own interface: Hits_<lane>_<expected hits per loop> and Lvl_<voice>.
-			if (const IMetaSoundDocumentInterface* Doc = Cast<IMetaSoundDocumentInterface>(Sound))
+		const uint64 ComponentId = Component->GetAudioComponentID();
+		SelectSource = MetaSound;
+		SelectListener = MetaSound->OnGeneratorInstanceInfoCreated.AddLambda([ComponentId](const Metasound::FGeneratorInstanceInfo& Info)
 			{
-				for (const FMetasoundFrontendClassOutput& Out : Doc->GetConstDocument().RootGraph.GetDefaultInterface().Outputs)
+				if (Info.AudioComponentID == ComponentId)
 				{
-					const FString Name = Out.Name.ToString();
-					if (Name.StartsWith(TEXT("Hits_")))
-					{
-						int32 Underscore = INDEX_NONE;
-						Name.FindLastChar(TEXT('_'), Underscore);
-						FLaneHits Lane;
-						Lane.Output = Out.Name;
-						Lane.Lane = Name.Mid(5, Underscore - 5);
-						Lane.Expected = FCString::Atoi(*Name.Mid(Underscore + 1));
-						LaneHits.Add(Lane);
-						Names.Add(Out.Name);
-					}
-					else if (Name.StartsWith(TEXT("Lvl_")))
-					{
-						VoiceLevels.Add(Out.Name, 0.0f);
-						Names.Add(Out.Name);
-					}
+					FShiftAudioStats::Get().SelectedInstance = Info.InstanceID;
 				}
-			}
-		}
+			});
 	}
-	if (UMetaSoundOutputSubsystem* Sub = W->GetSubsystem<UMetaSoundOutputSubsystem>())
+	FShiftAudioStats::Get().bEnabled = !bCpuMode;
+	bAccumulating = false;
+	if (bCpuMode)
 	{
-		for (const FName& Name : Names)
+		CpuHandle = UMetasoundGeneratorHandle::CreateMetaSoundGeneratorHandle(Component);
+		if (CpuHandle)
 		{
-			Sub->WatchOutput(Component, Name, FOnMetasoundOutputValueChangedNative::CreateUObject(this, &UShiftAudioMeter::OnOutput));
+			CpuHandle->EnableRuntimeRenderTiming(true);
 		}
 	}
+	LastStepChanges = 0;
 	if (C.bClock)
 	{
 		Clock = UMusicClockComponent::CreateMetasoundDrivenMusicClock(W, Component, TEXT("MIDI Clock"), true, false);
@@ -372,40 +414,57 @@ void UShiftAudioMeter::StartCase()
 	Component->Play();
 }
 
-void UShiftAudioMeter::OnOutput(FName OutputName, const FMetaSoundOutput& Output)
+void UShiftAudioMeter::PollStats()
 {
-	if (CaseIndex < 0 || CaseIndex >= Cases.Num() || DropStarts.Contains(StartCount))
+	if (CaseIndex < 0 || CaseIndex >= Cases.Num() || !Component || DropStarts.Contains(StartCount))
 	{
 		return;
 	}
-	if (VoiceLevels.Num() > 0)
+	if (bCpuMode)
 	{
-		if (float* Level = VoiceLevels.Find(OutputName))
+		const double Use = CpuHandle ? CpuHandle->GetCPUCoreUtilization() : 0.0;
+		if (Use > 0.0)
 		{
-			float Value = 0.0f;
-			if (Output.Get<float>(Value))
+			++OutputUpdates;
+			if (CaseClock >= WarmUp)
 			{
-				*Level = FMath::Max(*Level, Value);
+				Cpu.Max = FMath::Max(Cpu.Max, static_cast<float>(Use));
+				Cpu.Sum += Use;
+				++Cpu.Count;
 			}
-			return;
 		}
+		return;
 	}
-	for (FLaneHits& Lane : LaneHits)
+	FShiftAudioStats& Stats = FShiftAudioStats::Get();
+	OutputUpdates = Stats.Master.BlocksTotal;
+	if (!bAccumulating && CaseClock >= WarmUp)
 	{
-		if (Lane.Output == OutputName)
-		{
-			int32 Value = 0;
-			if (Output.Get<int32>(Value))
-			{
-				Lane.Count = FMath::Max(Lane.Count, Value);
-			}
-			return;
-		}
+		Stats.Master.ResetAccumulators();   // the first second of a looping case is not measured
+		bAccumulating = true;
 	}
-	if (OutputName == TEXT("StepCount"))
+	if (bAccumulating)
 	{
-		int32 Value = 0;
-		if (Output.Get<int32>(Value) && Value != LastStep)
+		const int32 Blocks = Stats.Master.Blocks;
+		Peak.Max = Stats.Master.PeakMax;
+		Rms.Max = Stats.Master.RmsMax;
+		Rms.Sum = Stats.Master.RmsSum;
+		Rms.Count = Blocks;
+		Low.Max = Stats.Master.LowMax;
+		Low.Sum = Stats.Master.LowSum;
+		Low.Count = Blocks;
+		Mid.Max = Stats.Master.MidMax;
+		Mid.Sum = Stats.Master.MidSum;
+		Mid.Count = Blocks;
+		High.Max = Stats.Master.HighMax;
+		High.Sum = Stats.Master.HighSum;
+		High.Count = Blocks;
+	}
+	const int32 StepChanges = Stats.StepChanges;
+	if (StepChanges != LastStepChanges)
+	{
+		LastStepChanges = StepChanges;
+		const int32 Value = Stats.Step;
+		if (Value != LastStep)
 		{
 			StepWraps += Value < LastStep ? 1 : 0;
 			MaxStep = FMath::Max(MaxStep, Value);
@@ -413,29 +472,6 @@ void UShiftAudioMeter::OnOutput(FName OutputName, const FMetaSoundOutput& Output
 			StepTimes.Add(FPlatformTime::Seconds());
 			StepValues.Add(Value);
 		}
-		return;
-	}
-	float Value = 0.0f;
-	if (!Output.Get<float>(Value))
-	{
-		return;
-	}
-	++OutputUpdates;
-	if (CaseClock < WarmUp)
-	{
-		return;
-	}
-	FStat* Target = nullptr;
-	if (OutputName == TEXT("Peak")) { Target = &Peak; }
-	else if (OutputName == TEXT("Rms")) { Target = &Rms; }
-	else if (OutputName == TEXT("Low")) { Target = &Low; }
-	else if (OutputName == TEXT("Mid")) { Target = &Mid; }
-	else if (OutputName == TEXT("High")) { Target = &High; }
-	if (Target)
-	{
-		Target->Max = FMath::Max(Target->Max, Value);
-		Target->Sum += Value;
-		++Target->Count;
 	}
 }
 
@@ -464,7 +500,15 @@ bool UShiftAudioMeter::Tick(float DeltaTime)
 		return true;
 	}
 	CaseClock += DeltaTime;
+	PollStats();
 	const FCase& C = Cases[CaseIndex];
+	if (C.SwitchAt >= 0.0f && !bSwitched && CaseClock >= C.SwitchAt && Component)
+	{
+		bSwitched = true;
+		Component->SetFloatParameter(TEXT("DayGain"), C.SwitchDay);
+		Component->SetFloatParameter(TEXT("NightGain"), C.SwitchNight);
+		Component->SetFloatParameter(TEXT("TensionGain"), C.SwitchTension);
+	}
 	const bool bTimeUp = CaseClock >= C.Seconds;
 	const bool bOneShotDone = !C.bLooping && bCaseFinished && CaseClock >= FinishedAt + 0.3f;
 	if (bTimeUp || bOneShotDone || (!Component && bCaseFinished))
@@ -552,6 +596,44 @@ void UShiftAudioMeter::CheckMusicClock(const FCase& C)
 void UShiftAudioMeter::CheckMusicLanes()
 {
 	// Every pattern lane must fire its pattern (with one loop's worth of slack for the start-up latency) and every voice must be audible.
+	LaneHits.Reset();
+	VoiceLevels.Reset();
+	int32 TailVoices = 0;
+	int32 TailBad = 0;
+	FString TailText;
+	{
+		FShiftAudioStats& Stats = FShiftAudioStats::Get();
+		for (int32 i = 0; i < Stats.NumTaps(); ++i)
+		{
+			if (const FShiftAudioStats::FTap* Tap = Stats.TapAt(i))
+			{
+				if (Tap->bTail)
+				{
+					// a gated voice made sound after the window the music gives it: -80 dBFS is the most that may be left
+					++TailVoices;
+					if (Tap->Level > 1.0e-4f)
+					{
+						++TailBad;
+						TailText += FString::Printf(TEXT(" %s(%.1f dB outside its window)"), *Tap->Name.ToString(), 20.0f * FMath::LogX(10.0f, Tap->Level.load()));
+					}
+					continue;
+				}
+				if (Tap->bCounter)
+				{
+					FLaneHits Lane;
+					Lane.Output = Tap->Name;
+					Lane.Lane = Tap->Name.ToString();
+					Lane.Expected = Tap->Expected;
+					Lane.Count = Tap->Count;
+					LaneHits.Add(Lane);
+				}
+				else
+				{
+					VoiceLevels.Add(Tap->Name, Tap->Level);
+				}
+			}
+		}
+	}
 	int32 BadLanes = 0;
 	FString Bad;
 	for (const FLaneHits& Lane : LaneHits)
@@ -573,9 +655,34 @@ void UShiftAudioMeter::CheckMusicLanes()
 			Bad += FString::Printf(TEXT(" %s(silent, peak %.4f)"), *Voice.Key.ToString(), Voice.Value);
 		}
 	}
-	const bool bOk = BadLanes == 0 && Silent == 0 && LaneHits.Num() > 0;
-	UE_LOG(LogShift, Log, TEXT("AudioMeter:   music lanes: %d of %d lanes fire their patterns, %d of %d voices audible [%s]%s"), LaneHits.Num() - BadLanes, LaneHits.Num(),
-		VoiceLevels.Num() - Silent, VoiceLevels.Num(), bOk ? TEXT("PASS") : TEXT("FAIL"), *Bad);
+	const bool bOk = BadLanes == 0 && Silent == 0 && LaneHits.Num() > 0 && TailBad == 0 && TailVoices > 0;
+	UE_LOG(LogShift, Log, TEXT("AudioMeter:   music lanes: %d of %d lanes fire their patterns, %d of %d voices audible, %d of %d gated voices ring out inside their windows [%s]%s%s"), LaneHits.Num() - BadLanes, LaneHits.Num(),
+		VoiceLevels.Num() - Silent, VoiceLevels.Num(), TailVoices - TailBad, TailVoices, bOk ? TEXT("PASS") : TEXT("FAIL"), *Bad, *TailText);
+	Failures += bOk ? 0 : 1;
+}
+
+void UShiftAudioMeter::CheckWake()
+{
+	// the night layer was not rendered at all until its gain came up: from then on its kick has to fire and sound, so a layer wakes up cleanly
+	FShiftAudioStats& Stats = FShiftAudioStats::Get();
+	int32 Hits = 0;
+	float Level = 0.0f;
+	for (int32 i = 0; i < Stats.NumTaps(); ++i)
+	{
+		if (const FShiftAudioStats::FTap* Tap = Stats.TapAt(i))
+		{
+			if (Tap->bCounter && Tap->Name == FName(TEXT("NightKick")))
+			{
+				Hits = Tap->Count;
+			}
+			else if (!Tap->bCounter && Tap->Name == FName(TEXT("Lvl_NightKick")))
+			{
+				Level = Tap->Level;
+			}
+		}
+	}
+	const bool bOk = Hits >= 10 && Level > 0.05f;
+	UE_LOG(LogShift, Log, TEXT("AudioMeter: [%s] a skipped layer wakes up: the night kick fired %d times and peaked at %.1f dB after the gain came up"), bOk ? TEXT("PASS") : TEXT("FAIL"), Hits, ToDb(Level));
 	Failures += bOk ? 0 : 1;
 }
 
@@ -589,6 +696,15 @@ void UShiftAudioMeter::FinishCase()
 		return;
 	}
 
+	PollStats();
+	if (bCpuMode)
+	{
+		UE_LOG(LogShift, Log, TEXT("AudioMeter: [CPU] %-22s mean %5.2f%%  max %5.2f%% of one core  (%d samples)%s"), *C.Label, Cpu.Mean() * 100.0f, Cpu.Max * 100.0f, Cpu.Count,
+			Cpu.Count == 0 ? TEXT("  <- no timing data") : TEXT(""));
+		Failures += Cpu.Count == 0 ? 1 : 0;
+		ReleaseComponents();
+		return;
+	}
 	FResult R;
 	R.Label = C.Label;
 	R.PeakMax = Peak.Max;
@@ -604,13 +720,13 @@ void UShiftAudioMeter::FinishCase()
 	FString Why;
 	if (OutputUpdates == 0)
 	{
-		Why = TEXT("no meter data (audio device missing, or the graph has no meter outputs)");
+		Why = TEXT("no meter data (audio device missing, or the composite node has no meter tap)");
 	}
 	else if (!C.bLooping && !bCaseFinished)
 	{
 		Why = TEXT("one-shot did not finish");
 	}
-	else if (!C.Label.Contains(TEXT("+tension")))   // the stacked layers are limited on purpose; only the stems are held to -1 dBFS
+	else   // every case, the stacked layers too: nothing limits the mix behind this tap
 	{
 		if (R.PeakMax >= PeakCeiling)
 		{
@@ -637,6 +753,10 @@ void UShiftAudioMeter::FinishCase()
 	{
 		CheckMusicClock(C);
 		CheckMusicLanes();
+	}
+	if (C.SwitchAt >= 0.0f)
+	{
+		CheckWake();
 	}
 	Results.Add(R);
 	ReleaseComponents();

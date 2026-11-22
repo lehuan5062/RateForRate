@@ -59,6 +59,19 @@ namespace
 		return Votes >= 1000.0f ? FString::Printf(TEXT("%.1fk"), Votes / 1000.0f) : FString::Printf(TEXT("%.0f"), Votes);
 	}
 
+	// the MODS countdown of the top bar: an icon at (ModsIconX, ModsIconY) and a text to its right; the trailer's spotlight is fitted to the same numbers
+	constexpr float ModsIconX = 900.0f;
+	constexpr float ModsIconY = 20.0f;
+	constexpr float ModsIconR = 9.5f;
+	constexpr float ModsTextX = 916.0f;
+	constexpr float ModsTextY = 13.0f;
+	constexpr float ModsTextPx = 12.0f;
+
+	FString ModsLabel(const FShiftHudModel& M)
+	{
+		return M.EyeAwayLeft > 0.0f ? FString::Printf(TEXT("MODS AWAY %.0fs"), M.EyeAwayLeft) : FString::Printf(TEXT("MODS %.0fs"), M.NextSweepIn);
+	}
+
 	FString HudOrdinal(int32 N)
 	{
 		const int32 Mod100 = N % 100;
@@ -387,9 +400,9 @@ void SShiftHud::SettingsButton(FShiftPainter& P, const FPal& C, float Cx, float 
 		P.Line(Centre + Dir * 8.0f, Centre + Dir * 12.0f, Ink, 3.4f);
 	}
 	P.Arc(Cx, Cy, 6.6f, 0.0f, 1.0f, Ink, 3.2f);
-	if (Model.bMuted)
+	if (!Model.bEffectsOn || !Model.bMusicOn)
 	{
-		P.Disc(Cx + 11.0f, Cy - 11.0f, 4.6f, C.Red);   // sound is off: a red dot on the gear
+		P.Disc(Cx + 11.0f, Cy - 11.0f, 4.6f, C.Red);   // some sound is off: a red dot on the gear
 	}
 }
 
@@ -401,7 +414,7 @@ void SShiftHud::PaintSettings(FShiftPainter& P, const FPal& C) const
 	AddHit(0.0f, 0.0f, DesignW, DesignH, EShiftUi::SettingsClose);
 
 	const float W = 340.0f;
-	const float H = 176.0f;
+	const float H = 240.0f;
 	const float Pad = 18.0f;
 	const float X = DesignW - W - 14.0f;
 	const float Y = 48.0f;
@@ -413,17 +426,21 @@ void SShiftHud::PaintSettings(FShiftPainter& P, const FPal& C) const
 	P.Text(TEXT("SETTINGS"), X + Pad, Y + 14.0f, 13.0f, C.Ink, EShiftAlign::Left, true);
 	P.Text(TEXT("Esc closes"), X + W - Pad, Y + 16.0f, 11.0f, C.InkDim, EShiftAlign::Right);
 
-	P.Text(TEXT("SOUND  (M)"), X + Pad, Y + 46.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
-	const float Half = (W - 2.0f * Pad - 8.0f) * 0.5f;
-	Button(P, C, EShiftUi::SoundOn, X + Pad, Y + 64.0f, Half, 30.0f, TEXT("On"), !Model.bMuted, 13.0f);
-	Button(P, C, EShiftUi::SoundOff, X + Pad + Half + 8.0f, Y + 64.0f, Half, 30.0f, TEXT("Off"), Model.bMuted, 13.0f);
+	const float Small = 64.0f;   // the On / Off switches are short, the window buttons below carry longer words
+	P.Text(TEXT("EFFECTS"), X + Pad, Y + 46.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
+	Button(P, C, EShiftUi::EffectsOn, X + Pad, Y + 64.0f, Small, 30.0f, TEXT("On"), Model.bEffectsOn, 13.0f);
+	Button(P, C, EShiftUi::EffectsOff, X + Pad + Small + 8.0f, Y + 64.0f, Small, 30.0f, TEXT("Off"), !Model.bEffectsOn, 13.0f);
 
-	P.Text(TEXT("WINDOW"), X + Pad, Y + 110.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
+	P.Text(TEXT("MUSIC  (M mutes both)"), X + Pad, Y + 110.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
+	Button(P, C, EShiftUi::MusicOn, X + Pad, Y + 128.0f, Small, 30.0f, TEXT("On"), Model.bMusicOn, 13.0f);
+	Button(P, C, EShiftUi::MusicOff, X + Pad + Small + 8.0f, Y + 128.0f, Small, 30.0f, TEXT("Off"), !Model.bMusicOn, 13.0f);
+
+	P.Text(TEXT("WINDOW"), X + Pad, Y + 174.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
 	static const TCHAR* const Labels[3] = { TEXT("Fullscreen"), TEXT("Borderless"), TEXT("Windowed") };
 	const float Third = (W - 2.0f * Pad - 16.0f) / 3.0f;
 	for (int32 i = 0; i < 3; ++i)
 	{
-		Button(P, C, EShiftUi::WindowFullscreen + i, X + Pad + static_cast<float>(i) * (Third + 8.0f), Y + 128.0f, Third, 30.0f, Labels[i], Model.WindowMode == i, 13.0f);
+		Button(P, C, EShiftUi::WindowFullscreen + i, X + Pad + static_cast<float>(i) * (Third + 8.0f), Y + 192.0f, Third, 30.0f, Labels[i], Model.WindowMode == i, 13.0f);
 	}
 }
 
@@ -744,13 +761,13 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		const bool bSoon = !bAway && Model.NextSweepIn < 3.0f;
 		const FLinearColor EyeColor = bAway ? Hex(0x7B5CF0) : (bSoon ? C.Red : C.InkDim);
 		const float Pulse = bSoon ? 0.5f + 0.5f * FMath::Sin(AnimTime * 14.0f) : 0.0f;
-		P.Disc(900, 20, 9.5f, EyeColor);
-		P.Disc(900, 20, 7.0f, C.Panel);
+		P.Disc(ModsIconX, ModsIconY, ModsIconR, EyeColor);
+		P.Disc(ModsIconX, ModsIconY, 7.0f, C.Panel);
 		if (!bAway)
 		{
-			P.Disc(900, 20, 3.0f + 1.5f * Pulse, EyeColor);   // the Eye looks away: no pupil
+			P.Disc(ModsIconX, ModsIconY, 3.0f + 1.5f * Pulse, EyeColor);   // the Eye looks away: no pupil
 		}
-		P.Text(bAway ? FString::Printf(TEXT("MODS AWAY %.0fs"), Model.EyeAwayLeft) : FString::Printf(TEXT("MODS %.0fs"), Model.NextSweepIn), 916, 13, 12, EyeColor, EShiftAlign::Left, bSoon || bAway);
+		P.Text(ModsLabel(Model), ModsTextX, ModsTextY, ModsTextPx, EyeColor, EShiftAlign::Left, bSoon || bAway);
 	}
 
 	// ------------------------------------------------------------------ leaderboard
@@ -1404,8 +1421,157 @@ void SShiftHud::PaintHowTo(FShiftPainter& P, const FPal& C) const
 // ---------------------------------------------------------------------------------------------------------------------------------
 // the cursor set
 
+#if !UE_BUILD_SHIPPING
+void SShiftHud::PaintTrailer(FShiftPainter& P, const FPal& C) const
+{
+	const FShiftHudTrailer& T = Model.Trailer;
+	// the whole widget in design units (the 1280 x 720 design rect is only its 16:9 middle)
+	const FVector2f Local = FVector2f(P.Geo.GetLocalSize());
+	const float X0 = -P.Origin.X / P.Scale;
+	const float Y0 = -P.Origin.Y / P.Scale;
+	const float W = Local.X / P.Scale;
+	const float H = Local.Y / P.Scale;
+	const FLinearColor Ink = Hex(0x0A0914);
+
+	// spotlight: everything but the rectangle is dimmed, the rectangle gets a pulsing teal frame
+	if (T.SpotAlpha > 0.001f)
+	{
+		// the rectangle is given for the unzoomed screen: it follows the zoom
+		FVector4f Rect = T.SpotRect;
+		if (T.bSpotMods)
+		{
+			// the MODS countdown: from the left edge of its icon to the end of its text (which changes width as it counts down), with a margin
+			const float TextW = P.Measure(ModsLabel(Model), ModsTextPx, true).X;
+			const float Margin = 7.0f;
+			const float Left = ModsIconX - ModsIconR - Margin;
+			Rect = FVector4f(Left, ModsIconY - ModsIconR - Margin, ModsTextX + TextW + Margin - Left, 2.0f * (ModsIconR + Margin));
+		}
+		const float Zm = FMath::Max(1.0f, T.Zoom);
+		const float Sx = T.ZoomFocus.X + (Rect.X - T.ZoomFocus.X) * Zm;
+		const float Sy = T.ZoomFocus.Y + (Rect.Y - T.ZoomFocus.Y) * Zm;
+		const float Sw = Rect.Z * Zm;
+		const float Sh = Rect.W * Zm;
+		const FLinearColor Dim = WithAlpha(Ink, 0.62f * T.SpotAlpha);
+		P.Rect(X0, Y0, W, Sy - Y0, Dim);
+		P.Rect(X0, Sy + Sh, W, Y0 + H - (Sy + Sh), Dim);
+		P.Rect(X0, Sy, Sx - X0, Sh, Dim);
+		P.Rect(Sx + Sw, Sy, X0 + W - (Sx + Sw), Sh, Dim);
+		const float Pulse = 0.5f + 0.5f * FMath::Sin(AnimTime * 7.0f);
+		const FLinearColor Frame = WithAlpha(C.Teal, (0.65f + 0.35f * Pulse) * T.SpotAlpha);
+		const float Th = 3.0f;
+		P.Rect(Sx - Th, Sy - Th, Sw + 2.0f * Th, Th, Frame);
+		P.Rect(Sx - Th, Sy + Sh, Sw + 2.0f * Th, Th, Frame);
+		P.Rect(Sx - Th, Sy, Th, Sh, Frame);
+		P.Rect(Sx + Sw, Sy, Th, Sh, Frame);
+	}
+
+	if (T.Black > 0.001f)
+	{
+		P.Rect(X0, Y0, W, H, WithAlpha(FLinearColor::Black, T.Black));
+	}
+
+	const bool bOnCard = T.Black > 0.9f;
+	for (const FShiftTrailerText& Tx : T.Texts)
+	{
+		TArray<FString> Lines;
+		Tx.Text.ToUpper().ParseIntoArray(Lines, TEXT("|"), false);
+		if (Lines.IsEmpty())
+		{
+			continue;
+		}
+		const float Age = Tx.Age;
+		const float Life = FMath::Max(0.4f, Tx.Life);
+		if (Tx.bSlam)
+		{
+			// SHIFT split: a teal and a red copy start apart and snap onto the white text on the beat; on the way out they split again
+			const float In = FMath::Clamp(Age / 0.16f, 0.0f, 1.0f);
+			const float Ease = 1.0f - FMath::Pow(1.0f - In, 3.0f);
+			const float Out = FMath::Clamp((Age - (Life - 0.26f)) / 0.26f, 0.0f, 1.0f);
+			const float Alpha = FMath::Clamp(Age / 0.05f, 0.0f, 1.0f) * (1.0f - Out);
+			if (Alpha <= 0.001f)
+			{
+				continue;
+			}
+			const float Split = 26.0f * (1.0f - Ease) + 22.0f * Out;
+			const float Scale = 1.0f + 0.10f * (1.0f - Ease);
+			float Px = Tx.Px > 0.0f ? Tx.Px : 84.0f;
+			float Widest = 1.0f;
+			for (const FString& Line : Lines)
+			{
+				Widest = FMath::Max(Widest, P.MeasureFx(Line, Px, EShiftTrailerFont::Black, 90).X);
+			}
+			Px *= FMath::Min(1.0f, 1100.0f / Widest);
+			const float LineH = Px * 1.14f;
+			const float Top = (Tx.Y >= 0.0f ? Tx.Y : 360.0f) - LineH * static_cast<float>(Lines.Num()) * 0.5f;
+			if (!bOnCard && Tx.bBox)
+			{
+				// over the game: a dark box around the words, so the voters behind them never get in the way of reading
+				const float BlockH = LineH * static_cast<float>(Lines.Num());
+				const float BoxW = (FMath::Min(Widest, 1100.0f) + 110.0f) * Scale;
+				const float BoxH = (BlockH + 56.0f) * Scale;
+				const float BoxY = Top + BlockH * 0.5f - BoxH * 0.5f;
+				P.Rect(640.0f - BoxW * 0.5f - 1.5f, BoxY - 1.5f, BoxW + 3.0f, BoxH + 3.0f, WithAlpha(C.Teal, 0.55f * Alpha), 20.0f);
+				P.Rect(640.0f - BoxW * 0.5f, BoxY, BoxW, BoxH, WithAlpha(Ink, 0.88f * Alpha), 18.0f);
+			}
+			const float GhostAlpha = Alpha * (0.22f + 0.78f * FMath::Max(1.0f - Ease, Out));
+			for (int32 i = 0; i < Lines.Num(); ++i)
+			{
+				const float Y = Top + LineH * static_cast<float>(i);
+				P.TextFx(Lines[i], 640.0f - Split, Y + 4.0f * (1.0f - Ease), Px, WithAlpha(C.Teal, GhostAlpha), EShiftAlign::Center, EShiftTrailerFont::Black, 90, 0.0f, FLinearColor::Black, Scale);
+				P.TextFx(Lines[i], 640.0f + Split, Y - 4.0f * (1.0f - Ease), Px, WithAlpha(C.Red, GhostAlpha), EShiftAlign::Center, EShiftTrailerFont::Black, 90, 0.0f, FLinearColor::Black, Scale);
+				P.TextFx(Lines[i], 640.0f, Y, Px, WithAlpha(FLinearColor::White, Alpha), EShiftAlign::Center, EShiftTrailerFont::Black, 90, bOnCard ? 0.0f : (Tx.bBox ? 3.0f : 5.0f), WithAlpha(Ink, (Tx.bBox ? 0.6f : 0.9f) * Alpha), Scale);
+			}
+		}
+		else
+		{
+			// caption: caps in the lower left above the bottom bar, in a dark box with a teal bar, sliding in on the beat
+			const float In = FMath::Clamp(Age / 0.18f, 0.0f, 1.0f);
+			const float Ease = 1.0f - FMath::Pow(1.0f - In, 3.0f);
+			const float Out = FMath::Clamp((Age - (Life - 0.22f)) / 0.22f, 0.0f, 1.0f);
+			const float Alpha = Ease * (1.0f - Out);
+			if (Alpha <= 0.001f)
+			{
+				continue;
+			}
+			const float Px = 44.0f;
+			const float LineH = Px * 1.12f;
+			const float Slide = -36.0f * (1.0f - Ease);
+			const float Bottom = 650.0f;
+			const float Top = Bottom - LineH * static_cast<float>(Lines.Num());
+			float Widest = 1.0f;
+			for (const FString& Line : Lines)
+			{
+				Widest = FMath::Max(Widest, P.MeasureFx(Line, Px, EShiftTrailerFont::BoldCondensed, 70).X);
+			}
+			P.Rect(50.0f + Slide, Top - 16.0f, 36.0f + Widest + 28.0f, LineH * static_cast<float>(Lines.Num()) + 32.0f, WithAlpha(Ink, 0.88f * Alpha), 14.0f);
+			P.Rect(64.0f + Slide, Top + 4.0f, 6.0f, LineH * static_cast<float>(Lines.Num()) - 8.0f, WithAlpha(C.Teal, Alpha), 3.0f);
+			for (int32 i = 0; i < Lines.Num(); ++i)
+			{
+				const float Y = Top + LineH * static_cast<float>(i);
+				P.TextFx(Lines[i], 86.0f + Slide + 2.0f, Y + 3.0f, Px, WithAlpha(FLinearColor::Black, 0.45f * Alpha), EShiftAlign::Left, EShiftTrailerFont::BoldCondensed, 70, 0.0f, FLinearColor::Black);
+				P.TextFx(Lines[i], 86.0f + Slide, Y, Px, WithAlpha(FLinearColor::White, Alpha), EShiftAlign::Left, EShiftTrailerFont::BoldCondensed, 70, 2.0f, WithAlpha(Ink, 0.7f * Alpha));
+			}
+		}
+	}
+
+	if (T.White > 0.001f)
+	{
+		P.Rect(X0, Y0, W, H, WithAlpha(FLinearColor::White, T.White));
+	}
+}
+#endif
+
 void SShiftHud::PaintCursor(FShiftPainter& P, const FPal& C) const
 {
+#if !UE_BUILD_SHIPPING
+	if (Model.Trailer.bActive && Model.Trailer.bHideCursor)
+	{
+		return;   // a card covers the screen
+	}
+	const bool bTrailerRun = Model.Trailer.bActive;
+#else
+	const bool bTrailerRun = false;
+#endif
 	// Click rings first, so the pointer is above them.
 	for (const FRipple& R : Ripples)
 	{
@@ -1421,7 +1587,7 @@ void SShiftHud::PaintCursor(FShiftPainter& P, const FPal& C) const
 	}
 
 	const bool bPseudo = Model.bPseudoCursor;
-	if (!bPseudo && (Model.bSystemCursor || !bMouseInside))
+	if (!bPseudo && (bTrailerRun || Model.bSystemCursor || !bMouseInside))   // the scripted trailer run never draws the real mouse
 	{
 		return;
 	}
@@ -1512,6 +1678,20 @@ int32 SShiftHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeomet
 	const FVector2f Origin = (Size - FVector2f(DesignW, DesignH) * Scale) * 0.5f;
 	FShiftPainter P(OutDrawElements, AllottedGeometry, LayerId, Origin, Scale);
 
+	// the trailer's zoom-in: the HUD is scaled about the focus point exactly as the board camera is (the trailer's own overlay is not)
+	FVector2f ZoomedOrigin = Origin;
+	float ZoomedScale = Scale;
+#if !UE_BUILD_SHIPPING
+	if (Model.Trailer.bActive && Model.Trailer.Zoom > 1.0001f)
+	{
+		const FVector2f FocusLocal = Origin + Model.Trailer.ZoomFocus * Scale;
+		ZoomedOrigin = FocusLocal + (Origin - FocusLocal) * Model.Trailer.Zoom;
+		ZoomedScale = Scale * Model.Trailer.Zoom;
+		P.Origin = ZoomedOrigin;
+		P.Scale = ZoomedScale;
+	}
+#endif
+
 	FPal C;
 	C.N = Model.Night;
 	C.Ink = Mix(Hex(0x1B1930), Hex(0xEDEDFF), C.N);
@@ -1569,6 +1749,16 @@ int32 SShiftHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeomet
 	{
 		PaintSettings(P, C);
 	}
+#if !UE_BUILD_SHIPPING
+	if (Model.Trailer.bActive)
+	{
+		P.Origin = Origin;
+		P.Scale = Scale;
+		PaintTrailer(P, C);   // above the whole HUD, below the scripted cursor; never zoomed
+		P.Origin = ZoomedOrigin;
+		P.Scale = ZoomedScale;
+	}
+#endif
 	PaintCursor(P, C);
 
 	return P.Layer + 1;

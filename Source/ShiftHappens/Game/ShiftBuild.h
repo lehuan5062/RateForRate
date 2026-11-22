@@ -30,8 +30,10 @@ namespace ShiftSave
 {
 	int32 BestRank(int32 JamIndex);                 // 0 = never finished
 	void RecordResult(int32 JamIndex, int32 Rank);  // keeps the best (lowest) rank
-	bool IsMuted();
-	void SetMuted(bool bMuted);
+	bool IsEffectsOn();                             // sound effects (the settings menu's Effects row); an old Muted=True save reads as off
+	void SetEffectsOn(bool bOn);
+	bool IsMusicOn();                               // the music (the settings menu's Music row)
+	void SetMusicOn(bool bOn);
 	int32 TutorialSeenMask();                       // bit per tutorial card already shown
 	void SetTutorialSeenMask(int32 Mask);
 	int32 LessonsDone();                            // bit per guided lesson finished (bit 0 = the basics, bit 1 = night shift)

@@ -18,6 +18,15 @@ enum class EShiftAlign : uint8
 	Right,
 };
 
+#if !UE_BUILD_SHIPPING
+/** Faces of the trailer text (not in Shipping builds): the engine's own Roboto Black and Roboto Bold Condensed (Engine/Content/Slate/Fonts). */
+enum class EShiftTrailerFont : uint8
+{
+	Black,
+	BoldCondensed,
+};
+#endif
+
 /**
  * Immediate-mode painter for the HUD. Coordinates are in 1280 x 720 design units; Origin/Scale place the design rect inside the
  * widget, and the layout scale also scales brush radii and font rasterisation, so everything stays crisp at any window size.
@@ -49,6 +58,16 @@ struct FShiftPainter
 	void Polygon(const TArray<FVector2f>& Points, const FLinearColor& Color, float Thickness = 2.0f);
 	/** Filled simple polygon (convex or concave) in design units, drawn as thin horizontal rows: use opaque colors, outline it with Polygon. */
 	void FillPolygon(const TArray<FVector2f>& Points, const FLinearColor& Color);
+
+#if !UE_BUILD_SHIPPING
+	/**
+	 * Styled text for the scripted trailer: one of the trailer faces, tracking in 1/1000 em, an outline of Outline design units, and a scale around
+	 * the centre of the text box (a slam settles from 1.1 to 1.0). X and Y place the box as in Text(); Y is its top.
+	 */
+	void TextFx(const FString& Str, float X, float Y, float Px, const FLinearColor& Color, EShiftAlign Align, EShiftTrailerFont Font, int32 Tracking,
+		float Outline, const FLinearColor& OutlineColor, float TextScale = 1.0f);
+	FVector2f MeasureFx(const FString& Str, float Px, EShiftTrailerFont Font, int32 Tracking) const;
+#endif
 
 	FSlateWindowElementList& Out;
 	const FGeometry& Geo;

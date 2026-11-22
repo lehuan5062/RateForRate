@@ -73,8 +73,20 @@ public:
 
 	void Play(EShiftSfx Sfx, float Volume = 1.0f);
 
-	/** Silences music and effects in the game's own mix, whatever the engine's device volume does. */
-	void SetMuted(bool bMute);
+	/** The settings menu's two switches (whatever the engine's device volume does). Muted music keeps the generator running at zero: the Harmonix clock behind the beat pulse must not stop. */
+	void SetEffectsMuted(bool bMute);
+	void SetMusicMuted(bool bMute);
+	/** QA (-ShiftSfxOff=Name,Name): effects that never play, bit i = EShiftSfx i. */
+	void SetSfxOffMask(uint32 Mask);
+	/** QA (-ShiftTension=0..1): pins the tension layer whatever the game says; a negative value gives it back to the game. */
+	void SetTensionPin(float Value) { TensionPin = Value; }
+
+	/** Starts the music from bar 0 again (a new component and a new clock). The editor-only trailer run lines its script up with it. */
+	void RestartMusic();
+	/** Stops the music and its clock and leaves them stopped (RestartMusic starts them again): the trailer holds the music while the game warms up. */
+	void HoldMusic();
+	/** True once the Harmonix clock of the current music is running, i.e. bar 0 has begun. */
+	bool MusicClockRunning() const;
 
 	/** QA (-ShiftMixTap): logs the peak and RMS of the engine's final mix four times a second, "MixTap t=.. muted=.. peak=.. rms=..". Only this game's own output. */
 	void BeginMixTap();
@@ -94,6 +106,9 @@ public:
 private:
 	UFUNCTION()
 	void OnMusicBeat(int32 BeatNumber, int32 BeatInBar);
+
+	/** Spawns the music component and its clock (Init and RestartMusic). */
+	void StartMusic();
 
 	UPROPERTY()
 	TArray<TObjectPtr<USoundBase>> Sfx;
@@ -116,7 +131,10 @@ private:
 	float NightGain = 0.0f;
 	float TensionGain = 0.0f;
 	float MasterVolume = 0.0f;
-	bool bMuted = false;
+	bool bEffectsMuted = false;
+	bool bMusicMuted = false;
+	uint32 SfxOffMask = 0;
+	float TensionPin = -1.0f;
 	TSharedPtr<FShiftMixTap, ESPMode::ThreadSafe> MixTap;
 	double MixTapStart = 0.0;
 	double MixTapLastLog = 0.0;

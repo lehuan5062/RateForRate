@@ -32,7 +32,17 @@ Everything below is for **you** to do or paste; nothing here has been done on yo
 
 ## Screenshots
 
-`Docs/Screenshots/` holds headless captures of the main screens (1920 x 1080). Re-create them with `Tools\run.ps1 -Shot ...` (see `Docs/QA.md`). itch.io wants at least 3; a GIF of the SHIFT key flipping day to night would sell the idea (record it yourself from a windowed run: `Tools\run.ps1 -Visible -Sound`).
+`Docs/Screenshots/` holds headless captures of the main screens (1920 x 1080). Re-create them with `Tools\run.ps1 -Shot ...` (see `Docs/QA.md`). itch.io wants at least 3; the GIF of the SHIFT key flipping day to night is made (see Trailer and GIF below).
+
+## Trailer and GIF
+
+The trailer is a scripted run of the game itself (`Data/Trailer.csv`, played by a director that is in every build but the Shipping one; see `Docs/QA.md`), recorded with OBS, with the game's own MetaSound music as the soundtrack. The files are in `Saved/Trailer/Dist/` (git-ignored; copy them where you want them):
+
+* `trailer45.mp4`: the 45 s trailer (an epic-trailer parody: "Every game jam has a winner."), 1080p60, -14 LUFS.
+* `trailer45_poster.png`: a poster frame (the end card).
+* `shift_flip.gif`: the looping GIF of the SHIFT key flipping the title day to night (about 2 MB, for the itch page).
+
+itch.io's trailer field takes a **YouTube or Vimeo link**, not a file: upload `trailer45.mp4` there as unlisted or public and paste the link; put the GIF and the poster in the page's screenshots. The GitHub Game Off page can take the same link.
 
 ## What is left for you
 
@@ -41,9 +51,9 @@ Everything below is for **you** to do or paste; nothing here has been done on yo
 3. **Package** a Windows build yourself. The standard command (I only compiled the Shipping target and ran a headless cook as a pre-flight; I did not package):
 
    ```powershell
-   & "C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\RunUAT.bat" BuildCookRun -project="D:\GameOff111609\ShiftHappens.uproject" -noP4 -platform=Win64 -clientconfig=Shipping -cook -build -stage -pak -archive -archivedirectory="D:\GameOff111609\Dist" -prereqs -utf8output
+   & "C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\RunUAT.bat" BuildCookRun -project="D:\GameOff111609\ShiftHappens.uproject" -noP4 -platform=Win64 -clientconfig=Shipping -cook -build -stage -pak -archive -archivedirectory="D:\GameOff111609\Saved\Package" -prereqs -utf8output
    ```
-   (`Dist/` is git-ignored.) Zip the staged `Windows` folder and upload it as the Windows download. The packaged game needs the DX12 runtime that ships with Windows 10/11.
+   (`Saved/` is git-ignored.) Zip the staged `Windows` folder and upload it as the Windows download. The packaged game needs the DX12 runtime that ships with Windows 10/11.
 4. **itch.io**: create the project, upload the zip, add the page copy and screenshots above, then **submit it to the jam** (pushing code is not submitting) before **Dec 1 2026, 13:37 PST (21:37 UTC)**.
 5. **Listen to it**: the audio was verified with in-graph meters only (levels, spectra, clock, every lane firing), not by ear. All of it is MetaSound and Harmonix, so it is tweakable in the MetaSound editor, and the levels can be re-trimmed with `Tools\calibrate_audio.ps1`.
 

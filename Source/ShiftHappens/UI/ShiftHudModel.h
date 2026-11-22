@@ -52,8 +52,10 @@ namespace EShiftUi
 		WindowFullscreen = 60,    // settings menu: window mode buttons; the id minus 60 is the EWindowMode value (0 fullscreen, 1 borderless, 2 windowed)
 		WindowBorderless = 61,
 		WindowWindowed = 62,
-		SoundOn = 63,             // settings menu: sound on / off (the M key and id 50 toggle)
-		SoundOff = 64,
+		EffectsOn = 63,           // settings menu: sound effects on / off
+		EffectsOff = 64,
+		MusicOn = 65,             // settings menu: music on / off (the M key and id 50 mute or restore both)
+		MusicOff = 66,
 	};
 }
 
@@ -258,6 +260,35 @@ struct FShiftHudFit
 	}
 };
 
+#if !UE_BUILD_SHIPPING
+/** One piece of trailer text on screen (the scripted trailer run (not in Shipping builds), Trailer/ShiftTrailer.h). */
+struct FShiftTrailerText
+{
+	FString Text;                 // lines separated by '|'
+	bool bSlam = true;            // true: a full-screen statement (huge tracked caps, teal and red ghost copies that snap together on the beat); false: a lower-left caption
+	float Age = 0.0f;             // seconds since it appeared
+	float Life = 2.0f;            // seconds it stays on screen, fade-out included
+	float Y = -1.0f;              // slam: design y of the middle of the text (negative: the middle of the screen)
+	float Px = 0.0f;              // slam: text size in design pixels (0: the big default)
+	bool bBox = true;             // slam over the game: a dark box behind the words (off for a few words that must not hide what is behind them)
+};
+
+/** What the scripted trailer run asks the HUD to draw on top of the game: cover, flash, spotlight, text. */
+struct FShiftHudTrailer
+{
+	bool bActive = false;
+	float Black = 0.0f;           // full-screen black, 0..1
+	float White = 0.0f;           // full-screen white flash, 0..1
+	float SpotAlpha = 0.0f;       // 0..1: the rest of the screen is dimmed around SpotRect
+	FVector4f SpotRect = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);   // x, y, width, height in design pixels
+	bool bSpotMods = false;       // the spotlight is on the top bar's MODS countdown: the HUD fits SpotRect to it (its text changes width)
+	bool bHideCursor = false;     // the scripted cursor is hidden (a card covers the screen)
+	float Zoom = 1.0f;            // the zoom-in of the run (the board camera zooms the same way): everything but the trailer's own overlay is scaled by this about ZoomFocus
+	FVector2f ZoomFocus = FVector2f(640.0f, 360.0f);   // design pixels; this point stays where it is
+	TArray<FShiftTrailerText> Texts;
+};
+#endif
+
 /** Everything the HUD draws, rebuilt by the controller each frame. */
 struct FShiftHudModel
 {
@@ -266,9 +297,10 @@ struct FShiftHudModel
 	bool bSystemCursor = false;        // -ShiftSystemCursor: keep the operating system's arrow instead of the game's own cursor
 	bool bPseudoCursor = false;        // -ShiftPseudoCursor: a scripted cursor (trailer footage) is drawn at PseudoCursor even with no mouse over the window
 	FVector2f PseudoCursor = FVector2f::ZeroVector;   // design units
-	bool bMuted = false;
-	int32 WindowMode = 2;              // EWindowMode as an int: 0 fullscreen, 1 borderless (windowed fullscreen), 2 windowed
-	bool bSettingsOpen = false;        // the settings menu (sound, window mode) dropped from the gear button
+	bool bEffectsOn = true;            // the sound effects switch of the settings menu
+	bool bMusicOn = true;              // the music switch
+	int32 WindowMode = 2;             // EWindowMode as an int: 0 fullscreen, 1 borderless (windowed fullscreen), 2 windowed
+	bool bSettingsOpen = false;        // the settings menu (effects, music, window mode) dropped from the gear button
 	TArray<FShiftHudJamCard> JamCards;
 	int32 SelectedJam = 0;
 	FShiftHudBuild Build;
@@ -357,4 +389,8 @@ struct FShiftHudModel
 	TArray<FShiftHudDot> FameDots;         // x = vote share at the start (fame), y = final vote share
 	FShiftHudFit QualityFit;
 	FShiftHudFit FameFit;
+
+#if !UE_BUILD_SHIPPING
+	FShiftHudTrailer Trailer;              // the scripted trailer run (not in Shipping builds)
+#endif
 };

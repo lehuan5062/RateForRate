@@ -56,23 +56,58 @@ void ShiftSave::RecordResult(int32 JamIndex, int32 Rank)
 	}
 }
 
-bool ShiftSave::IsMuted()
+namespace
 {
-	bool bValue = false;
-	if (GConfig)
+	/** A sound switch: its own key, else the old single Muted key (muted = off), else on. */
+	bool ReadSoundSwitch(const TCHAR* Key)
 	{
-		GConfig->GetBool(SaveSection, TEXT("Muted"), bValue, GGameUserSettingsIni);
+		bool bValue = true;
+		if (GConfig)
+		{
+			if (!GConfig->GetBool(SaveSection, Key, bValue, GGameUserSettingsIni))
+			{
+				bool bMuted = false;
+				if (GConfig->GetBool(SaveSection, TEXT("Muted"), bMuted, GGameUserSettingsIni))
+				{
+					bValue = !bMuted;
+				}
+				else
+				{
+					bValue = true;
+				}
+			}
+		}
+		return bValue;
 	}
-	return bValue;
+
+	void WriteSoundSwitch(const TCHAR* Key, bool bOn)
+	{
+		if (GConfig)
+		{
+			GConfig->SetBool(SaveSection, Key, bOn, GGameUserSettingsIni);
+			GConfig->Flush(false, GGameUserSettingsIni);
+		}
+	}
 }
 
-void ShiftSave::SetMuted(bool bMuted)
+bool ShiftSave::IsEffectsOn()
 {
-	if (GConfig)
-	{
-		GConfig->SetBool(SaveSection, TEXT("Muted"), bMuted, GGameUserSettingsIni);
-		GConfig->Flush(false, GGameUserSettingsIni);
-	}
+	return ReadSoundSwitch(TEXT("EffectsOn"));
+}
+
+void ShiftSave::SetEffectsOn(bool bOn)
+{
+	WriteSoundSwitch(TEXT("EffectsOn"), bOn);
+}
+
+bool ShiftSave::IsMusicOn()
+{
+	return ReadSoundSwitch(TEXT("MusicOn"));
+}
+
+void ShiftSave::SetMusicOn(bool bOn)
+{
+	WriteSoundSwitch(TEXT("MusicOn"), bOn);
 }
 
 int32 ShiftSave::TutorialSeenMask()

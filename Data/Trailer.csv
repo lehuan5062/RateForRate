@@ -1,0 +1,63 @@
+Id,Bar,Cmd,Args
+# The scripted trailer run (Source/ShiftHappens/Trailer/ShiftTrailer.h). Read at start, so edit and rerun without a rebuild.
+# Bar = position in bars of the music (112.5 BPM, 1 bar = 2.1333 s, 0.25 = one beat). The music loop restarts at bar 0, 8, 16 (the drops).
+# Commands: black, flash, title, run, warp, bot, speed, night, tension, click, hover, spot, zoom, slam, caption, end. Plain ASCII, no commas in the text.
+# The music's tension layer (hats, rims, the riser) is pinned off for the whole trailer: it only made it uneasy to listen to
+T000,0,tension,0
+# Cold open: a black card on the music's first beat
+T001,0,black,1 0
+T002,0.05,slam,3.0 EVERY GAME JAM|HAS A WINNER.
+# Day 1: nine games, yours, theirs (the run starts under the card)
+T010,1.2,run,2 7 - 0
+T011,1.5,black,0 0.3
+T070,1.5,zoom,0.7 2.6 0.6 1.6 1272 100
+T071,3.5,zoom,0.7 2.2 0.5 1.8 568 437
+T012,1.5,spot,1084 46 188 172 2.0
+T013,1.55,caption,2.2 NINE GAMES ENTER.
+T014,2.5,spot,1086 191 186 22 1.9
+T015,2.55,caption,2.0 YOURS IS FINE.
+T017,3.5,spot,488 357 160 160 3.2
+T018,3.55,caption,3.2 THEIRS HAS 1.2 MILLION FOLLOWERS.
+# Thirty-one days go by
+T020,5.0,spot,500 6 280 34 2.2
+T021,5.05,caption,2.2 YOU HAVE 31 DAYS.
+# the player works the board at a human pace: the cursor glides to a voter, rests on it for its hover card, then plugs it (about 1.5 s apart)
+T023,5.0,speed,3
+T090,5.6,click,487 664
+T091,6.3,click,868 372
+T092,7,click,568 600
+T093,7.7,click,742 233
+T094,8.4,click,899 538
+T095,9.1,click,820 547
+T025,9.6,flash,0.2
+# Bar 10: the real SHIFT flip on the title screen
+T026,9.65,title,
+T029,9.65,slam,2.5 y=287 px=54 box=0 OR HOLD
+T027,10,night,1
+# Night: sockpuppets on the celebrity
+T031,10.85,flash,0.15
+T032,10.9,run,2 7 - 0
+T033,10.9,night,1 now
+T034,11.3,click,568 437 n
+T035,11.72,click,568 437 n
+T036,12.14,click,568 437 n
+T037,12.56,click,568 437 n
+T038,11.4,caption,3.2 SOCKPUPPETS. BOTS. BRIBES.
+T072,11.2,zoom,0.5 2.4 0.6 1.6 568 437
+# The Mod Eye and the strikes: a sock bot on a run that is already 26 s in, at double speed, is disqualified near bar 18
+T041,13.9,flash,0.15
+T042,14,run,2 7 sock 34.5 2
+T043,14,spot,mods 2.0
+T044,14.05,caption,2.2 THE MOD EYE IS WATCHING.
+T073,14,zoom,0.6 1.8 0.5 2.0 945 0
+T045,16.1,slam,1.9 y=250 px=70 box=1 THREE STRIKES.
+# Or play it straight: the real final push, final audit and win
+T050,16.9,flash,0.2
+T051,17,night,0 now
+T052,17,run,2 7 rally 231.77 2
+T053,17.1,caption,3.6 OR PLAY IT STRAIGHT.
+T054,20.9,slam,1.9 y=250 px=70 box=1 FINAL AUDIT.
+# End card
+T060,22,black,1 0.4
+T061,22.2,slam,2.4 SHIFT HAPPENS|HOLD SHIFT.
+T063,23.2,end,

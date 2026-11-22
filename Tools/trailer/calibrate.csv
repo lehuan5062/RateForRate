@@ -1,0 +1,9 @@
+Id,Bar,Cmd,Args
+# Calibration cues for Tools\trailer\shoot.ps1: a white flash on each of the first four bar lines of the music, on black. The run is recorded and
+# Tools\trailer\measure.py compares the flashes with the beats of the sound in the recording, which gives -ShiftTrailerLatency. Not part of the trailer.
+C001,0,black,1 0
+C002,0,flash,0.12
+C003,1,flash,0.12
+C004,2,flash,0.12
+C005,3,flash,0.12
+C006,4.5,end,

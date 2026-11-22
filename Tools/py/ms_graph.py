@@ -140,6 +140,7 @@ class Graph:
         self.on_play = None
         self.on_finished = None
         self.audio_outs = []
+        self.node_count = 0   # nodes added (graph inputs and outputs are not counted); logged when the asset is saved
         if kind == "source":
             fmt = unreal.MetaSoundOutputAudioFormat.STEREO if stereo else unreal.MetaSoundOutputAudioFormat.MONO
             res = sub().create_source_builder(name, fmt, one_shot)
@@ -167,12 +168,14 @@ class Graph:
         handle, result = self.b.add_node_by_class_name(class_name(ns, name, variant), default_major if major is None else major)
         if not ok(result):
             raise RuntimeError("add_node failed: {} :: {} :: {} (@{})".format(ns, name, variant, default_major))
+        self.node_count += 1
         return Node(self, handle, "{}::{}::{}".format(ns, name, variant))
 
     def patch_node(self, patch_asset):
         handle, result = self.b.add_node(patch_asset)
         if not ok(result):
             raise RuntimeError("add_node(patch {}) failed".format(patch_asset.get_name()))
+        self.node_count += 1
         return Node(self, handle, "patch:" + patch_asset.get_name())
 
     def pin_in(self, node, pin):
@@ -414,25 +417,5 @@ class Graph:
         if not ok(result) or asset is None:
             raise RuntimeError("build_to_asset failed for {}".format(asset_name))
         EAL.save_loaded_asset(asset)
+        log("{}: {} nodes".format(asset_name, self.node_count))
         return asset
-
-
-def add_meters(g, left, right, prefix=""):
-    """Graph outputs the C++ QA reads with UMetaSoundOutputSubsystem::WatchOutput: Peak, Rms and three band levels (Float, 0..1+).
-
-    Taps the stereo signal BEFORE the master volume so a muted QA run still measures the real level.
-    """
-    mono = g.mul(g.add(left, right), 0.5)
-    bands = g.svf(mono, 250.0, 0.5)
-    hi = g.svf(mono, 2500.0, 0.5)
-    mid = g.svf(mono, 900.0, 0.35)
-    taps = {
-        "Peak": g.follower(mono, "peak", 0.001, 0.25),
-        "Rms": g.follower(mono, "rms", 0.02, 0.1),
-        "Low": g.follower(bands["lp"], "rms", 0.02, 0.1),
-        "Mid": g.follower(mid["bp"], "rms", 0.02, 0.1),
-        "High": g.follower(hi["hp"], "rms", 0.02, 0.1),
-    }
-    for name, sig in taps.items():
-        g.output(prefix + name, "Float", sig)
-    return taps

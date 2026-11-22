@@ -21,6 +21,7 @@
 #include "Math/Color.h"
 #include "Math/MathFwd.h"
 #include "Math/RandomStream.h"
+#include "Misc/Build.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UniquePtr.h"
 #include "UI/ShiftHudModel.h"
@@ -28,6 +29,10 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/ObjectPtr.h"
 #include "ShiftPlayerController.generated.h"
+
+#if !UE_BUILD_SHIPPING
+#include "Trailer/ShiftTrailer.h"   // the controller owns the trailer run (a unique pointer: its type must be complete here)
+#endif
 
 /**
  * Owns the screen flow (title, jam select, build, play), the jam run, the board and the HUD; turns clicks into Plug / Sockpuppet
@@ -42,9 +47,13 @@
  *   -ShiftMouse="T,X,Y,m|d|u;..."        scripted mouse move / left down / left up through the real widget (design pixels)
  *   -ShiftTutorial / -ShiftNoTutorial    force or skip the coach cards
  *   -ShiftMasterVolume=0..1              scales all sound (QA runs use a small value); -ShiftNoAudio skips audio entirely
+ *   -ShiftNoSfx / -ShiftNoMusic          play the music only / the effects only (never saved); -ShiftSfxOff=Name,Name silences those effects; -ShiftTension=0..1 pins the music's tension layer
  *   -ShiftAudioMeter=all|sfx|music|spike|<names>  audio QA: plays MetaSound sources inaudibly (needs -Sound) and logs their in-graph meters; no recording
+ *   -ShiftAudioCpu                       with -ShiftAudioMeter: logs the render cost of each sound as a share of one core instead of its levels
  *   -ShiftAudioMeterDrop=<starts>        audio QA hook: ignore the meter data of those Play() starts (forces the retry paths); -ShiftAudioMeterStall=<ms>@<starts> stalls the game thread
  *   -ShiftShot=<absolute png>            screenshot (with UI) after -ShiftShotDelay seconds (default 4); -ShiftQuit exits afterwards
+ *   -ShiftShotTimes=t1,t2,...            with -ShiftShot: one screenshot per time (seconds) in a single run, named <path>_<time in hundredths>.png
+ *   -ShiftTrailer[=<csv>]                editor builds only: plays the scripted trailer run (Data/Trailer.csv, Trailer/ShiftTrailer.h); -ShiftTrailerLatency=<s> shifts the picture against the sound
  */
 UCLASS()
 class SHIFTHAPPENS_API AShiftPlayerController : public APlayerController
@@ -58,7 +67,16 @@ public:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void PlayerTick(float DeltaTime) override;
 
+#if !UE_BUILD_SHIPPING
+	/** Plays the scripted trailer run (Trailer/ShiftTrailer.h): from -ShiftTrailer, or the console command Shift.Trailer. */
+	void StartTrailer();
+#endif
+
 private:
+#if !UE_BUILD_SHIPPING
+	friend class FShiftTrailer;   // the director drives the run, the night, the cursor and the clicks directly
+#endif
+
 	// ---- flow
 	void StartRun(int32 InJamIndex, uint32 InSeed, bool bInAttract);
 	void StartAttract();
@@ -73,9 +91,12 @@ private:
 	void SetBuildHours(int32 Slider, float Value01);
 	uint32 NewSeed() const;
 	void SetPaused(bool bInPaused);
+	/** M and the Mute button: both switches off, or back on when both are already off. */
 	void ToggleMute();
-	void SetMuted(bool bMute);
-	void ApplyMute() const;
+	void SetEffectsOn(bool bOn);
+	void SetMusicOn(bool bOn);
+	/** Pushes the two switches (and the QA overrides -ShiftNoSfx / -ShiftNoMusic) into the audio. */
+	void ApplySoundSettings() const;
 	/** The window mode buttons: 0 fullscreen, 1 borderless (windowed fullscreen), 2 windowed (the EWindowMode values). Applied through the game user settings and saved with them. */
 	void SetWindowMode(int32 Mode);
 	int32 CurrentWindowMode() const;
@@ -171,8 +192,11 @@ private:
 	int32 JamIndex = 2;
 	uint32 Seed = 7;
 	bool bFixedSeed = false;
-	bool bMuted = false;
-	int32 EdgeMode = 0;             // relation lines: 0 faint, 1 off, 2 full (key E, remembered)
+	bool bEffectsOn = true;         // the settings menu's Effects switch (remembered)
+	bool bMusicOn = true;           // ... and its Music switch (remembered)
+	bool bForceNoSfx = false;       // QA / capture: -ShiftNoSfx, never saved
+	bool bForceNoMusic = false;     // QA / capture: -ShiftNoMusic, never saved
+	int32 EdgeMode = 0;            // relation lines: 0 faint, 1 off, 2 full (key E, remembered)
 	int32 LeaderboardMode = 0;      // 0 compact, 1 full, 2 hidden (key L, remembered)
 
 	float NightBlend = 0.0f;
@@ -320,7 +344,20 @@ private:
 	TArray<FScriptedMouse> ScriptedMouse;
 	float ScriptClock = 0.0f;
 
+#if !UE_BUILD_SHIPPING
+	// the scripted trailer run (not in Shipping builds)
+	TUniquePtr<FShiftTrailer> Trailer;
+	bool bRunOverride = false;       // StartRun takes the bot, speed and warp below instead of the command line
+	FString RunOverrideBot;
+	float RunOverrideSpeed = 1.0f;
+	float RunOverrideWarp = 0.0f;
+	void TrailerBeginRun(int32 Jam, uint32 InSeed, const FString& Bot, float Speed, float Warp);
+	void TrailerWarp(float SimSeconds);
+	void TrailerQuit();
+#endif
+
 	FTimerHandle ShotTimer;
+	TArray<FTimerHandle> MultiShotTimers;   // -ShiftShotTimes
 	FTimerHandle QuitTimer;
 	FString ShotPath;
 	bool bQuitAfterShot = false;

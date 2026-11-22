@@ -83,28 +83,71 @@ void UShiftAudio::Init(UWorld* InWorld)
 	}
 
 	MusicSound = LoadSound(this, TEXT("MS_Music"));
-	if (MusicSound && InWorld)
-	{
-		// bPersistAcrossLevelTransition, bAutoDestroy = false: one component for the whole session.
-		Music = UGameplayStatics::SpawnSound2D(InWorld, MusicSound, 1.0f, 1.0f, 0.0f, nullptr, true, false);
-		if (Music)
-		{
-			Music->bIsUISound = true;
-			Music->SetFloatParameter(TEXT("DayGain"), DayGain);
-			Music->SetFloatParameter(TEXT("NightGain"), NightGain);
-			Music->SetFloatParameter(TEXT("TensionGain"), TensionGain);
-			Music->SetFloatParameter(TEXT("Volume"), MasterVolume);
-			MusicStart = FPlatformTime::Seconds();
-			// The Harmonix Metronome inside MS_Music exposes its MIDI clock as a graph output; the clock component tracks it for the beat pulse.
-			MusicClock = UMusicClockComponent::CreateMetasoundDrivenMusicClock(InWorld, Music, TEXT("MIDI Clock"), true, true);
-			if (MusicClock)
-			{
-				MusicClock->BeatEvent.AddDynamic(this, &UShiftAudio::OnMusicBeat);
-			}
-		}
-	}
+	StartMusic();
 	UE_LOG(LogShift, Log, TEXT("Audio: %d of %d sfx loaded, music %s, Harmonix clock %s"), LoadedSfx, static_cast<int32>(EShiftSfx::Count),
 		Music ? TEXT("playing") : TEXT("unavailable"), MusicClock ? TEXT("bound") : TEXT("not bound"));
+}
+
+void UShiftAudio::StartMusic()
+{
+	UWorld* InWorld = World.Get();
+	if (!MusicSound || !InWorld)
+	{
+		return;
+	}
+	// bPersistAcrossLevelTransition, bAutoDestroy = false: one component for the whole session.
+	Music = UGameplayStatics::SpawnSound2D(InWorld, MusicSound, 1.0f, 1.0f, 0.0f, nullptr, true, false);
+	if (Music)
+	{
+		Music->bIsUISound = true;
+		Music->SetFloatParameter(TEXT("DayGain"), DayGain);
+		Music->SetFloatParameter(TEXT("NightGain"), NightGain);
+		Music->SetFloatParameter(TEXT("TensionGain"), TensionGain);
+		Music->SetFloatParameter(TEXT("Volume"), MasterVolume);
+		MusicStart = FPlatformTime::Seconds();
+		// The Harmonix Metronome inside MS_Music exposes its MIDI clock as a graph output; the clock component tracks it for the beat pulse.
+		MusicClock = UMusicClockComponent::CreateMetasoundDrivenMusicClock(InWorld, Music, TEXT("MIDI Clock"), true, true);
+		if (MusicClock)
+		{
+			MusicClock->BeatEvent.AddDynamic(this, &UShiftAudio::OnMusicBeat);
+		}
+	}
+}
+
+void UShiftAudio::HoldMusic()
+{
+	if (MusicClock)
+	{
+		MusicClock->BeatEvent.RemoveAll(this);
+		MusicClock->Stop();
+		MusicClock->DestroyComponent();
+		MusicClock = nullptr;
+	}
+	if (Music)
+	{
+		Music->Stop();
+		Music->DestroyComponent();
+		Music = nullptr;
+	}
+	UE_LOG(LogShift, Log, TEXT("Audio: music held"));
+}
+
+void UShiftAudio::RestartMusic()
+{
+	HoldMusic();
+	// bar 0 again: day layer only, no tension, full volume at once (a fade-in would swallow the first hit)
+	BeatEvents = 0;
+	DayGain = 1.0f;
+	NightGain = 0.0f;
+	TensionGain = 0.0f;
+	MasterVolume = bMusicMuted ? 0.0f : 1.0f;
+	StartMusic();
+	UE_LOG(LogShift, Log, TEXT("Audio: music restarted (%s, Harmonix clock %s)"), Music ? TEXT("playing") : TEXT("unavailable"), MusicClock ? TEXT("bound") : TEXT("not bound"));
+}
+
+bool UShiftAudio::MusicClockRunning() const
+{
+	return MusicClock && MusicClock->GetState() == EMusicClockState::Running;
 }
 
 void UShiftAudio::OnMusicBeat(int32 BeatNumber, int32 BeatInBar)
@@ -166,7 +209,7 @@ void UShiftAudio::Tick(float DeltaTime, float Night, float Intensity, float Volu
 			MixTap->Take(TapPeak, TapRms, TapBuffers);
 			FAudioDevice* TapDevice = GEngine ? GEngine->GetMainAudioDeviceRaw() : nullptr;
 			UE_LOG(LogShift, Log, TEXT("MixTap t=%.2f muted=%d musicVolume=%.3f playing=%d devicePrimary=%.3f appVolume=%.3f peak=%.6f rms=%.6f buffers=%d"), Now - MixTapStart,
-				bMuted ? 1 : 0, MasterVolume, IsMusicPlaying() ? 1 : 0, TapDevice ? TapDevice->GetPrimaryVolume() : -1.0f, FApp::GetVolumeMultiplier(), TapPeak, TapRms, TapBuffers);
+				(bEffectsMuted && bMusicMuted) ? 1 : 0, MasterVolume, IsMusicPlaying() ? 1 : 0, TapDevice ? TapDevice->GetPrimaryVolume() : -1.0f, FApp::GetVolumeMultiplier(), TapPeak, TapRms, TapBuffers);
 			MixTapLastLog = Now;
 		}
 	}
@@ -178,19 +221,20 @@ void UShiftAudio::Tick(float DeltaTime, float Night, float Intensity, float Volu
 	const float TargetNight = FMath::Clamp(Night, 0.0f, 1.0f);
 	DayGain = FMath::FInterpTo(DayGain, TargetDay, DeltaTime, 6.0f);
 	NightGain = FMath::FInterpTo(NightGain, TargetNight, DeltaTime, 6.0f);
-	TensionGain = FMath::FInterpTo(TensionGain, FMath::Clamp(Intensity, 0.0f, 1.0f) * 1.4f, DeltaTime, 2.5f);
+	const float UsedIntensity = TensionPin >= 0.0f ? TensionPin : Intensity;
+	TensionGain = FMath::FInterpTo(TensionGain, FMath::Clamp(UsedIntensity, 0.0f, 1.0f) * 1.4f, DeltaTime, 2.5f);
 	// Muted keeps the generator running at zero: the Harmonix clock behind the beat pulse must not stop.
-	MasterVolume = bMuted ? 0.0f : FMath::FInterpTo(MasterVolume, FMath::Clamp(Volume, 0.0f, 1.5f), DeltaTime, 2.5f);
+	MasterVolume = bMusicMuted ? 0.0f : FMath::FInterpTo(MasterVolume, FMath::Clamp(Volume, 0.0f, 1.5f), DeltaTime, 2.5f);
 	Music->SetFloatParameter(TEXT("DayGain"), DayGain);
 	Music->SetFloatParameter(TEXT("NightGain"), NightGain);
 	Music->SetFloatParameter(TEXT("TensionGain"), TensionGain);
 	Music->SetFloatParameter(TEXT("Volume"), MasterVolume);
 }
 
-void UShiftAudio::SetMuted(bool bMute)
+void UShiftAudio::SetMusicMuted(bool bMute)
 {
-	bMuted = bMute;
-	if (bMuted)
+	bMusicMuted = bMute;
+	if (bMusicMuted)
 	{
 		MasterVolume = 0.0f;
 		if (Music)
@@ -198,16 +242,35 @@ void UShiftAudio::SetMuted(bool bMute)
 			Music->SetFloatParameter(TEXT("Volume"), 0.0f);
 		}
 	}
-	UE_LOG(LogShift, Log, TEXT("Audio: muted=%d, music Volume=%.3f"), bMuted ? 1 : 0, MasterVolume);
+	UE_LOG(LogShift, Log, TEXT("Audio: music muted=%d, music Volume=%.3f"), bMusicMuted ? 1 : 0, MasterVolume);
+}
+
+void UShiftAudio::SetEffectsMuted(bool bMute)
+{
+	bEffectsMuted = bMute;
+	UE_LOG(LogShift, Log, TEXT("Audio: effects muted=%d"), bEffectsMuted ? 1 : 0);
+}
+
+void UShiftAudio::SetSfxOffMask(uint32 Mask)
+{
+	SfxOffMask = Mask;
+	if (Mask != 0)
+	{
+		UE_LOG(LogShift, Log, TEXT("Audio: effects switched off by name, mask 0x%08x"), Mask);
+	}
 }
 
 void UShiftAudio::Play(EShiftSfx Which, float Volume)
 {
-	if (bMuted)
+	if (bEffectsMuted)
 	{
 		return;
 	}
 	const int32 Index = static_cast<int32>(Which);
+	if (Index >= 0 && Index < 32 && (SfxOffMask & (1u << Index)) != 0)
+	{
+		return;
+	}
 	UWorld* W = World.Get();
 	if (!W || !Sfx.IsValidIndex(Index) || !Sfx[Index])
 	{

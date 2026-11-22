@@ -135,6 +135,10 @@ private:
 	void PaintKeycap(FShiftPainter& P, const FPal& C, float Cx, float Cy, bool bPressed) const;
 	/** The game's own cursor and the click rings, painted last so they sit above everything, the hover card included. */
 	void PaintCursor(FShiftPainter& P, const FPal& C) const;
+#if !UE_BUILD_SHIPPING
+	/** The scripted trailer run (not in Shipping builds): spotlight, cover and flash, "SHIFT split" slams and lower-left captions (Trailer/ShiftTrailer.h). */
+	void PaintTrailer(FShiftPainter& P, const FPal& C) const;
+#endif
 
 	struct FRipple
 	{

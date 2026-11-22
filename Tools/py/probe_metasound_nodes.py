@@ -68,6 +68,8 @@ KEYS = [
     ("HarmonixNodes", "MidiClockTimestampTrigger", ""), ("HarmonixNodes", "MidiClockState", ""), ("HarmonixNodes", "MIDIPlayer", ""),
     ("HarmonixNodes", "StepSequencePlayer", ""), ("HarmonixNodes", "MidiNoteTrigger", ""), ("HarmonixNodes", "MidiClockSongPos", ""),
     ("HarmonixNodes", "MidiClockToSeconds", ""), ("HarmonixNodes", "BarBeatTrigger", ""),
+    # this project's own composite nodes (Source/ShiftHappens/Audio/Nodes/): whole sounds built from the nodes above, and the QA taps inside them
+    ("Shift", "Music", ""), ("Shift", "Sfx", ""), ("Shift", "Meter", ""), ("Shift", "Hit Tap", ""), ("Shift", "Level Tap", ""), ("Shift", "Step Tap", ""),
 ]
 
 MAJORS = (1, 0, 2, 3)
