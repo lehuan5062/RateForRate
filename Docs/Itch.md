@@ -38,7 +38,7 @@ GIF wherever the slot may take one; the PNG beside each is the fallback if the u
 
 | itch.io slot | file | notes |
 |---|---|---|
-| Cover image | `01_cover_630x500.gif` (+ `.png`) | 315:250, the recommended 630x500; a slow day/night wipe, the keycap of the logo presses on the night side |
+| Cover image | `01_cover_630x500.gif` (+ `.png`) | 315:250, the recommended 630x500; a slow day/night wipe, the keycap of the logo presses on the night side; the name is on two lines (keycap and SHIFT, then HAPPENS) to fill the near-square frame |
 | Screenshot 1 | `02_screenshot_shift_flip.gif` | title screen, SHIFT held: day flips to night and back |
 | Screenshot 2 | `03_screenshot_plug.gif` | hover card, click, the voter flips, the leaderboard moves |
 | Screenshot 3 | `04_screenshot_night_shift.gif` | hold SHIFT: four sockpuppets on a celebrity, Heat rises |
@@ -50,6 +50,7 @@ GIF wherever the slot may take one; the PNG beside each is the fallback if the u
 | Promotional: Logo | `10_logo_1600x220.png` | transparent PNG, horizontal; teal and white letters with a navy outline so it reads on white and on black |
 | Theme editor: Banner | `12_banner_1200x300.gif` (+ `.png`) | replaces the title above the description, so it carries the logo |
 | Theme editor: Background | `13_background_2160x2160.gif` (+ `.png`) | a **square** tile: the follower network on the night board's dot grid: voters with the game's faces, votes running along the edges, a ring when one lands. Flat colours, solid 2 px lines, drawn at 3x and filtered down. A 6 s loop at 10 fps that loops without a jump and tiles without a seam on both axes (the theme editor repeats the image, as the design docs show). The PNG is frame 1 and the fallback; the uploader refuses anything over 3840 x 2160, so 2160 is the largest square; the build drops to 1440 px only if the size cap forces it |
+| Devlog post: Cover image | `14_devlog_cover_1280x720.gif` | 16:9, minimum width 500 px per the devlog editor; the trailer thumbnail (logo and caption) with the slow day/night wipe. Its fallback is `11_trailer_thumbnail_1280x720.png`, which equals frame 1 |
 | Trailer | `Saved/Trailer/Dist/trailer45.mp4` | the slot takes a **YouTube or Vimeo link**, not a file: upload the MP4 there (public or unlisted, and check it logged out) and paste the link; `11_trailer_thumbnail_1280x720.png` is a thumbnail for it (the same logo and tagline plate as the social image) |
 
 Theme editor colours that match (type them in): BG `#0A0D1C`, BG2 `#0E1226` (BG2 alpha about 85%), Text `#EDEDFF`, Link `#1FB6A6`, Buttons `#1FB6A6`, Headers `#F2B134`. Use "Header 2" for the description's section titles.

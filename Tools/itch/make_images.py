@@ -137,6 +137,42 @@ def logo(width=1600, pad=44, pressed=False, tracking=0.018):
     return img.resize((width, height), Image.LANCZOS)
 
 
+def logo_stacked(width=1600, pad=44, pressed=False, tracking=0.018):
+    """The wordmark on two lines for the near-square page cover: the keycap and `SHIFT` on line 1, `HAPPENS` on line 2, both centred, same letters and outline as
+    the horizontal logo."""
+    gap_mark = 0.28
+    stroke_frac = 0.075
+    size = 400
+    while True:
+        f = font('Roboto-Black.ttf', size * SS)
+        wa = sum(f.getlength(c) for c in 'SHIFT') / SS + tracking * size * 5
+        wb = sum(f.getlength(c) for c in 'HAPPENS') / SS + tracking * size * 7
+        w1 = size * 1.05 + gap_mark * size + wa
+        if max(w1, wb) + 2 * stroke_frac * size <= width - 2 * pad:
+            break
+        size -= 4
+    stroke = max(2, int(stroke_frac * size * SS))
+    cap_h = -f.getbbox('H', anchor='ls')[1] / SS
+    mark_px = int(size * 1.05)
+    line_gap = 0.30 * size
+    height = int(mark_px + line_gap + cap_h + 2 * pad)
+    W, H = width * SS, height * SS
+    img = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    def word(text, x, base, fill):
+        for c in text:
+            d.text((x, base), c, font=f, fill=fill + (255,), stroke_width=stroke, stroke_fill=INK + (255,), anchor='ls')
+            x += f.getlength(c) + tracking * size * SS
+
+    top = pad
+    x = (width - w1) / 2 * SS
+    img.alpha_composite(keycap(mark_px, pressed).resize((mark_px * SS, mark_px * SS), Image.LANCZOS), (int(x), int(top * SS)))
+    word('SHIFT', x + (mark_px + gap_mark * size) * SS, (top + mark_px / 2 + cap_h / 2) * SS, TEAL)
+    word('HAPPENS', (width - wb) / 2 * SS, (top + mark_px + line_gap + cap_h) * SS, WHITE)
+    return img.resize((width, height), Image.LANCZOS)
+
+
 def favicon(size=512):
     """The website favicon: the shift arrow alone, as large as the canvas allows, teal with a thick outline split in paper and night like the app icon's background,
     on a transparent background (teal shows on a light and on a dark tab, and one half of the outline shows on either). The disc and ring of the app icon made the
@@ -327,10 +363,11 @@ def text_outline(draw, xy, text, f, fill=WHITE, stroke=INK, sw=4, anchor='mm'):
 
 PROMOS = {
     # name: (slot file stem, size, crop centre in the 4K hero, crop width, logo width fraction, tagline)
-    'cover': ('01_cover_630x500', (630, 500), (1760, 1090), 1800, 0.86, False),
+    'cover': ('01_cover_630x500', (630, 500), (1760, 1090), 1800, 0.72, False),
     'social': ('07_social_1200x630', (1200, 630), (1860, 1090), 2500, 0.66, True),
     'wide': ('09_wide_cover_2100x900', (2100, 900), (1900, 1100), 3500, 0.50, False),
     'banner': ('12_banner_1200x300', (1200, 300), (1900, 1090), 3200, 0.62, False),
+    'devlog': ('14_devlog_cover_1280x720', (1280, 720), (1860, 1080), 2900, 0.66, True),   # the devlog post's cover image: 16:9, at least 500 px wide; the trailer thumbnail animated
     'thumb': ('11_trailer_thumbnail_1280x720', (1280, 720), (1860, 1080), 2900, 0.66, True),
 }
 
@@ -363,7 +400,7 @@ def promo_frame(key, day, night, p, pressed):
     b = crop_layer(night, cx, cy, wsrc, size)
     img = Image.composite(a, b, diag_mask(size, p)).convert('RGBA')
     split_line(img, size, p)
-    lg = logo(int(W * lfrac) + 2 * 44, pad=44, pressed=pressed)
+    lg = (logo_stacked if key == 'cover' else logo)(int(W * lfrac) + 2 * 44, pad=44, pressed=pressed)   # the near-square page cover has the name on two lines
     lg = lg.crop(lg.getbbox())
     blur = max(6, W // 90)
     if not tag:
@@ -398,10 +435,11 @@ def make_promos(max_bytes):
             fp = os.path.join(d, 'f_%03d.png' % i)
             img.save(fp)
             frames.append(fp)
-        shutil.copyfile(frames[0], os.path.join(OUT, stem + '.png'))
+        if key != 'devlog':   # the devlog cover's fallback is the trailer thumbnail (same picture), so it has no PNG of its own
+            shutil.copyfile(frames[0], os.path.join(OUT, stem + '.png'))
         if key == 'thumb':
             continue
-        widths = {'cover': [630], 'social': [1200, 1000, 800], 'wide': [2100, 1680, 1260], 'banner': [1200, 960]}[key]
+        widths = {'cover': [630], 'social': [1200, 1000, 800], 'wide': [2100, 1680, 1260], 'banner': [1200, 960], 'devlog': [1280, 960]}[key]
         res = encode_gif(frames, os.path.join(OUT, stem + '.gif'), fps, widths, max_bytes, fps_steps=(1.0, 2.0))
         print('%s: %s %.2f MB, %s px, %.1f fps, %d colours' % (key, os.path.basename(res[0]), res[4] / 1048576, res[1], res[2], res[3]))
 
@@ -683,6 +721,7 @@ def check(max_bytes):
         '07_social_1200x630': ((1200, 630), None, 'gif+png'),
         '09_wide_cover_2100x900': (None, 21 / 9.0, 'gif+png'),
         '12_banner_1200x300': ((1200, 300), None, 'gif+png'),
+        '14_devlog_cover_1280x720': ((1280, 720), 16 / 9.0, 'gif+png'),
         '13_background_': (None, 1.0, 'gif+png'),   # square tile
     }
     for f in sorted(glob.glob(os.path.join(OUT, '*'))):
@@ -706,7 +745,7 @@ def check(max_bytes):
             row['notes'].append('flashes/s %d' % fl)
             if fl > 3:
                 problems.append('%s has %d flashes in a second (limit 3)' % (name, fl))
-            png = os.path.join(OUT, stem + '.png')
+            png = os.path.join(OUT, '11_trailer_thumbnail_1280x720.png' if stem.startswith('14_devlog') else stem + '.png')
             if key and os.path.exists(png):
                 same = np.abs(np.asarray(frames[0], dtype=int) - np.asarray(Image.open(png).convert('RGB'), dtype=int)).mean()
                 row['notes'].append('frame 1 vs png %.2f' % same)
