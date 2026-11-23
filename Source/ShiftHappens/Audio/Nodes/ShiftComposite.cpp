@@ -84,10 +84,11 @@ namespace ShiftAudio
 		}
 		const INode* Raw = Node.Get();
 		Graph->AddInputNode(Id, FVertexName(VertexName), MoveTemp(Node));
-		for (const FInputDataVertex& Vertex : Raw->GetVertexInterface().GetInputInterface())
+		// The first vertex, without a loop that always breaks: the optimizer reports its increment as unreachable code (C4702, an error in UE builds).
+		const FInputVertexInterface& Inputs = Raw->GetVertexInterface().GetInputInterface();
+		if (auto First = Inputs.begin(); First != Inputs.end())
 		{
-			Graph->SetNodeDefaultInput(Id, Vertex.VertexName, Default);
-			break;
+			Graph->SetNodeDefaultInput(Id, (*First).VertexName, Default);
 		}
 		return Raw;
 	}
@@ -144,10 +145,10 @@ namespace ShiftAudio
 	{
 		FPin Result;
 		Result.Node = InputNode;
-		for (const FOutputDataVertex& Vertex : InputNode->GetVertexInterface().GetOutputInterface())
+		const FOutputVertexInterface& Outputs = InputNode->GetVertexInterface().GetOutputInterface();
+		if (auto First = Outputs.begin(); First != Outputs.end())
 		{
-			Result.Name = Vertex.VertexName;
-			break;
+			Result.Name = (*First).VertexName;
 		}
 		return Result;
 	}
@@ -158,11 +159,9 @@ namespace ShiftAudio
 		{
 			return false;
 		}
-		for (const FInputDataVertex& Vertex : OutputNode->GetVertexInterface().GetInputInterface())
-		{
-			return Graph->AddDataEdge(*From.Node, From.Name, *OutputNode, Vertex.VertexName);
-		}
-		return false;
+		const FInputVertexInterface& Inputs = OutputNode->GetVertexInterface().GetInputInterface();
+		auto First = Inputs.begin();
+		return First != Inputs.end() && Graph->AddDataEdge(*From.Node, From.Name, *OutputNode, (*First).VertexName);
 	}
 
 	FPin FGraphBuilder::Out(const INode* Node, const TCHAR* Pin)

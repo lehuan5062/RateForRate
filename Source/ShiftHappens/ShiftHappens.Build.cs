@@ -8,6 +8,11 @@ public class ShiftHappens : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
+		// The simulation core (Sim/) must give the same bits in the editor, the Development game and the Shipping game. UBT compiles the editor with /fp:precise
+		// but game targets with /fp:fast by default; fast-math changes the last bit of conviction and heat, so a state hash recorded by the shipped game did not match
+		// when Tools\replay.ps1 replayed it in the editor ("DIVERGED"), although the votes came out the same. Precise everywhere.
+		FPSemantics = FPSemanticsMode.Precise;
+
 		// Flat module with subfolders (Game/, UI/, Sim/, ...): include as "UI/Foo.h" from anywhere in the module.
 		PublicIncludePaths.Add(ModuleDirectory);
 
