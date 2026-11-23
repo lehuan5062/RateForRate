@@ -1,0 +1,7 @@
+Id,Bar,Cmd,Args
+# Hero GIF: the title screen, SHIFT held. Day flips to night and back. Times in bars (1 s = 0.46875 bar). Captions off.
+F000,0,tension,0
+F001,0,black,0 0
+F002,0,title,
+F010,0.375,night,1
+F020,1.40,night,0

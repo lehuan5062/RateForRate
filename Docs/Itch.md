@@ -30,19 +30,33 @@ Everything below is for **you** to do or paste; nothing here has been done on yo
 
 (Adjust the wording to what you want to say. The README has the same disclosure.)
 
-## Screenshots
+## Images (every slot of the itch.io editor)
 
-`Docs/Screenshots/` holds headless captures of the main screens (1920 x 1080). Re-create them with `Tools\run.ps1 -Shot ...` (see `Docs/QA.md`). itch.io wants at least 3; the GIF of the SHIFT key flipping day to night is made (see Trailer and GIF below).
+`Tools\itch\build.ps1` makes all of them, headless (about 8 minutes, mostly editor starts): the scenes are scripted runs of the game (cue files in `Tools/itch/cues/`, the same director as the trailer) shot frame by frame at a fixed 60 fps time step, with no window, no sound, no OBS and no injected input. The files land in `Saved/Itch/upload/` (git-ignored: copy them out), the sizes and checks in `Saved/Itch/report.md`. `-SkipShoot` re-makes from the frames it already has, `-MaxMB n` re-encodes with a lower cap. The background needs no frames: `python Tools\itch\make_images.py bg` makes it alone (about a minute). Every picture is the game's own rendering plus typography drawn in code (Roboto, the HUD font), so no generative image model is involved, as the AI disclosure above says.
 
-## Trailer and GIF
+GIF wherever the slot may take one; the PNG beside each is the fallback if the uploader refuses a GIF there (frame 1 of the GIF equals it, so a social crawler that shows the first frame shows the finished picture).
 
-The trailer is a scripted run of the game itself (`Data/Trailer.csv`, played by a director that is in every build but the Shipping one; see `Docs/QA.md`), recorded with OBS, with the game's own MetaSound music as the soundtrack. The files are in `Saved/Trailer/Dist/` (git-ignored; copy them where you want them):
+| itch.io slot | file | notes |
+|---|---|---|
+| Cover image | `01_cover_630x500.gif` (+ `.png`) | 315:250, the recommended 630x500; a slow day/night wipe, the keycap of the logo presses on the night side |
+| Screenshot 1 | `02_screenshot_shift_flip.gif` | title screen, SHIFT held: day flips to night and back |
+| Screenshot 2 | `03_screenshot_plug.gif` | hover card, click, the voter flips, the leaderboard moves |
+| Screenshot 3 | `04_screenshot_night_shift.gif` | hold SHIFT: four sockpuppets on a celebrity, Heat rises |
+| Screenshot 4 | `05_screenshot_mod_eye.gif` | the Mod Eye countdown, a strike, disqualification |
+| Screenshot 5 | `06_screenshot_results.png` | the results card (a still: nothing on it moves) |
+| Promotional: Social media image | `07_social_1200x630.gif` (+ `.png`) | 1.91:1, the logo with one caption line under it, "Winning game jams by shifting votes": white Roboto Bold with an ink outline like the logo's letters, no box, narrower than the logo so the logo stays the focus |
+| Promotional: Favicon | `08_favicon_512.png` | square, transparent: the shift arrow alone, teal with a thick outline split in paper and night on the icon's slanted line, filling the canvas so it stays legible in a 16 px browser tab (checked at 128, 64, 32 and 16 px on light and dark tabs). PNG on purpose (GIF transparency is 1-bit, jagged at 16 px). Not the exe icon: `08_app_icon.ico` is the voter's disc and conviction ring with the arrow on the day / night split (16 to 256 px); a copy is in `Build/Windows/Application.ico`, which Unreal Engine uses as the game's icon at the next build or package |
+| Promotional: Wide cover | `09_wide_cover_2100x900.gif` (+ `.png`) | exact 21:9 |
+| Promotional: Logo | `10_logo_1600x220.png` | transparent PNG, horizontal; teal and white letters with a navy outline so it reads on white and on black |
+| Theme editor: Banner | `12_banner_1200x300.gif` (+ `.png`) | replaces the title above the description, so it carries the logo |
+| Theme editor: Background | `13_background_2160x2160.gif` (+ `.png`) | a **square** tile: the follower network on the night board's dot grid: voters with the game's faces, votes running along the edges, a ring when one lands. Flat colours, solid 2 px lines, drawn at 3x and filtered down. A 6 s loop at 10 fps that loops without a jump and tiles without a seam on both axes (the theme editor repeats the image, as the design docs show). The PNG is frame 1 and the fallback; the uploader refuses anything over 3840 x 2160, so 2160 is the largest square; the build drops to 1440 px only if the size cap forces it |
+| Trailer | `Saved/Trailer/Dist/trailer45.mp4` | the slot takes a **YouTube or Vimeo link**, not a file: upload the MP4 there (public or unlisted, and check it logged out) and paste the link; `11_trailer_thumbnail_1280x720.png` is a thumbnail for it (the same logo and tagline plate as the social image) |
 
-* `trailer45.mp4`: the 45 s trailer (an epic-trailer parody: "Every game jam has a winner."), 1080p60, -14 LUFS.
-* `trailer45_poster.png`: a poster frame (the end card).
-* `shift_flip.gif`: the looping GIF of the SHIFT key flipping the title day to night (about 2 MB, for the itch page).
+Theme editor colours that match (type them in): BG `#0A0D1C`, BG2 `#0E1226` (BG2 alpha about 85%), Text `#EDEDFF`, Link `#1FB6A6`, Buttons `#1FB6A6`, Headers `#F2B134`. Use "Header 2" for the description's section titles.
 
-itch.io's trailer field takes a **YouTube or Vimeo link**, not a file: upload `trailer45.mp4` there as unlisted or public and paste the link; put the GIF and the poster in the page's screenshots. The GitHub Game Off page can take the same link.
+What itch.io does **not** state (the docs and FAQ name no GIF or file-size limit, no dimensions for the promotional slots and no accepted formats for the social and wide-cover slots): the 3 MB cap and the sizes above are cautious choices. If an upload is refused, use the PNG next to the GIF or run `Tools\itch\build.ps1 -SkipShoot -MaxMB 2`. The covers and banner are slow wipes and the background is small dots moving along lines, so nothing flashes (`make_images.py check` counts flashes per second against the WCAG limit of 3, which the itch.io quality guidelines cite for animated covers, and also tests that the background loops and tiles without a seam). `Docs/Screenshots/` is from 16 Nov (an older UI): do not upload those.
+
+Before the first **public** publish (it fixes the page's place in "Most Recent"): every image above, the Windows file and the classifications in place; Visibility "Public" and not unlisted; the cover is the only image indexing requires; Platforms: Windows only; the "AI Disclosure" section filled in (the guidelines count AI-written text, and this game's text and code were written with AI); tags relevant and preferably from the suggestions (do not repeat what the metadata page already classifies). "Shift Happens" is a common phrase and search favours exact titles, so the logo and a distinctive tag set matter.
 
 ## What is left for you
 

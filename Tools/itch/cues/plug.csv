@@ -1,0 +1,12 @@
+Id,Bar,Cmd,Args
+# Screenshot GIF 2: the core loop by day. The cursor glides to a voter, rests for its hover card, clicks (Plug), the voter flips and the leaderboard moves.
+# Same board as the trailer (jam 2, seed 7), the clicks are the trailer's own (design pixels). Times in bars (1 s = 0.46875 bar).
+P000,0,tension,0
+P001,0,black,0 0
+P002,0,run,2 7 - 0
+P003,0,speed,3
+P010,0.45,click,487 664
+P011,1.15,click,868 372
+P012,1.85,click,568 600
+P013,2.55,click,742 233
+P020,0.2,caption,2.6 PLUG VOTERS.

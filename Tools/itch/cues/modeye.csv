@@ -1,0 +1,7 @@
+Id,Bar,Cmd,Args
+# Screenshot GIF 4: the Mod Eye. A reckless sock bot on a run that is already 34.5 s in, at double speed: the MODS countdown, strikes, then the disqualification card.
+M000,0,tension,0
+M001,0,black,0 0
+M002,0,run,2 7 sock 34.5 2
+M010,0,spot,mods 2.0
+M011,0.05,caption,2.2 THE MOD EYE IS WATCHING.
