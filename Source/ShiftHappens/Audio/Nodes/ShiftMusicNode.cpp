@@ -89,14 +89,6 @@ namespace ShiftAudio
 		TArray<float> Blank() { TArray<float> P; P.Init(0.0f, Steps); return P; }
 		void Put(TArray<float>& P, int32 Bar, int32 Step, float Value) { P[Bar * 16 + Step] = Value; }
 
-		FMono Part(const FSig& Audio, float Gain)
-		{
-			FMono Item;
-			Item.Audio = Audio;
-			Item.Gain = Gain;
-			return Item;
-		}
-
 		struct FClock
 		{
 			FSig Step;        // the 16th-note trigger

@@ -10,17 +10,6 @@
 
 namespace ShiftAudio::Voices
 {
-	namespace
-	{
-		FMono Part(const FSig& Audio, float Gain)
-		{
-			FMono Item;
-			Item.Audio = Audio;
-			Item.Gain = Gain;
-			return Item;
-		}
-	}
-
 	FArg Fk(FSynth& G, const FArg& Freq, float K)
 	{
 		if (K == 1.0f)

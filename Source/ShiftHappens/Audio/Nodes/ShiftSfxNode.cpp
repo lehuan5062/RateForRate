@@ -34,14 +34,6 @@ namespace ShiftAudio
 
 	namespace
 	{
-		FMono Part(const FSig& Audio, float Gain)
-		{
-			FMono Item;
-			Item.Audio = Audio;
-			Item.Gain = Gain;
-			return Item;
-		}
-
 		/** `t` itself when the delay is 0, else the trigger delayed (the recipes' `at`). */
 		FSig At(FSynth& G, const FSig& T, float Seconds)
 		{

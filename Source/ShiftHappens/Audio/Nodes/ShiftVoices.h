@@ -12,6 +12,15 @@
  */
 namespace ShiftAudio::Voices
 {
+	/** One weighted part of a Mix: the audio and its gain. Shared here so the voices and the music/effect nodes never each define their own. */
+	inline FMono Part(const FSig& Audio, float Gain)
+	{
+		FMono Item;
+		Item.Audio = Audio;
+		Item.Gain = Gain;
+		return Item;
+	}
+
 	/** Frequency (a number or a signal) times a constant. */
 	FArg Fk(FSynth& G, const FArg& Freq, float K);
 	/** Scales an audio signal by a number or a float signal; nothing is added for 1.0. */
