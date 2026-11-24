@@ -25,6 +25,8 @@ public class ShiftHappens : ModuleRules
 		{
 			"Slate",
 			"AudioMixer", "SlateCore", "ApplicationCore", "Projects",
+			// The see-through window: a swap chain provider for the D3D12 RHI, in a module of its own that loads early (Source/ShiftGlass).
+			"ShiftGlass",
 			// All sound is MetaSound; the music clock is Harmonix (experimental plugins, enabled in ShiftHappens.uproject).
 			"MetasoundEngine", "MetasoundFrontend", "MetasoundGraphCore", "MetasoundGenerator", "AudioExtensions",
 			"HarmonixMetasound", "HarmonixMidi", "Harmonix", "MusicEnvironment",

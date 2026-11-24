@@ -19,9 +19,12 @@
 #include "Engine/EngineBaseTypes.h"
 #include "Engine/EngineTypes.h"
 #include "Engine/GameViewportClient.h"
+#include "HAL/IConsoleManager.h"
+#include "Misc/FileHelper.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Game/ShiftContent.h"
 #include "Game/ShiftResults.h"
+#include "ShiftGlass.h"
 #include "GameFramework/GameUserSettings.h"
 #include "GameFramework/PlayerController.h"
 #include "GenericPlatform/GenericPlatformMisc.h"
@@ -200,6 +203,25 @@ void AShiftPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
+	if (ShiftGlass::IsActive())
+	{
+		// the see-through window: the engine's scene alpha is inverse opacity, the desktop compositor wants opacity (the colour is already premultiplied)
+		// Set in code, not with console commands (the ShowFlag command is not in Shipping) and not only from the ini: a Shipping build must not depend on a saved Engine.ini.
+		auto SetCvar = [](const TCHAR* Name, float Value)
+			{
+				if (IConsoleVariable* Var = IConsoleManager::Get().FindConsoleVariable(Name))
+				{
+					Var->Set(Value, ECVF_SetByCode);
+				}
+			};
+		SetCvar(TEXT("r.PostProcessing.PropagateAlpha"), 1.0f);
+		SetCvar(TEXT("r.TransparentViewportClear"), 1.0f);
+		// The engine's last-pass alpha invert draws at the wrong place when the view is letterboxed (it ignores the output view rect); the upscale pass does the same invert
+		// correctly, and it runs when the scene is rendered a hair smaller than the window.
+		SetCvar(TEXT("r.ScreenPercentage"), 99.0f);
+		UE_LOG(LogShift, Display, TEXT("Glass: the game inverts the scene alpha for the desktop compositor"));
+	}
+
 	const TCHAR* Cmd = FCommandLine::Get();
 	bool bQaRun = false;
 
@@ -377,6 +399,8 @@ void AShiftPlayerController::BeginPlay()
 	bMarkers = ShiftSave::GetFlag(TEXT("Markers")) || FParse::Param(FCommandLine::Get(), TEXT("ShiftMarkers"));
 	bLargeText = ShiftSave::GetFlag(TEXT("LargeText")) || FParse::Param(FCommandLine::Get(), TEXT("ShiftLargeText"));
 	bReduceMotion = ShiftSave::GetFlag(TEXT("ReduceMotion")) || FParse::Param(FCommandLine::Get(), TEXT("ShiftCalm"));
+	bGlassSaved = ShiftSave::GlassWindow();
+	GlassOpacityPct = ShiftGlass::CommandLineOpacity() >= 0.0f ? FMath::RoundToInt(ShiftGlass::CommandLineOpacity() * 100.0f) : ShiftSave::GlassOpacity();
 	LeaderboardMode = ShiftSave::LeaderboardMode();
 	ApplySoundSettings();
 
@@ -1073,7 +1097,8 @@ int32 AShiftPlayerController::CurrentWindowMode() const
 {
 	// Alt+Enter and F11 update the game user settings too, so the buttons stay in step with them.
 	const UGameUserSettings* Settings = GEngine ? GEngine->GetGameUserSettings() : nullptr;
-	return Settings ? static_cast<int32>(Settings->GetFullscreenMode()) : static_cast<int32>(EWindowMode::Windowed);
+	const int32 Mode = Settings ? static_cast<int32>(Settings->GetFullscreenMode()) : static_cast<int32>(EWindowMode::Windowed);
+	return Mode == 0 && ShiftGlass::IsActive() ? 1 : Mode;   // the swap chain of a see-through window is never exclusive fullscreen
 }
 
 void AShiftPlayerController::SetWindowMode(int32 Mode)
@@ -1090,6 +1115,11 @@ void AShiftPlayerController::SetWindowMode(int32 Mode)
 	if (!Settings)
 	{
 		return;
+	}
+	if (Mode == 0 && ShiftGlass::IsActive())
+	{
+		Mode = 1;   // a see-through window cannot be exclusive fullscreen: borderless fills the screen the same way
+		ShowToast(TEXT("Fullscreen becomes borderless while the window is see-through."), AmberColor(), 2.8f);
 	}
 	const EWindowMode::Type NewMode = EWindowMode::ConvertIntToWindowMode(FMath::Clamp(Mode, 0, 2));
 	FIntPoint Desktop = Settings->GetDesktopResolution();
@@ -1274,16 +1304,16 @@ void AShiftPlayerController::UpdateView(float DeltaTime)
 			MaxY = FMath::Max(MaxY, static_cast<float>(N.y) + R);
 		}
 		const auto Range = [](float Min, float Max, float Shift, float SafeLo, float SafeHi, double& OutLo, double& OutHi)
-		{
-			double A = SafeLo - (Min + Shift);
-			double B = SafeHi - (Max + Shift);
-			if (A > B)
 			{
-				Swap(A, B);   // the board is bigger than the field: it may be moved over its whole extent
-			}
-			OutLo = A;
-			OutHi = B;
-		};
+				double A = SafeLo - (Min + Shift);
+				double B = SafeHi - (Max + Shift);
+				if (A > B)
+				{
+					Swap(A, B);   // the board is bigger than the field: it may be moved over its whole extent
+				}
+				OutLo = A;
+				OutHi = B;
+			};
 		Range(MinX, MaxX, static_cast<float>(Centre.X), 30.0f, 1250.0f, ViewPanLo.X, ViewPanHi.X);
 		Range(MinY, MaxY, 0.0f, 60.0f, 660.0f, ViewPanLo.Y, ViewPanHi.Y);
 		bViewBounds = true;
@@ -1336,6 +1366,10 @@ void AShiftPlayerController::FillAccessModel(FShiftHudModel& M) const
 	M.bMarkers = bMarkers;
 	M.bLargeText = bLargeText;
 	M.bReduceMotion = bReduceMotion;
+	M.bGlassActive = ShiftGlass::IsActive();
+	M.bGlassSaved = bGlassSaved;
+	M.GlassOpacity = GlassOpacityPct;
+	M.BackgroundOpacity = M.bGlassActive ? static_cast<float>(GlassOpacityPct) / 100.0f : 1.0f;
 }
 
 void AShiftPlayerController::FillExtrasModel(FShiftHudModel& M) const
@@ -1561,7 +1595,7 @@ void AShiftPlayerController::CopyResultToClipboard()
 
 void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 {
-	const bool bSilent = Id == EShiftUi::SliderQuality || Id == EShiftUi::SliderThumbnail || Id == EShiftUi::SliderNetwork
+	const bool bSilent = Id == EShiftUi::SliderQuality || Id == EShiftUi::SliderThumbnail || Id == EShiftUi::SliderNetwork || Id == EShiftUi::GlassOpacity
 		|| Id == EShiftUi::Upload || Id == EShiftUi::Blame || Id == EShiftUi::TitleStart || Id == EShiftUi::FakeInfo || Id == EShiftUi::SettingsPanel;
 	if (!bSilent)
 	{
@@ -1631,6 +1665,21 @@ void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 		bReduceMotion = !bReduceMotion;
 		if (!bQaRunFlag) { ShiftSave::SetFlag(TEXT("ReduceMotion"), bReduceMotion); }
 		break;
+	case EShiftUi::GlassToggle:
+		bGlassSaved = !bGlassSaved;
+		if (!bQaRunFlag) { ShiftSave::SetGlassWindow(bGlassSaved); }
+		ShowToast(bGlassSaved ? TEXT("See-through window on: restart the game to apply.") : TEXT("See-through window off: restart the game to apply."), TealColor(), 3.0f);
+		break;
+	case EShiftUi::GlassOpacity:
+	{
+		const int32 Percent = FMath::Clamp(FMath::RoundToInt(Value01 * 20.0f), 0, 20) * 5;
+		if (Percent != GlassOpacityPct)
+		{
+			GlassOpacityPct = Percent;
+			if (!bQaRunFlag) { ShiftSave::SetGlassOpacity(Percent); }
+		}
+		break;
+	}
 	case EShiftUi::Achievements:
 		ExtrasPage = 1;
 		bSettingsOpen = false;
@@ -3188,6 +3237,37 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 void AShiftPlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
+	if (ShiftGlass::IsActive())
+	{
+		// the viewport can rebuild its show flags (window creation, resize), so the invert is held every frame
+		if (UGameViewportClient* Viewport = GetWorld() ? GetWorld()->GetGameViewport() : nullptr)
+		{
+			if (!Viewport->EngineShowFlags.AlphaInvert)
+			{
+				Viewport->EngineShowFlags.SetAlphaInvert(true);
+				UE_LOG(LogShift, Display, TEXT("Glass: the alpha invert was off and is on again"));
+			}
+			// QA: -ShiftGlassDiag=<file> writes the state the see-through window depends on (a Shipping build has no log), once, a few seconds in
+			static bool bDiagDone = false;
+			FString DiagFile;
+			if (!bDiagDone && GetWorld()->GetTimeSeconds() > 4.0f && FParse::Value(FCommandLine::Get(), TEXT("ShiftGlassDiag="), DiagFile))
+			{
+				bDiagDone = true;
+				auto Cvar = [](const TCHAR* Name) -> FString
+					{
+						IConsoleVariable* Var = IConsoleManager::Get().FindConsoleVariable(Name);
+						return Var ? Var->GetString() : FString(TEXT("(missing)"));
+					};
+				FString Text;
+				Text += FString::Printf(TEXT("active=%d\nAlphaInvert=%d\n"), ShiftGlass::IsActive() ? 1 : 0, Viewport->EngineShowFlags.AlphaInvert ? 1 : 0);
+				for (const TCHAR* Name : { TEXT("r.PostProcessing.PropagateAlpha"), TEXT("r.TransparentViewportClear"), TEXT("r.ScreenPercentage"), TEXT("r.DefaultBackBufferPixelFormat"), TEXT("r.D3D12.UseAllowTearing"), TEXT("r.AntiAliasingMethod") })
+				{
+					Text += FString::Printf(TEXT("%s=%s\n"), Name, *Cvar(Name));
+				}
+				FFileHelper::SaveStringToFile(Text, *DiagFile);
+			}
+		}
+	}
 	if (AudioMeter && !AudioMeter->Tick(DeltaTime))
 	{
 		const int32 Failures = AudioMeter->GetFailures();
@@ -3394,6 +3474,7 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 	View.Heat = static_cast<float>(S.Heat() / S.GetParams().HeatMax);
 	View.Beat = Audio ? Audio->BeatPulse() : 0.0f;
 	View.EdgeMode = EdgeMode;
+	View.BackgroundOpacity = static_cast<float>(GlassOpacityPct) / 100.0f;
 	RallyFxAge = FMath::Min(RallyFxAge + DeltaTime, 99.0f);
 	View.RallyNode = RallyFxAge < 1.2f ? RallyFxNode : -1;
 	Board->Update(S, View, DeltaTime);

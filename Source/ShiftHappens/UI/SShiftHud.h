@@ -113,6 +113,7 @@ private:
 
 	/** Records a hit region (later regions win); returns whether the mouse is over it. */
 	bool AddHit(float X, float Y, float W, float H, int32 Id, bool bSlider = false, float SliderX0 = 0.0f, float SliderX1 = 1.0f) const;
+	FLinearColor Scaled(FLinearColor Wash) const;   // a full-screen wash, faded by the opacity of the see-through window
 	const FHit* FindHit(const FVector2f& Design) const;
 	static float SliderValue(const FHit& Hit, float DesignX);
 

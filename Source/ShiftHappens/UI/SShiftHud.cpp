@@ -514,6 +514,12 @@ void SShiftHud::SettingsButton(FShiftPainter& P, const FPal& C, float Cx, float 
 	}
 }
 
+FLinearColor SShiftHud::Scaled(FLinearColor Wash) const
+{
+	Wash.A *= Model.BackgroundOpacity;   // in the see-through window the washes fade with the paper, so the desktop shows through the menus too
+	return Wash;
+}
+
 void SShiftHud::PaintSettings(FShiftPainter& P, const FPal& C) const
 {
 	// The menu dropped from the gear button. Everything behind it stops listening: a click outside it closes it.
@@ -522,7 +528,7 @@ void SShiftHud::PaintSettings(FShiftPainter& P, const FPal& C) const
 	AddHit(0.0f, 0.0f, DesignW, DesignH, EShiftUi::SettingsClose);
 
 	const float W = 380.0f;
-	const float H = 350.0f;
+	const float H = 482.0f;
 	const float Pad = 28.0f;
 	const bool bTitle = Model.Screen == EShiftScreen::Title;   // on the title it opens beside the menu, inside the safe zone
 	const float X = bTitle ? 1216.0f - W : DesignW - W - 24.0f;
@@ -561,11 +567,32 @@ void SShiftHud::PaintSettings(FShiftPainter& P, const FPal& C) const
 		Button(P, C, EShiftUi::WindowFullscreen + i, X + Pad + static_cast<float>(i) * (Third + Gap), Y + 160.0f, Third, BtnH, Labels[i], Model.WindowMode == i, 12.0f);
 	}
 
-	P.Text(TEXT("ACCESSIBILITY"), X + Pad, Y + 218.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
-	Button(P, C, EShiftUi::Markers, X + Pad, Y + 238.0f, Inner, BtnH, Model.bMarkers ? TEXT("Shapes beside colours: on") : TEXT("Shapes beside colours: off"), Model.bMarkers, 13.0f);
+	// the see-through window: the desktop shows through the paper behind the board (needs a restart; Windows only)
+	P.Text(TEXT("BACKGROUND"), X + Pad, Y + 218.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
+	Button(P, C, EShiftUi::GlassToggle, X + Pad, Y + 238.0f, Inner, BtnH, Model.bGlassSaved ? TEXT("See-through window: on") : TEXT("See-through window: off"), Model.bGlassSaved, 13.0f);
+	{
+		const float X0 = X + Pad + 6.0f;
+		const float X1 = X + W - Pad - 6.0f;
+		const float Ty = Y + 308.0f;
+		const float Frac = static_cast<float>(Model.GlassOpacity) / 100.0f;
+		const bool bLive = Model.bGlassActive;   // the slider is live only while the window is see-through
+		const FLinearColor Fill = bLive ? C.Teal : C.InkDim;
+		const bool bHover = AddHit(X0 - 14.0f, Ty - 14.0f, X1 - X0 + 28.0f, 28.0f, EShiftUi::GlassOpacity, true, X0, X1);
+		P.Text(TEXT("Paper opacity"), X + Pad, Y + 284.0f, 12.0f, C.Ink, EShiftAlign::Left);
+		P.Text(FString::Printf(TEXT("%d%%"), Model.GlassOpacity), X + W - Pad, Y + 284.0f, 12.0f, C.Ink, EShiftAlign::Right, true);
+		P.Rect(X0, Ty - 3.0f, X1 - X0, 6.0f, C.Track, 3.0f);
+		P.Rect(X0, Ty - 3.0f, (X1 - X0) * Frac, 6.0f, Fill, 3.0f);
+		P.Disc(X0 + (X1 - X0) * Frac, Ty, bHover ? 11.0f : 9.0f, Fill);
+		P.Disc(X0 + (X1 - X0) * Frac, Ty, 4.0f, FLinearColor::White);
+		const bool bPending = Model.bGlassSaved != Model.bGlassActive;
+		P.Text(bPending ? TEXT("Restart the game to apply") : (bLive ? TEXT("Windowed or borderless only") : TEXT("Takes effect after a restart")), X + Pad, Y + 328.0f, 11.0f, bPending ? C.Amber : C.InkDim, EShiftAlign::Left);
+	}
+
+	P.Text(TEXT("ACCESSIBILITY"), X + Pad, Y + 358.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
+	Button(P, C, EShiftUi::Markers, X + Pad, Y + 378.0f, Inner, BtnH, Model.bMarkers ? TEXT("Shapes beside colours: on") : TEXT("Shapes beside colours: off"), Model.bMarkers, 13.0f);
 	const float Half = (Inner - Gap) * 0.5f;
-	Button(P, C, EShiftUi::LargeText, X + Pad, Y + 288.0f, Half, BtnH, Model.bLargeText ? TEXT("Large text: on") : TEXT("Large text: off"), Model.bLargeText, 13.0f);
-	Button(P, C, EShiftUi::ReduceMotion, X + Pad + Half + Gap, Y + 288.0f, Half, BtnH, Model.bReduceMotion ? TEXT("Calm: on") : TEXT("Calm: off"), Model.bReduceMotion, 13.0f);
+	Button(P, C, EShiftUi::LargeText, X + Pad, Y + 428.0f, Half, BtnH, Model.bLargeText ? TEXT("Large text: on") : TEXT("Large text: off"), Model.bLargeText, 13.0f);
+	Button(P, C, EShiftUi::ReduceMotion, X + Pad + Half + Gap, Y + 428.0f, Half, BtnH, Model.bReduceMotion ? TEXT("Calm: on") : TEXT("Calm: off"), Model.bReduceMotion, 13.0f);
 }
 
 void SShiftHud::PaintKeycap(FShiftPainter& P, const FPal& C, float X, float Y, float S, bool bPressed) const
@@ -660,7 +687,7 @@ void SShiftHud::PaintLogo(FShiftPainter& P, const FPal& C, float X, float Y, flo
 void SShiftHud::PaintTitle(FShiftPainter& P, const FPal& C) const
 {
 	// the game is letterboxed to 16:9 like every other screen: the bars are the engine's, and this paints only inside the design rect
-	P.Rect(0, 0, DesignW, DesignH, Mix(Hex(0xF6F1E6, 0.58f), Hex(0x04060F, 0.66f), C.N));
+	P.Rect(0, 0, DesignW, DesignH, Scaled(Mix(Hex(0xF6F1E6, 0.58f), Hex(0x04060F, 0.66f), C.N)));
 
 	// the name, as it always was
 	const float Bob = FMath::Sin(PulseTime * 1.1f) * 3.0f;
@@ -696,7 +723,7 @@ void SShiftHud::PaintTitle(FShiftPainter& P, const FPal& C) const
 
 void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 {
-	P.Rect(0, 0, DesignW, DesignH, Mix(Hex(0xF6F1E6, 0.80f), Hex(0x04060F, 0.80f), C.N));
+	P.Rect(0, 0, DesignW, DesignH, Scaled(Mix(Hex(0xF6F1E6, 0.80f), Hex(0x04060F, 0.80f), C.N)));
 	P.Text(TEXT("Pick a jam"), 640.0f, 34.0f, 36.0f, C.Ink, EShiftAlign::Center, true);
 	P.Text(TEXT("Each jam has its own rival, its own network and its own mood."), 640.0f, 84.0f, 15.0f, C.InkDim, EShiftAlign::Center);
 
@@ -753,7 +780,7 @@ void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 
 void SShiftHud::PaintBuild(FShiftPainter& P, const FPal& C) const
 {
-	P.Rect(0, 0, DesignW, DesignH, Mix(Hex(0xF6F1E6, 0.84f), Hex(0x04060F, 0.84f), C.N));
+	P.Rect(0, 0, DesignW, DesignH, Scaled(Mix(Hex(0xF6F1E6, 0.84f), Hex(0x04060F, 0.84f), C.N)));
 	const FShiftHudBuild& B = Model.Build;
 	int32 Spent = 0;
 	for (int32 i = 0; i < 3; ++i)

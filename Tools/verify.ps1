@@ -72,6 +72,7 @@ Check 'boot: 14 achievements load from the data table' (LogHas $runLog 'achievem
 $packs = @(Select-String -Path $runLog -Pattern 'Jam pack activated').Count
 Check 'boot: three Game Feature jam packs activated' ($packs -ge 3) "$packs activated"
 Check 'boot: no StateTree fallback, no screenshot failure' (-not (LogHas $runLog 'StateTrees MISSING|not ready to run') -and (Test-Path $shot)) ''
+Check 'boot: the see-through window stays off in a headless run' ((LogHas $runLog 'Glass: off') -and -not (LogHas $runLog 'Glass: requested|composition swap chain')) ''
 
 # ---- 4. audio meters -------------------------------------------------------------------------------------------------------------
 if ($SkipMeters) {

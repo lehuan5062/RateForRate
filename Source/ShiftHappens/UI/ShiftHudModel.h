@@ -62,6 +62,8 @@ namespace EShiftUi
 		LargeText = 68,           // settings menu: a floor for the text size
 		ReduceMotion = 69,        // settings menu: steady instead of pulsing
 		Quit = 73,                // title: leave the game (also Esc)
+		GlassToggle = 74,         // settings menu: the see-through window on / off (next launch)
+		GlassOpacity = 75,        // settings menu: slider, how opaque the paper behind the board is (value = 0..1 along the track)
 		ExtrasClose = 72,         // behind either page: a click anywhere closes it
 	};
 }
@@ -411,6 +413,10 @@ struct FShiftHudModel
 	bool bMarkers = false;                 // accessibility: a shape per entry next to its colour
 	bool bLargeText = false;
 	bool bReduceMotion = false;
+	bool bGlassActive = false;             // the window is see-through right now
+	bool bGlassSaved = false;              // the saved switch (differs from bGlassActive until the next launch)
+	int32 GlassOpacity = 70;               // percent
+	float BackgroundOpacity = 1.0f;        // what the full-screen washes are scaled by: 1 unless the window is see-through
 	struct FMarker { float X = 0.0f; float Y = 0.0f; int32 Owner = 0; };
 	TArray<FMarker> Markers;               // one per voter, in design pixels (only while bMarkers)
 	int32 ExtrasPage = 0;                  // title: 0 none, 1 the achievements and career page, 2 the credits

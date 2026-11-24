@@ -42,6 +42,10 @@ namespace ShiftSave
 	void SetEdgeMode(int32 Mode);
 	bool GetFlag(const TCHAR* Key);                // a saved on / off switch (accessibility settings)
 	void SetFlag(const TCHAR* Key, bool bOn);
+	bool GlassWindow();                             // the see-through window is switched on (takes effect on the next launch)
+	void SetGlassWindow(bool bOn);                  // also writes (or removes) the renderer settings the window needs into the player's own Engine.ini
+	int32 GlassOpacity();                           // how opaque the paper behind the board is in the see-through window, percent (default 70)
+	void SetGlassOpacity(int32 Percent);
 	uint32 Achievements();                          // bit per achievement earned (EShiftAch)
 	void SetAchievements(uint32 Mask);
 	void RecordCareer(int32 JamIndex, bool bWon, bool bDisqualified, float Share);   // one finished run of a human player

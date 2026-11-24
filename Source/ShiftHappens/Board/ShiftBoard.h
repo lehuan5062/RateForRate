@@ -24,6 +24,7 @@ struct FShiftBoardView
 	float Beat = 0.0f;                               // 0..1 pulse on the music beat
 	int32 EdgeMode = 0;                              // relation lines: 0 faint, 1 off, 2 full (the old look)
 	int32 RallyNode = -1;                            // a Rally just went off here: teal lines to the voters it shields (-1 none)
+	float BackgroundOpacity = 1.0f;                  // the paper behind the board, 0..1; below 1 only in the see-through window (the desktop shows through the rest)
 };
 
 /**
@@ -69,6 +70,9 @@ private:
 	};
 
 	void ApplyTheme(const FShiftBoardView& View) const;
+
+	/** In the see-through window: the level's paper plane becomes the translucent M_BgGlass, drawn behind everything else. */
+	void UseGlassBackground();
 
 	UPROPERTY()
 	TObjectPtr<UInstancedStaticMeshComponent> EdgeISM;

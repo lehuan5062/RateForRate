@@ -279,6 +279,8 @@ private:
 	bool bMarkers = false;                    // accessibility switches (saved; -ShiftMarkers / -ShiftLargeText / -ShiftCalm force them on for a QA session)
 	bool bLargeText = false;
 	bool bReduceMotion = false;
+	bool bGlassSaved = false;                 // the saved see-through window switch (it changes at the next launch)
+	int32 GlassOpacityPct = 70;               // the paper behind the board in the see-through window, percent (saved; -ShiftGlass=<0..1> forces it)
 	void FillAccessModel(FShiftHudModel& M) const;
 	void QuitGame();
 	bool AchEligible() const;                 // a real human run: not QA, a bot, the attract loop, a lesson, a replay, a forced night or a -ShiftSet world

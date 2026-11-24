@@ -1,4 +1,4 @@
-"""Builds MPC_Theme and the board materials: M_Bg, M_Node, M_Glow, M_Edge.
+"""Builds MPC_Theme and the board materials: M_Bg, M_BgGlass, M_Node, M_Glow, M_Edge.
 
 All materials are Substrate (Unlit BSDF, Front Material) with HLSL SDF Custom nodes (sources in Tools/py/hlsl).
 Per-instance data comes from PerInstanceCustomData; global theme (night, time, cursor, palette) from MPC_Theme.
@@ -124,7 +124,7 @@ def build_mpc():
     mpc = get_or_create("MPC_Theme", MAT_DIR, unreal.MaterialParameterCollection,
                         unreal.MaterialParameterCollectionFactoryNew())
     scalars = []
-    for name, default in (("Night", 0.0), ("Heat", 0.0), ("Beat", 0.0), ("Time", 0.0), ("WipeRadius", 0.0)):
+    for name, default in (("Night", 0.0), ("Heat", 0.0), ("Beat", 0.0), ("Time", 0.0), ("WipeRadius", 0.0), ("BgOpacity", 1.0)):
         p = unreal.CollectionScalarParameter()
         p.set_editor_property("parameter_name", name)
         p.set_editor_property("default_value", default)
@@ -148,10 +148,8 @@ def build_mpc():
     return mpc
 
 
-@stage("M_Bg")
-def build_bg(mpc):
-    mat = fresh_material("M_Bg", MAT_DIR)
-    base_flags(mat, translucent=False, instanced=False)
+def bg_graph(mat, mpc):
+    """The paper background's colour node (shared by M_Bg and M_BgGlass)."""
     pw = world_xy(mat, -1500, 0)
     paper_a = mask(mat, mpc_param(mat, mpc, "PaperDay", -1500, 200), True, True, True, False, -1340, 200)
     paper_b = mask(mat, mpc_param(mat, mpc, "PaperNight", -1500, 360), True, True, True, False, -1340, 360)
@@ -166,7 +164,50 @@ def build_bg(mpc):
     for src, pin in ((pw, "PW"), (paper_a, "PaperA"), (paper_b, "PaperB"), (ink_a, "InkA"), (ink_b, "InkB"),
                      (night, "Night"), (tm, "Tm"), (beat, "Beat")):
         connect(src, node, [pin])
-    finish_substrate(mat, node, alpha=None, over=False)
+    return node
+
+
+@stage("M_Bg")
+def build_bg(mpc):
+    mat = fresh_material("M_Bg", MAT_DIR)
+    base_flags(mat, translucent=False, instanced=False)
+    finish_substrate(mat, bg_graph(mat, mpc), alpha=None, over=False)
+
+
+@stage("M_BgGlass")
+def build_bg_glass(mpc):
+    """The see-through window's background: the same paper, translucent, with the Settings opacity (MPC BgOpacity) as its coverage.
+    The game swaps it in for M_Bg only while the see-through window is active; M_Bg stays exactly as it was."""
+    mat = fresh_material("M_BgGlass", MAT_DIR)
+    base_flags(mat, translucent=True, instanced=False)
+    opacity = mpc_param(mat, mpc, "BgOpacity", -1500, 1200)
+    # The desktop compositor wants colour premultiplied in DISPLAY space (encoded colour x opacity), but the engine premultiplies in linear light before it tonemaps and
+    # gamma-encodes, which makes a translucent paper far too bright. The Substrate weight multiplies the colour by the opacity once; this pre-scales it by
+    # B = opacity x (0.6 + 0.4 x opacity^6), a curve fitted to the game's tonemapper (measured: the display colour comes out at paper x opacity + backdrop x (1 - opacity)
+    # at 30% and 70%; a plain gamma 2.2 is about 12% too bright at 70% and 50 levels too dark with a steeper one at 30%).
+    def const(value, x, y):
+        c = add(mat, unreal.MaterialExpressionConstant, x, y)
+        c.set_editor_property("r", value)
+        return c
+
+    def power(base, exponent, x, y):
+        n = add(mat, unreal.MaterialExpressionPower, x, y)
+        connect(base, n, ["Base"])
+        connect(const(exponent, x - 160, y + 100), n, ["Exp", "Exponent"])
+        return n
+
+    def mul(left, right, x, y):
+        n = add(mat, unreal.MaterialExpressionMultiply, x, y)
+        connect(left, n, ["A"])
+        connect(right, n, ["B"])
+        return n
+
+    knee = add(mat, unreal.MaterialExpressionAdd, 100, 1500)
+    connect(mul(power(opacity, 6.0, -300, 1500), const(0.4, -300, 1650), -100, 1550), knee, ["A"])
+    connect(const(0.6, -100, 1700), knee, ["B"])
+    boost = mul(power(opacity, 1.0, -300, 1250), knee, 300, 1400)
+    scaled = mul(bg_graph(mat, mpc), boost, 500, 700)
+    finish_substrate(mat, scaled, alpha=opacity, over=True)
 
 
 @stage("M_Node")
@@ -243,6 +284,7 @@ def main():
     mpc = build_mpc()
     if mpc is not None:
         build_bg(mpc)
+        build_bg_glass(mpc)
         build_node(mpc)
         build_glow(mpc)
         build_edge(mpc)

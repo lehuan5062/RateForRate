@@ -5,10 +5,13 @@
 #include "Board/ShiftPalette.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SceneComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Containers/ArrayView.h"
 #include "Engine/EngineTypes.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "HAL/Platform.h"
 #include "Logging/LogMacros.h"
 #include "Materials/MaterialInterface.h"
@@ -18,6 +21,7 @@
 #include "Math/MathFwd.h"
 #include "Math/NumericLimits.h"
 #include "Math/UnrealMathUtility.h"
+#include "ShiftGlass.h"
 #include "ShiftHappens.h"
 #include "Sim/ShiftGraph.h"
 #include "Sim/ShiftParams.h"
@@ -102,6 +106,7 @@ void AShiftBoard::Build(const ShiftSim::Sim& Sim)
 	ThemeMPC = LoadObject<UMaterialParameterCollection>(nullptr, TEXT("/Game/Shift/Materials/MPC_Theme.MPC_Theme"));
 	UE_LOG(LogShift, Log, TEXT("Board assets: plane=%d node=%d glow=%d edge=%d mpc=%d"),
 		Plane != nullptr, NodeMat != nullptr, GlowMat != nullptr, EdgeMat != nullptr, ThemeMPC != nullptr);
+	UseGlassBackground();
 
 	struct FSetup
 	{
@@ -207,6 +212,33 @@ int32 AShiftBoard::NodeAtWorld(const FVector2D& World, float Slack) const
 	return Best;
 }
 
+void AShiftBoard::UseGlassBackground()
+{
+	if (!ShiftGlass::IsActive() || !GetWorld())
+	{
+		return;
+	}
+	UMaterialInterface* GlassMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shift/Materials/M_BgGlass.M_BgGlass"));
+	if (!GlassMat)
+	{
+		UE_LOG(LogShift, Warning, TEXT("Glass: M_BgGlass is missing (run Tools/py/build_materials.py), the background stays opaque"));
+		return;
+	}
+	int32 Swapped = 0;
+	for (TActorIterator<AStaticMeshActor> It(GetWorld()); It; ++It)
+	{
+		UStaticMeshComponent* Comp = It->GetStaticMeshComponent();
+		UMaterialInterface* Current = Comp ? Comp->GetMaterial(0) : nullptr;
+		if (Current && Current->GetName() == TEXT("M_Bg"))
+		{
+			Comp->SetMaterial(0, GlassMat);
+			Comp->SetTranslucentSortPriority(-10);   // behind the edges (0), halos (1) and voters (2)
+			++Swapped;
+		}
+	}
+	UE_LOG(LogShift, Display, TEXT("Glass: the background is translucent (%d plane)"), Swapped);
+}
+
 void AShiftBoard::ApplyTheme(const FShiftBoardView& View) const
 {
 	if (!ThemeMPC || !GetWorld())
@@ -222,6 +254,7 @@ void AShiftBoard::ApplyTheme(const FShiftBoardView& View) const
 	Inst->SetScalarParameterValue(TEXT("Heat"), View.Heat);
 	Inst->SetScalarParameterValue(TEXT("Beat"), View.Beat);
 	Inst->SetScalarParameterValue(TEXT("Time"), View.Time);
+	Inst->SetScalarParameterValue(TEXT("BgOpacity"), ShiftGlass::IsActive() ? FMath::Clamp(View.BackgroundOpacity, 0.0f, 1.0f) : 1.0f);
 	Inst->SetVectorParameterValue(TEXT("Cursor"), FLinearColor(static_cast<float>(View.CursorWorld.X), static_cast<float>(View.CursorWorld.Y), 0.0f, 0.0f));
 }
 

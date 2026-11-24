@@ -264,3 +264,52 @@ void ShiftSave::SetFlag(const TCHAR* Key, bool bOn)
 		GConfig->Flush(false, GGameUserSettingsIni);
 	}
 }
+
+bool ShiftSave::GlassWindow()
+{
+	return GetFlag(TEXT("GlassWindow"));
+}
+
+void ShiftSave::SetGlassWindow(bool bOn)
+{
+	SetFlag(TEXT("GlassWindow"), bOn);
+	if (!GConfig)
+	{
+		return;
+	}
+	// The see-through window needs an alpha channel all the way to the screen. These are read before the renderer starts, so they go into the player's own saved
+	// Engine.ini (Saved/Config), and come out again when the window is switched off.
+	static const TCHAR* const Keys[] = { TEXT("r.PostProcessing.PropagateAlpha"), TEXT("r.TransparentViewportClear"), TEXT("r.DefaultBackBufferPixelFormat"), TEXT("r.D3D12.UseAllowTearing") };
+	static const TCHAR* const Values[] = { TEXT("1"), TEXT("1"), TEXT("0"), TEXT("0") };
+	for (int32 i = 0; i < 4; ++i)
+	{
+		if (bOn)
+		{
+			GConfig->SetString(TEXT("SystemSettings"), Keys[i], Values[i], GEngineIni);
+		}
+		else
+		{
+			GConfig->RemoveKey(TEXT("SystemSettings"), Keys[i], GEngineIni);
+		}
+	}
+	GConfig->Flush(false, GEngineIni);
+}
+
+int32 ShiftSave::GlassOpacity()
+{
+	int32 Value = 70;
+	if (GConfig)
+	{
+		GConfig->GetInt(SaveSection, TEXT("GlassOpacity"), Value, GGameUserSettingsIni);
+	}
+	return FMath::Clamp(Value, 0, 100);
+}
+
+void ShiftSave::SetGlassOpacity(int32 Percent)
+{
+	if (GConfig)
+	{
+		GConfig->SetInt(SaveSection, TEXT("GlassOpacity"), FMath::Clamp(Percent, 0, 100), GGameUserSettingsIni);
+		GConfig->Flush(false, GGameUserSettingsIni);
+	}
+}
