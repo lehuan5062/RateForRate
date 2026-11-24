@@ -204,7 +204,7 @@ def icon(size=512, split=True):
         img.paste(tile, (0, 0), mask)
     d = ImageDraw.Draw(img)
     c = s / 2
-    R = s * (0.30 if split else 0.355)
+    R = s * (0.347 if split else 0.355)   # 0.347: the ring (outer radius 1.27 R, width 0.17 R) ends one ring-width from the tile edge
 
     def box(r):
         return (c - r, c - r, c + r, c + r)
@@ -212,7 +212,7 @@ def icon(size=512, split=True):
     d.ellipse(box(R * 1.27), outline=(128, 128, 150, 120), width=int(R * 0.17))
     d.arc(box(R * 1.27), -90, 180, fill=TEAL + (255,), width=int(R * 0.17))
     d.ellipse(box(R), fill=TEAL + (255,), outline=INK + (255,), width=int(R * 0.09))
-    pts = arrow_points(c, c, R * 1.3)   # the shift arrow alone, a solid white block with an ink outline so it is still a shape at 16 px
+    pts = arrow_points(c, c, R * 1.36)   # the shift arrow alone, a solid white block with an ink outline so it is still a shape at 16 px
     d.polygon(pts, fill=WHITE + (255,))
     d.line(pts + [pts[0]], fill=INK + (255,), width=int(R * 0.085), joint='curve')
     return img.resize((size, size), Image.LANCZOS)

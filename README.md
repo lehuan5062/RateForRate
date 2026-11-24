@@ -24,16 +24,17 @@ Hubs and celebrities carry most of the vote weight. Flip them and their follower
 | **Right-click** a voter you hold | **Rally**: spend 1 Post to shield it and your voters one hop away from every plug for 6 s (teal dome) and add a little conviction (8 s cooldown) |
 | **Hold SHIFT** (or press **N** to toggle) | **Night shift**: the world goes dark. Clicks become **sockpuppets**: 3x stronger, ignore gates, but fragile, and they build **Heat** |
 | **B** | **Shift the Blame**: the strike that would disqualify you can be handed to your rival, once per jam, if the fake votes of all your strikes together were few (under 20% of the vote). It is offered for 5 s as an orange bar in the middle of the bottom bar: click it or press B |
+| **Right-drag on empty space** (also middle-drag, arrows or WASD) | Pan the board (**Home** puts it back). A right-click without moving is still a Rally. The board starts centred on the screen; the leaderboard strip on the right can cover a voter at the far right edge, so pan, or hide it with **L** |
 | **Space / Esc** | Pause and menu |
 | **H** | The *How to play* reference page |
 | **M** | Mute: effects and music both off, or both back on |
-| **Gear button** (top right) | Settings menu: **Effects** on / off, **Music** on / off, and the window mode (Fullscreen, Borderless = a window the size of the desktop, Windowed). Esc or a click outside closes it. The choices are saved; the game starts in Fullscreen. **Alt+Enter** / **F11** also toggle fullscreen. A red dot on the gear means some sound is off |
+| **Settings** (title menu) or the **gear button** (top right, other screens) | Settings menu: **Effects** on / off, **Music** on / off, and the window mode (Fullscreen, Borderless = a window the size of the desktop, Windowed). Esc or a click outside closes it. The choices are saved; the game starts in Fullscreen. **Alt+Enter** / **F11** also toggle fullscreen. A red dot on the gear means some sound is off |
 | **Cursor** | The game draws its own cursor: an arrow, a hand over buttons, a teal target over a voter you can flip, a "+" over one of yours, a visor over a voter at night, and a slashed circle over one you cannot act on (immune, gated, overheated). A ring marks each click: teal for a plug, violet for a sockpuppet, amber for a Rally |
 | **E** | Relation lines: faint (default) / off / full |
 | **L** | Leaderboard: compact (default) / full / hidden |
 | **R** | Retry (when paused or on the results screen) |
 | **O** | Results screen: open the folder with the recording of the jam you just played |
-| **A** / **C** (title) | The **Achievements** page (14 achievements, a career strip per jam) and the **Credits** |
+| **Title menu** | Mouse only: Play, Learn to play, How to play, Achievements (14 achievements and a career strip per jam), Settings, Credits and Quit are buttons. Holding **SHIFT** on the title turns the board to night |
 
 * **Posts** are your energy and come back over time. Your build sets the bank (3 to 7, 5 at an even split), how fast they refill, how far each Plug goes and how many voters you start with: the build screen and the pause menu list the numbers.
 * **Gates**: a famous voter ignores you until enough of their own followers already back you (a padlock ring shows progress). Night shift skips gates. The rule binds the rival and the other entries too: a hub or a celebrity whose followers have come around to you is out of their reach (hover it to see).

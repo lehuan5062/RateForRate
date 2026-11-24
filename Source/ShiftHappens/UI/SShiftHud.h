@@ -27,6 +27,7 @@
 DECLARE_DELEGATE_ThreeParams(FOnShiftHudClick, const FVector2D& /*LocalPos*/, bool /*bShift*/, bool /*bRightButton*/);
 DECLARE_DELEGATE_TwoParams(FOnShiftHudUi, int32 /*EShiftUi::Id*/, float /*Value01 for sliders, else 0*/);
 DECLARE_DELEGATE_OneParam(FOnShiftHudKey, const FKey& /*Key*/);
+DECLARE_DELEGATE_OneParam(FOnShiftHudPan, const FVector2f& /*Delta in design pixels: the board follows the mouse*/);
 
 /**
  * All of the game's 2D interface in one custom-painted widget: title, jam select, build screen, and the play HUD with its pause and
@@ -41,6 +42,7 @@ public:
 		SLATE_EVENT(FOnShiftHudClick, OnClick)
 		SLATE_EVENT(FOnShiftHudUi, OnUi)
 		SLATE_EVENT(FOnShiftHudKey, OnKey)
+		SLATE_EVENT(FOnShiftHudPan, OnPan)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -133,7 +135,9 @@ private:
 	void PaintExtras(FShiftPainter& P, const FPal& C) const;
 	void PaintScatter(FShiftPainter& P, const FPal& C, float X, float Y, float W, float H, const FString& Title, const TArray<FShiftHudDot>& Dots,
 		const FShiftHudFit& Fit, const FString& Caption) const;
-	void PaintKeycap(FShiftPainter& P, const FPal& C, float Cx, float Cy, bool bPressed) const;
+	void PaintKeycap(FShiftPainter& P, const FPal& C, float X, float Y, float S, bool bPressed) const;
+	void PaintLogo(FShiftPainter& P, const FPal& C, float X, float Y, float Px, bool bPressed) const;
+	void MenuRow(FShiftPainter& P, const FPal& C, int32 Id, int32 Rank, float Y, const FString& Label, const FString& KeyHint, int32 EntryColor, float Bar, bool bNudge) const;
 	/** The game's own cursor and the click rings, painted last so they sit above everything, the hover card included. */
 	void PaintCursor(FShiftPainter& P, const FPal& C) const;
 #if !UE_BUILD_SHIPPING
@@ -152,6 +156,12 @@ private:
 	FOnShiftHudClick OnClick;
 	FOnShiftHudUi OnUi;
 	FOnShiftHudKey OnKey;
+	FOnShiftHudPan OnPan;
+	bool bQaDriven = false;                // -ShiftMouse is in use: real pointer moves are ignored for the pan
+	mutable bool bPanning = false;         // dragging the board (the middle button, or the right button once it moved)
+	mutable bool bRightPending = false;    // the right button went down on empty space: a Rally if it comes up where it went down, a pan once it moves
+	mutable FVector2f RightStart = FVector2f::ZeroVector;
+	mutable FVector2f PanLast = FVector2f::ZeroVector;
 
 	mutable TArray<FHit> Hits;
 	mutable bool bModal = false;

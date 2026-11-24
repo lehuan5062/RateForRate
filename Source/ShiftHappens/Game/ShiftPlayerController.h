@@ -111,6 +111,7 @@ private:
 	void HandleUi(int32 Id, float Value01);
 	void HandleHudClick(const FVector2D& LocalPos, bool bShift, bool bRightButton);
 	void HandleHudKey(const FKey& Key);
+	void HandleHudPan(const FVector2f& DeltaDesign);
 	bool IsNightHeldNow() const;
 	bool IsNightHeldRaw() const;
 
@@ -261,10 +262,25 @@ private:
 	TArray<FString> AchNewThisRun;            // their names, for the results card
 	int32 ExtrasPage = 0;                     // title: 0 none, 1 achievements, 2 credits
 	float SpotFlashClock = 0.0f;              // heartbeat of the spotlighted voter
+
+	// The view: the board is centred on the screen (the sim keeps a strip free on the right for the HUD) and can be panned. All of it is the camera's position;
+	// the sim, the recordings and the balance never see it. A voter at sim (x, y) is drawn at design pixel (x, y) + ViewShift.
+	TWeakObjectPtr<AActor> ViewCamera;
+	FVector ViewCameraBase = FVector::ZeroVector;
+	FVector2D ViewPan = FVector2D::ZeroVector;          // design pixels, what the player did
+	FVector2D ViewPanTarget = FVector2D::ZeroVector;
+	FVector2D ViewShift = FVector2D::ZeroVector;        // centring plus pan
+	FVector2D ViewPanLo = FVector2D::ZeroVector;        // the range the pan may take, so the voters stay on the screen
+	FVector2D ViewPanHi = FVector2D::ZeroVector;
+	bool bViewBounds = false;
+	void UpdateView(float DeltaTime);
+	void ResetView();
+	FVector2D SimToDesign(double X, double Y) const { return FVector2D(X + ViewShift.X, Y + ViewShift.Y); }
 	bool bMarkers = false;                    // accessibility switches (saved; -ShiftMarkers / -ShiftLargeText / -ShiftCalm force them on for a QA session)
 	bool bLargeText = false;
 	bool bReduceMotion = false;
 	void FillAccessModel(FShiftHudModel& M) const;
+	void QuitGame();
 	bool AchEligible() const;                 // a real human run: not QA, a bot, the attract loop, a lesson, a replay, a forced night or a -ShiftSet world
 	void PollAchievements();
 	void FinishAchievements();

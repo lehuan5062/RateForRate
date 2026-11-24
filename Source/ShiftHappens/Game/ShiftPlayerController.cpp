@@ -352,7 +352,7 @@ void AShiftPlayerController::BeginPlay()
 				FScriptedMouse Event;
 				Event.Time = FCString::Atof(*F[0]);
 				Event.Design = FVector2f(FCString::Atof(*F[1]), FCString::Atof(*F[2]));
-				Event.Kind = F[3] == TEXT("d") ? 1 : (F[3] == TEXT("u") ? 2 : 0);
+				Event.Kind = F[3] == TEXT("d") ? 1 : (F[3] == TEXT("u") ? 2 : (F[3] == TEXT("rd") ? 3 : (F[3] == TEXT("ru") ? 4 : (F[3] == TEXT("rm") ? 5 : 0))));   // m move, d / u left down / up, rd / ru right down / up, rm move with the right button held
 				ScriptedMouse.Add(Event);
 			}
 		}
@@ -372,7 +372,7 @@ void AShiftPlayerController::BeginPlay()
 	bMusicOn = ShiftSave::IsMusicOn();
 	bForceNoSfx = FParse::Param(Cmd, TEXT("ShiftNoSfx"));
 	bForceNoMusic = FParse::Param(Cmd, TEXT("ShiftNoMusic"));
-	bLessonNudge = !bQaRun && (ShiftSave::LessonsDone() & 1) == 0;
+	bLessonNudge = FParse::Param(FCommandLine::Get(), TEXT("ShiftNudge")) || (!bQaRun && (ShiftSave::LessonsDone() & 1) == 0);
 	EdgeMode = ShiftSave::EdgeMode();
 	bMarkers = ShiftSave::GetFlag(TEXT("Markers")) || FParse::Param(FCommandLine::Get(), TEXT("ShiftMarkers"));
 	bLargeText = ShiftSave::GetFlag(TEXT("LargeText")) || FParse::Param(FCommandLine::Get(), TEXT("ShiftLargeText"));
@@ -453,7 +453,8 @@ void AShiftPlayerController::BeginPlay()
 		Hud = SNew(SShiftHud)
 			.OnClick(FOnShiftHudClick::CreateUObject(this, &AShiftPlayerController::HandleHudClick))
 			.OnUi(FOnShiftHudUi::CreateUObject(this, &AShiftPlayerController::HandleUi))
-			.OnKey(FOnShiftHudKey::CreateUObject(this, &AShiftPlayerController::HandleHudKey));
+			.OnKey(FOnShiftHudKey::CreateUObject(this, &AShiftPlayerController::HandleHudKey))
+			.OnPan(FOnShiftHudPan::CreateUObject(this, &AShiftPlayerController::HandleHudPan));
 		GEngine->GameViewport->AddViewportWidgetContent(Hud.ToSharedRef(), 10);
 
 		FInputModeGameAndUI Mode;
@@ -674,6 +675,7 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 	LostCooldown = 0.0f;
 	ChatterQueue.Reset();
 	ChatterGap = 0.0f;
+	ResetView();
 	Ach.Reset();
 	AchSaved = FParse::Param(FCommandLine::Get(), TEXT("ShiftAchTest")) ? 0u : ShiftSave::Achievements();
 	AchNewThisRun.Reset();
@@ -823,12 +825,12 @@ void AShiftPlayerController::TickLesson(float DeltaTime)
 			const ShiftSim::GraphNode& N = Run->GetSim().GetGraph().nodes[static_cast<size_t>(Act.Node)];
 			if (bPseudoCursor)
 			{
-				PseudoMoveTo(FVector2D(N.x, N.y), 0.45f);   // the scripted cursor glides there; TickPseudoCursor drives the fake cursor
+				PseudoMoveTo(SimToDesign(N.x, N.y), 0.45f);   // the scripted cursor glides there; TickPseudoCursor drives the fake cursor
 			}
 			else
 			{
 				bFakeCursor = true;
-				FakeCursorDesign = FVector2D(N.x, N.y);
+				FakeCursorDesign = SimToDesign(N.x, N.y);
 			}
 		}
 		break;
@@ -837,7 +839,7 @@ void AShiftPlayerController::TickLesson(float DeltaTime)
 		if (bPseudoCursor && Act.Node >= 0)
 		{
 			const ShiftSim::GraphNode& N = Run->GetSim().GetGraph().nodes[static_cast<size_t>(Act.Node)];
-			PseudoClick(FVector2D(N.x, N.y), Act.bNight ? 1 : 0);
+			PseudoClick(SimToDesign(N.x, N.y), Act.bNight ? 1 : 0);
 		}
 		Run->QueueAction(Act.Node, Act.bNight);
 		break;
@@ -846,7 +848,7 @@ void AShiftPlayerController::TickLesson(float DeltaTime)
 		if (bPseudoCursor && Act.Node >= 0)
 		{
 			const ShiftSim::GraphNode& N = Run->GetSim().GetGraph().nodes[static_cast<size_t>(Act.Node)];
-			PseudoClick(FVector2D(N.x, N.y), 2);
+			PseudoClick(SimToDesign(N.x, N.y), 2);
 		}
 		Run->QueueRally(Act.Node);
 		break;
@@ -865,9 +867,11 @@ void AShiftPlayerController::TickLesson(float DeltaTime)
 
 void AShiftPlayerController::StartAttract()
 {
+	// A new board every launch: the seed starts from the clock. QA runs keep the fixed sequence, so their screenshots stay comparable.
 	static uint32 AttractCounter = 0;
+	static const uint32 AttractBase = bQaRunFlag ? 1000u : static_cast<uint32>(FDateTime::Now().GetTicks() % 1000000007);
 	const int32 AttractJam = Screen == EShiftScreen::Build ? JamIndex : 2;
-	StartRun(AttractJam, 1000u + (AttractCounter++) * 37u, true);
+	StartRun(AttractJam, AttractBase + (AttractCounter++) * 37u, true);
 }
 
 void AShiftPlayerController::StartPlay()
@@ -1211,6 +1215,122 @@ void AShiftPlayerController::FinishAchievements()
 	ResultsModel.NewAchievements = AchNewThisRun;
 }
 
+void AShiftPlayerController::ResetView()
+{
+	ViewPan = FVector2D::ZeroVector;
+	ViewPanTarget = FVector2D::ZeroVector;
+	bViewBounds = false;
+	FString PanArg;
+	TArray<FString> Parts;
+	if (FParse::Value(FCommandLine::Get(), TEXT("ShiftPan="), PanArg, false) && PanArg.ParseIntoArray(Parts, TEXT(",")) == 2)
+	{
+		ViewPanTarget = FVector2D(FCString::Atof(*Parts[0]), FCString::Atof(*Parts[1]));   // QA: start with the board panned
+	}
+}
+
+void AShiftPlayerController::UpdateView(float DeltaTime)
+{
+	if (!Board || !Run.IsValid())
+	{
+		return;
+	}
+	if (!ViewCamera.IsValid())
+	{
+		ViewCamera = GetViewTarget();
+		if (ViewCamera.IsValid())
+		{
+			ViewCameraBase = ViewCamera->GetActorLocation();
+		}
+	}
+	if (!ViewCamera.IsValid())
+	{
+		return;
+	}
+	static const bool bQaCentre = FParse::Param(FCommandLine::Get(), TEXT("ShiftCentre"));   // QA runs keep the old framing (their click coordinates are sim coordinates) unless asked
+	bool bTrailerOn = false;
+#if !UE_BUILD_SHIPPING
+	bTrailerOn = Trailer && Trailer->IsActive();   // the trailer moves the camera itself
+#endif
+	const bool bCentre = !bTrailerOn && (bAttract || !bQaRunFlag || bQaCentre);
+	const bool bPan = bCentre && !bAttract;
+	FVector2D Centre = FVector2D::ZeroVector;
+	if (bCentre)
+	{
+		const ShiftSim::Params& P = Run->GetSim().GetParams();
+		Centre.X = 0.5 * P.LayoutWidth - 0.5 * (P.LayoutMargin + P.LayoutWidth - P.LayoutMarginRight);   // the middle of the part the HUD leaves free, moved to the middle of the screen
+	}
+	if (bPan && !bViewBounds)
+	{
+		// how far the board may be panned: every voter stays inside the play field
+		const ShiftSim::Sim& S = Run->GetSim();
+		float MinX = 1.0e9f, MaxX = -1.0e9f, MinY = 1.0e9f, MaxY = -1.0e9f;
+		for (int32 I = 0; I < S.NodeCount(); ++I)
+		{
+			const ShiftSim::GraphNode& N = S.GetGraph().nodes[static_cast<size_t>(I)];
+			const float R = Board->NodeRadius(I);
+			MinX = FMath::Min(MinX, static_cast<float>(N.x) - R);
+			MaxX = FMath::Max(MaxX, static_cast<float>(N.x) + R);
+			MinY = FMath::Min(MinY, static_cast<float>(N.y) - R);
+			MaxY = FMath::Max(MaxY, static_cast<float>(N.y) + R);
+		}
+		const auto Range = [](float Min, float Max, float Shift, float SafeLo, float SafeHi, double& OutLo, double& OutHi)
+		{
+			double A = SafeLo - (Min + Shift);
+			double B = SafeHi - (Max + Shift);
+			if (A > B)
+			{
+				Swap(A, B);   // the board is bigger than the field: it may be moved over its whole extent
+			}
+			OutLo = A;
+			OutHi = B;
+		};
+		Range(MinX, MaxX, static_cast<float>(Centre.X), 30.0f, 1250.0f, ViewPanLo.X, ViewPanHi.X);
+		Range(MinY, MaxY, 0.0f, 60.0f, 660.0f, ViewPanLo.Y, ViewPanHi.Y);
+		bViewBounds = true;
+	}
+	if (bPan)
+	{
+		ViewPanTarget.X = FMath::Clamp(ViewPanTarget.X, ViewPanLo.X, ViewPanHi.X);
+		ViewPanTarget.Y = FMath::Clamp(ViewPanTarget.Y, ViewPanLo.Y, ViewPanHi.Y);
+		ViewPan = FMath::Vector2DInterpTo(ViewPan, ViewPanTarget, DeltaTime, 16.0f);
+	}
+	else
+	{
+		ViewPan = FVector2D::ZeroVector;
+		ViewPanTarget = FVector2D::ZeroVector;
+	}
+	ViewShift = Centre + ViewPan;
+	// a point shown ViewShift to the right and down is a camera moved ViewShift to the left and up: design x is the world's Y, design y is the world's -X
+	const FVector Wanted = bTrailerOn ? ViewCamera->GetActorLocation() : ViewCameraBase + FVector(ViewShift.Y, -ViewShift.X, 0.0);
+	if (!ViewCamera->GetActorLocation().Equals(Wanted, 0.01f))
+	{
+		ViewCamera->SetActorLocation(Wanted);
+	}
+}
+
+void AShiftPlayerController::HandleHudPan(const FVector2f& DeltaDesign)
+{
+	if (Screen != EShiftScreen::Play || bHowTo || bSettingsOpen || ResultsShown() || bAttract)
+	{
+		return;
+	}
+	ViewPanTarget += FVector2D(DeltaDesign.X, DeltaDesign.Y);
+	ViewPan = ViewPanTarget;   // dragging has no lag
+}
+
+void AShiftPlayerController::QuitGame()
+{
+#if WITH_EDITOR
+	// In Play In Editor this ends the play session. RequestExit would shut the whole editor down with PIE still running, which crashes in EndPlayMap.
+	if (GEditor && GetWorld() && GetWorld()->IsPlayInEditor())
+	{
+		GEditor->RequestEndPlayMap();
+		return;
+	}
+#endif
+	FPlatformMisc::RequestExit(false);
+}
+
 void AShiftPlayerController::FillAccessModel(FShiftHudModel& M) const
 {
 	M.bMarkers = bMarkers;
@@ -1519,6 +1639,12 @@ void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 		ExtrasPage = 2;
 		bSettingsOpen = false;
 		break;
+	case EShiftUi::Quit:
+		if (Screen == EShiftScreen::Title)
+		{
+			QuitGame();
+		}
+		break;
 	case EShiftUi::ExtrasClose:
 		ExtrasPage = 0;
 		break;
@@ -1642,6 +1768,10 @@ void AShiftPlayerController::HandleHudKey(const FKey& Key)
 		ToggleMute();
 		return;
 	}
+	if (Screen == EShiftScreen::Title)
+	{
+		return;   // the main menu is for the mouse (and holding SHIFT, which is not a key press event here); only M above still works
+	}
 	if (bSettingsOpen && Key == EKeys::Escape)
 	{
 		bSettingsOpen = false;   // Esc closes the settings menu first, before it pauses or goes back
@@ -1676,6 +1806,16 @@ void AShiftPlayerController::HandleHudKey(const FKey& Key)
 		PlaySfx(EShiftSfx::Click);
 		return;
 	}
+	if (Screen == EShiftScreen::Play && !bAttract && !ResultsShown() && !bSettingsOpen)
+	{
+		// pan the board: arrows or WASD (the keys repeat while held), Home puts it back
+		const float Step = 56.0f;
+		if (Key == EKeys::Left || Key == EKeys::A) { ViewPanTarget.X += Step; return; }
+		if (Key == EKeys::Right || Key == EKeys::D) { ViewPanTarget.X -= Step; return; }
+		if (Key == EKeys::Up || Key == EKeys::W) { ViewPanTarget.Y += Step; return; }
+		if (Key == EKeys::Down || Key == EKeys::S) { ViewPanTarget.Y -= Step; return; }
+		if (Key == EKeys::Home) { ViewPanTarget = FVector2D::ZeroVector; return; }
+	}
 	if (bLessonRun && Lesson.IsValid() && Screen == EShiftScreen::Play && !bPaused && Lesson->View().bReading && (Key == EKeys::Enter || Key == EKeys::SpaceBar))
 	{
 		HandleUi(EShiftUi::LessonContinue, 0.0f);
@@ -1691,15 +1831,7 @@ void AShiftPlayerController::HandleHudKey(const FKey& Key)
 		}
 		else if (Key == EKeys::Escape)
 		{
-#if WITH_EDITOR
-			// In Play In Editor, Esc ends the play session. RequestExit would shut the whole editor down with PIE still running, which crashes in EndPlayMap.
-			if (GEditor && GetWorld() && GetWorld()->IsPlayInEditor())
-			{
-				GEditor->RequestEndPlayMap();
-				break;
-			}
-#endif
-			FPlatformMisc::RequestExit(false);   // Esc on the title quits the game
+			QuitGame();   // Esc on the title quits the game
 		}
 		break;
 	case EShiftScreen::JamSelect:
@@ -2473,7 +2605,7 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 
 	T.bVisible = true;
 	T.Cursor = EShiftCursor::Plug;
-	T.Anchor = FVector2f(Node.x, Node.y);
+	T.Anchor = FVector2f(Node.x + ViewShift.X, Node.y + ViewShift.Y);
 	T.AnchorRadius = Board->NodeRadius(HoverNode);
 	T.Title = TEXT("@") + NodeHandle(HoverNode);
 
@@ -2984,8 +3116,8 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 			{
 				const ShiftSim::GraphNode& N = MS.GetGraph().nodes[static_cast<size_t>(I)];
 				FShiftHudModel::FMarker Marker;
-				Marker.X = static_cast<float>(N.x);
-				Marker.Y = static_cast<float>(N.y);
+				Marker.X = static_cast<float>(N.x + ViewShift.X);
+				Marker.Y = static_cast<float>(N.y + ViewShift.Y);
 				Marker.Owner = Holder;
 				M.Markers.Add(Marker);
 			}
@@ -3033,6 +3165,10 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 	if (bLessonRun && Lesson.IsValid())
 	{
 		M.Lesson = Lesson->View();
+		for (FShiftLessonSpot& Spot : M.Lesson.Spots)
+		{
+			Spot.Center += FVector2f(ViewShift.X, ViewShift.Y);
+		}
 		M.bModsEnabled = M.bModsEnabled && M.Lesson.bModEye;
 	}
 	FillAccessModel(M);
@@ -3149,10 +3285,11 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 	const float NightTarget = NightOverride >= 0.0f ? NightOverride : (bNight ? 1.0f : 0.0f);
 	NightBlend = FMath::FInterpTo(NightBlend, NightTarget, DeltaTime, 7.0f);
 
+	UpdateView(DeltaTime);
 	TickPseudoCursor(DeltaTime);
 	if (bFakeCursor)
 	{
-		CursorWorld = Board->SimToWorld(FakeCursorDesign.X, FakeCursorDesign.Y);
+		CursorWorld = Board->SimToWorld(FakeCursorDesign.X - ViewShift.X, FakeCursorDesign.Y - ViewShift.Y);
 	}
 	else
 	{
@@ -3339,7 +3476,7 @@ void AShiftPlayerController::TickPseudoCursor(float DeltaTime)
 			{
 				const ShiftSim::GraphNode& N = Run->GetSim().GetGraph().nodes[static_cast<size_t>(Node)];
 				UE_LOG(LogShift, Log, TEXT("Pseudo bot action %d: node %d at design (%.0f,%.0f) kind %d, sim time %.1f"), Count, Node, N.x, N.y, Run->BotLastKind(), Run->GetSim().Time());
-				PseudoClick(FVector2D(N.x, N.y), Run->BotLastKind());
+				PseudoClick(SimToDesign(N.x, N.y), Run->BotLastKind());
 			}
 		}
 	}

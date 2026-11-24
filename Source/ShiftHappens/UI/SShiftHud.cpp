@@ -2,6 +2,7 @@
 
 #include "UI/SShiftHud.h"
 
+#include "Board/ShiftPalette.h"
 #include <cfloat>
 #include "Containers/Array.h"
 #include "Containers/SparseSet.h"
@@ -18,6 +19,7 @@
 #include "Math/Color.h"
 #include "Math/MathFwd.h"
 #include "Math/UnrealMathUtility.h"
+#include "Misc/Build.h"
 #include "Misc/Paths.h"
 #include "Rendering/DrawElements.h"
 #include "ShiftHudModel.h"
@@ -79,36 +81,36 @@ namespace
 		const FLinearColor Light(1.0f, 1.0f, 1.0f, 1.0f);
 		const int32 Kind = Id % 9;
 		auto Shape = [&](float Rr, const FLinearColor& Col)
-		{
-			switch (Kind)
 			{
-			case 0:
-			case 2:
-				P.Disc(Cx, Cy, Rr, Col);
-				break;
-			case 1:
-				P.FillPolygon({ FVector2f(Cx, Cy - Rr), FVector2f(Cx + Rr, Cy + Rr * 0.8f), FVector2f(Cx - Rr, Cy + Rr * 0.8f) }, Col);
-				break;
-			case 3:
-			case 6:
-				P.Rect(Cx - Rr, Cy - Rr, Rr * 2.0f, Rr * 2.0f, Col, 0.0f);
-				break;
-			case 4:
-				P.FillPolygon({ FVector2f(Cx - Rr, Cy - Rr * 0.8f), FVector2f(Cx + Rr, Cy - Rr * 0.8f), FVector2f(Cx, Cy + Rr) }, Col);
-				break;
-			case 5:
-				P.Rect(Cx - Rr, Cy - Rr * 0.34f, Rr * 2.0f, Rr * 0.68f, Col, 0.0f);
-				P.Rect(Cx - Rr * 0.34f, Cy - Rr, Rr * 0.68f, Rr * 2.0f, Col, 0.0f);
-				break;
-			case 7:
-				P.FillPolygon({ FVector2f(Cx, Cy - Rr * 1.2f), FVector2f(Cx + Rr * 1.1f, Cy), FVector2f(Cx, Cy + Rr * 1.2f), FVector2f(Cx - Rr * 1.1f, Cy) }, Col);
-				break;
-			default:
-				P.Line(FVector2f(Cx - Rr, Cy - Rr), FVector2f(Cx + Rr, Cy + Rr), Col, Rr * 0.8f);
-				P.Line(FVector2f(Cx - Rr, Cy + Rr), FVector2f(Cx + Rr, Cy - Rr), Col, Rr * 0.8f);
-				break;
-			}
-		};
+				switch (Kind)
+				{
+				case 0:
+				case 2:
+					P.Disc(Cx, Cy, Rr, Col);
+					break;
+				case 1:
+					P.FillPolygon({ FVector2f(Cx, Cy - Rr), FVector2f(Cx + Rr, Cy + Rr * 0.8f), FVector2f(Cx - Rr, Cy + Rr * 0.8f) }, Col);
+					break;
+				case 3:
+				case 6:
+					P.Rect(Cx - Rr, Cy - Rr, Rr * 2.0f, Rr * 2.0f, Col, 0.0f);
+					break;
+				case 4:
+					P.FillPolygon({ FVector2f(Cx - Rr, Cy - Rr * 0.8f), FVector2f(Cx + Rr, Cy - Rr * 0.8f), FVector2f(Cx, Cy + Rr) }, Col);
+					break;
+				case 5:
+					P.Rect(Cx - Rr, Cy - Rr * 0.34f, Rr * 2.0f, Rr * 0.68f, Col, 0.0f);
+					P.Rect(Cx - Rr * 0.34f, Cy - Rr, Rr * 0.68f, Rr * 2.0f, Col, 0.0f);
+					break;
+				case 7:
+					P.FillPolygon({ FVector2f(Cx, Cy - Rr * 1.2f), FVector2f(Cx + Rr * 1.1f, Cy), FVector2f(Cx, Cy + Rr * 1.2f), FVector2f(Cx - Rr * 1.1f, Cy) }, Col);
+					break;
+				default:
+					P.Line(FVector2f(Cx - Rr, Cy - Rr), FVector2f(Cx + Rr, Cy + Rr), Col, Rr * 0.8f);
+					P.Line(FVector2f(Cx - Rr, Cy + Rr), FVector2f(Cx + Rr, Cy - Rr), Col, Rr * 0.8f);
+					break;
+				}
+			};
 		Shape(R + 1.8f, Dark);
 		Shape(R, Light);
 		if (Kind == 2 || Kind == 6)
@@ -140,6 +142,7 @@ void SShiftHud::Construct(const FArguments& InArgs)
 	OnClick = InArgs._OnClick;
 	OnUi = InArgs._OnUi;
 	OnKey = InArgs._OnKey;
+	OnPan = InArgs._OnPan;
 }
 
 FVector2D SShiftHud::ComputeDesiredSize(float LayoutScaleMultiplier) const
@@ -163,18 +166,21 @@ void SShiftHud::QaMouse(int32 Kind, const FVector2f& Design)
 	const FVector2f Origin = (Size - FVector2f(DesignW, DesignH) * Scale) * 0.5f;
 	const FVector2f Absolute = FVector2f(Geo.LocalToAbsolute(FVector2D(Origin + Design * Scale)));
 
+	const bool bRight = Kind >= 3;
+	const FKey Button = bRight ? EKeys::RightMouseButton : EKeys::LeftMouseButton;
 	TSet<FKey> Pressed;
-	if (Kind != 2)
+	if (Kind != 2 && Kind != 4)
 	{
-		Pressed.Add(EKeys::LeftMouseButton);
+		Pressed.Add(Button);
 	}
-	const FPointerEvent Event(0, Absolute, Absolute, Pressed, EKeys::LeftMouseButton, 0.0f, FModifierKeysState());
+	const FPointerEvent Event(0, Absolute, Absolute, Pressed, Button, 0.0f, FModifierKeysState());
 	bQaInjecting = true;
-	if (Kind == 0)
+	bQaDriven = true;
+	if (Kind == 0 || Kind == 5)
 	{
 		OnMouseMove(Geo, Event);
 	}
-	else if (Kind == 1)
+	else if (Kind == 1 || Kind == 3)
 	{
 		OnMouseButtonDown(Geo, Event);
 	}
@@ -242,6 +248,16 @@ float SShiftHud::SliderValue(const FHit& Hit, float DesignX)
 FReply SShiftHud::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 	const FKey Button = MouseEvent.GetEffectingButton();
+	if (Button == EKeys::MiddleMouseButton)
+	{
+		if (bModal)
+		{
+			return FReply::Unhandled();
+		}
+		PanLast = LocalToDesign(MyGeometry, FVector2f(MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition())));
+		bPanning = true;
+		return FReply::Handled().SetUserFocus(SharedThis(this), EFocusCause::Mouse).CaptureMouse(SharedThis(this));
+	}
 	if (Button != EKeys::LeftMouseButton && Button != EKeys::RightMouseButton)
 	{
 		return FReply::Unhandled();
@@ -249,13 +265,22 @@ FReply SShiftHud::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerE
 	const FVector2D Local = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
 	const FVector2f Design = LocalToDesign(MyGeometry, FVector2f(Local));
 	MouseDesign = Design;
+	// the right button on empty space (no voter under the cursor, no button): a pan if it moves, a Rally click if it does not
+	const bool bEmptyRight = Button == EKeys::RightMouseButton && !bModal && !Model.Tooltip.bVisible && FindHit(Design) == nullptr;
 	if (!bQaInjecting)
 	{
 		bMouseInside = true;
-		if (!Model.bSystemCursor)
+		if (!Model.bSystemCursor && !bEmptyRight)
 		{
 			PushRipple(Design, Button == EKeys::RightMouseButton ? 2 : ((Model.bNightActive || MouseEvent.IsShiftDown()) ? 1 : 0));
 		}
+	}
+	if (bEmptyRight)
+	{
+		bRightPending = true;
+		RightStart = Design;
+		PanLast = Design;
+		return FReply::Handled().SetUserFocus(SharedThis(this), EFocusCause::Mouse).CaptureMouse(SharedThis(this));
 	}
 
 	FReply Reply = FReply::Handled().SetUserFocus(SharedThis(this), EFocusCause::Mouse);
@@ -283,6 +308,27 @@ FReply SShiftHud::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerE
 
 FReply SShiftHud::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
+	if (bPanning && MouseEvent.GetEffectingButton() == EKeys::MiddleMouseButton)
+	{
+		bPanning = false;
+		return FReply::Handled().ReleaseMouseCapture();
+	}
+	if (bRightPending && MouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
+	{
+		const bool bWasPan = bPanning;
+		bRightPending = false;
+		bPanning = false;
+		if (!bWasPan)
+		{
+			const FVector2D Local = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
+			if (!bQaInjecting && !Model.bSystemCursor)
+			{
+				PushRipple(LocalToDesign(MyGeometry, FVector2f(Local)), 2);
+			}
+			OnClick.ExecuteIfBound(Local, MouseEvent.IsShiftDown(), true);
+		}
+		return FReply::Handled().ReleaseMouseCapture();
+	}
 	if (DragId >= 0 && MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
 	{
 		DragId = -1;
@@ -296,6 +342,20 @@ FReply SShiftHud::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& 
 	const FVector2D Local = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
 	MouseDesign = LocalToDesign(MyGeometry, FVector2f(Local));
 	bMouseInside = bMouseInside || !bQaInjecting;
+	if (bQaDriven && !bQaInjecting)
+	{
+		return FReply::Unhandled();   // a scripted run: the real (headless) pointer must not fight the scripted one
+	}
+	if (bRightPending && !bPanning && FVector2f::Distance(MouseDesign, RightStart) > 6.0f)
+	{
+		bPanning = true;   // far enough to be a drag, not a click
+	}
+	if (bPanning)
+	{
+		OnPan.ExecuteIfBound(MouseDesign - PanLast);
+		PanLast = MouseDesign;
+		return FReply::Handled();
+	}
 	if (DragId >= 0)
 	{
 		OnUi.ExecuteIfBound(DragHit.Id, SliderValue(DragHit, MouseDesign.X));
@@ -315,6 +375,8 @@ void SShiftHud::OnMouseLeave(const FPointerEvent& MouseEvent)
 void SShiftHud::OnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent)
 {
 	DragId = -1;
+	bPanning = false;
+	bRightPending = false;
 }
 
 FCursorReply SShiftHud::OnCursorQuery(const FGeometry& MyGeometry, const FPointerEvent& CursorEvent) const
@@ -331,7 +393,7 @@ FCursorReply SShiftHud::OnCursorQuery(const FGeometry& MyGeometry, const FPointe
 	const FVector2f Design = LocalToDesign(MyGeometry, FVector2f(Local));
 	if (const FHit* Hit = FindHit(Design))
 	{
-		if (Hit->Id != EShiftUi::TitleStart && Hit->Id != EShiftUi::SettingsClose && Hit->Id != EShiftUi::SettingsPanel)
+		if (Hit->Id != EShiftUi::SettingsClose && Hit->Id != EShiftUi::SettingsPanel)
 		{
 			return FCursorReply::Cursor(EMouseCursor::Hand);
 		}
@@ -459,114 +521,174 @@ void SShiftHud::PaintSettings(FShiftPainter& P, const FPal& C) const
 	bModal = true;
 	AddHit(0.0f, 0.0f, DesignW, DesignH, EShiftUi::SettingsClose);
 
-	const float W = 340.0f;
+	const float W = 380.0f;
 	const float H = 350.0f;
-	const float Pad = 18.0f;
-	const float X = DesignW - W - 14.0f;
-	const float Y = 48.0f;
+	const float Pad = 28.0f;
+	const bool bTitle = Model.Screen == EShiftScreen::Title;   // on the title it opens beside the menu, inside the safe zone
+	const float X = bTitle ? 1216.0f - W : DesignW - W - 24.0f;
+	const float Y = bTitle ? 656.0f - H : 56.0f;
 	P.Rect(X + 2.0f, Y + 8.0f, W, H, Hex(0x000000, 0.22f), 18.0f);
 	P.Rect(X - 1.0f, Y - 1.0f, W + 2.0f, H + 2.0f, C.Stroke, 19.0f);
 	P.Rect(X, Y, W, H, C.PanelSolid, 18.0f);
 	AddHit(X, Y, W, H, EShiftUi::SettingsPanel);   // the padding swallows clicks, so only a click outside closes it
 
-	P.Text(TEXT("SETTINGS"), X + Pad, Y + 14.0f, 13.0f, C.Ink, EShiftAlign::Left, true);
-	P.Text(TEXT("Esc closes"), X + W - Pad, Y + 16.0f, 11.0f, C.InkDim, EShiftAlign::Right);
-
-	const float Small = 64.0f;   // the On / Off switches are short, the window buttons below carry longer words
-	P.Text(TEXT("EFFECTS"), X + Pad, Y + 46.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
-	Button(P, C, EShiftUi::EffectsOn, X + Pad, Y + 64.0f, Small, 30.0f, TEXT("On"), Model.bEffectsOn, 13.0f);
-	Button(P, C, EShiftUi::EffectsOff, X + Pad + Small + 8.0f, Y + 64.0f, Small, 30.0f, TEXT("Off"), !Model.bEffectsOn, 13.0f);
-
-	P.Text(TEXT("MUSIC  (M mutes both)"), X + Pad, Y + 110.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
-	Button(P, C, EShiftUi::MusicOn, X + Pad, Y + 128.0f, Small, 30.0f, TEXT("On"), Model.bMusicOn, 13.0f);
-	Button(P, C, EShiftUi::MusicOff, X + Pad + Small + 8.0f, Y + 128.0f, Small, 30.0f, TEXT("Off"), !Model.bMusicOn, 13.0f);
-
-	P.Text(TEXT("WINDOW"), X + Pad, Y + 174.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
-	static const TCHAR* const Labels[3] = { TEXT("Fullscreen"), TEXT("Borderless"), TEXT("Windowed") };
-	const float Third = (W - 2.0f * Pad - 16.0f) / 3.0f;
-	for (int32 i = 0; i < 3; ++i)
+	P.Text(TEXT("SETTINGS"), X + Pad, Y + 22.0f, 14.0f, C.Ink, EShiftAlign::Left, true);
+	if (!bTitle)
 	{
-		Button(P, C, EShiftUi::WindowFullscreen + i, X + Pad + static_cast<float>(i) * (Third + 8.0f), Y + 192.0f, Third, 30.0f, Labels[i], Model.WindowMode == i, 13.0f);
+		P.Text(TEXT("Esc closes"), X + W - Pad, Y + 24.0f, 11.0f, C.InkDim, EShiftAlign::Right);
 	}
 
-	P.Text(TEXT("ACCESSIBILITY"), X + Pad, Y + 238.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
-	Button(P, C, EShiftUi::Markers, X + Pad, Y + 256.0f, W - 2.0f * Pad, 30.0f, Model.bMarkers ? TEXT("Shapes beside colours: on") : TEXT("Shapes beside colours: off"), Model.bMarkers, 13.0f);
-	const float Half = (W - 2.0f * Pad - 8.0f) * 0.5f;
-	Button(P, C, EShiftUi::LargeText, X + Pad, Y + 296.0f, Half, 30.0f, Model.bLargeText ? TEXT("Large text: on") : TEXT("Large text: off"), Model.bLargeText, 13.0f);
-	Button(P, C, EShiftUi::ReduceMotion, X + Pad + Half + 8.0f, Y + 296.0f, Half, 30.0f, Model.bReduceMotion ? TEXT("Calm: on") : TEXT("Calm: off"), Model.bReduceMotion, 13.0f);
+	const float BtnH = 34.0f;
+	const float Gap = 10.0f;
+	const float Inner = W - 2.0f * Pad;
+
+	// effects and music side by side
+	const float ColW = (Inner - 24.0f) * 0.5f;
+	const float Small = (ColW - 8.0f) * 0.5f;
+	const float MusicX = X + Pad + ColW + 24.0f;
+	P.Text(TEXT("EFFECTS"), X + Pad, Y + 62.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
+	P.Text(TEXT("MUSIC"), MusicX, Y + 62.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
+	Button(P, C, EShiftUi::EffectsOn, X + Pad, Y + 82.0f, Small, BtnH, TEXT("On"), Model.bEffectsOn, 13.0f);
+	Button(P, C, EShiftUi::EffectsOff, X + Pad + Small + 8.0f, Y + 82.0f, Small, BtnH, TEXT("Off"), !Model.bEffectsOn, 13.0f);
+	Button(P, C, EShiftUi::MusicOn, MusicX, Y + 82.0f, Small, BtnH, TEXT("On"), Model.bMusicOn, 13.0f);
+	Button(P, C, EShiftUi::MusicOff, MusicX + Small + 8.0f, Y + 82.0f, Small, BtnH, TEXT("Off"), !Model.bMusicOn, 13.0f);
+
+	P.Text(TEXT("WINDOW"), X + Pad, Y + 140.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
+	static const TCHAR* const Labels[3] = { TEXT("Fullscreen"), TEXT("Borderless"), TEXT("Windowed") };
+	const float Third = (Inner - 2.0f * Gap) / 3.0f;
+	for (int32 i = 0; i < 3; ++i)
+	{
+		Button(P, C, EShiftUi::WindowFullscreen + i, X + Pad + static_cast<float>(i) * (Third + Gap), Y + 160.0f, Third, BtnH, Labels[i], Model.WindowMode == i, 12.0f);
+	}
+
+	P.Text(TEXT("ACCESSIBILITY"), X + Pad, Y + 218.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
+	Button(P, C, EShiftUi::Markers, X + Pad, Y + 238.0f, Inner, BtnH, Model.bMarkers ? TEXT("Shapes beside colours: on") : TEXT("Shapes beside colours: off"), Model.bMarkers, 13.0f);
+	const float Half = (Inner - Gap) * 0.5f;
+	Button(P, C, EShiftUi::LargeText, X + Pad, Y + 288.0f, Half, BtnH, Model.bLargeText ? TEXT("Large text: on") : TEXT("Large text: off"), Model.bLargeText, 13.0f);
+	Button(P, C, EShiftUi::ReduceMotion, X + Pad + Half + Gap, Y + 288.0f, Half, BtnH, Model.bReduceMotion ? TEXT("Calm: on") : TEXT("Calm: off"), Model.bReduceMotion, 13.0f);
 }
 
-void SShiftHud::PaintKeycap(FShiftPainter& P, const FPal& C, float Cx, float Cy, bool bPressed) const
+void SShiftHud::PaintKeycap(FShiftPainter& P, const FPal& C, float X, float Y, float S, bool bPressed) const
 {
-	const float W = 190.0f;
-	const float H = 112.0f;
-	const float X = Cx - W * 0.5f;
-	const float Y = Cy - H * 0.5f;
-	const float Off = bPressed ? 9.0f : 0.0f;
+	// the logo's key (keycap() in Tools/itch/make_images.py) with the title key's effects: the pulsing glow, the press, the night colours, the violet arrow
+	const float Cx = X + S * 0.5f;
+	const float Cy = Y + S * 0.5f;
 	const float Pulse = 0.5f + 0.5f * FMath::Sin(PulseTime * 2.4f);
+	P.Disc(Cx, Cy, S * (0.73f + 0.05f * Pulse), bPressed ? Hex(0x8B6CFF, 0.20f) : WithAlpha(C.Teal, 0.07f + 0.05f * Pulse));
+	P.Disc(Cx, Cy, S * 0.52f, bPressed ? Hex(0x8B6CFF, 0.22f) : WithAlpha(C.Teal, 0.08f));
 
-	P.Disc(Cx, Cy, 150.0f + 10.0f * Pulse, bPressed ? Hex(0x8B6CFF, 0.20f) : WithAlpha(C.Teal, 0.07f + 0.05f * Pulse));
-	P.Disc(Cx, Cy, 108.0f, bPressed ? Hex(0x8B6CFF, 0.22f) : WithAlpha(C.Teal, 0.08f));
-
+	const FLinearColor Outline = Hex(0x1B1930);
 	const FLinearColor Base = Mix(Hex(0xB9B3A6), Hex(0x1A1D3A), C.N);
 	const FLinearColor Cap = Mix(Hex(0xFBFAF6), Hex(0x2B2F57), C.N);
-	const FLinearColor Face = Mix(Hex(0xFFFFFF), Hex(0x363B6B), C.N);
-	const FLinearColor Glyph = bPressed ? Hex(0x7B55FF) : Mix(Hex(0x1B1930), Hex(0xEDEDFF), C.N);
+	const FLinearColor Glyph = bPressed ? Hex(0x7B55FF) : Mix(Outline, Hex(0xEDEDFF), C.N);
+	const float Radius = S * 0.22f;
+	const float Edge = S * 0.035f;
+	const auto Box = [&](float Top, float Bottom, const FLinearColor& Fill)
+		{
+			const float L = X + S * 0.04f;
+			const float W = S * 0.92f;
+			P.Rect(L, Top, W, Bottom - Top, Outline, Radius);
+			P.Rect(L + Edge, Top + Edge, W - 2.0f * Edge, Bottom - Top - 2.0f * Edge, Fill, Radius - Edge);
+		};
+	Box(Y + S * 0.19f, Y + S * 0.96f, Base);
+	const float Sink = bPressed ? S * 0.07f : 0.0f;
+	const float CapTop = Y + S * 0.05f + Sink;
+	const float CapBottom = Y + S * 0.86f + Sink;
+	Box(CapTop, CapBottom, Cap);
 
-	P.Rect(X, Y + 12.0f, W, H, Base, 26.0f);
-	P.Rect(X, Y + Off, W, H, Cap, 26.0f);
-	P.Rect(X + 9.0f, Y + Off + 8.0f, W - 18.0f, H - 28.0f, Face, 20.0f);
-
-	const float Ay = Y + Off + H * 0.42f;
+	static const FVector2f ArrowShape[7] = { FVector2f(0.50f, 0.04f), FVector2f(0.94f, 0.52f), FVector2f(0.69f, 0.52f), FVector2f(0.69f, 0.96f), FVector2f(0.31f, 0.96f), FVector2f(0.31f, 0.52f), FVector2f(0.06f, 0.52f) };
+	const float ArrowSize = S * 0.46f;
+	const float ArrowY = (CapTop + CapBottom) * 0.5f;
 	TArray<FVector2f> Arrow;
-	const float Ax = X + 56.0f;
-	Arrow.Add(FVector2f(Ax, Ay - 22.0f));
-	Arrow.Add(FVector2f(Ax + 20.0f, Ay));
-	Arrow.Add(FVector2f(Ax + 8.0f, Ay));
-	Arrow.Add(FVector2f(Ax + 8.0f, Ay + 22.0f));
-	Arrow.Add(FVector2f(Ax - 8.0f, Ay + 22.0f));
-	Arrow.Add(FVector2f(Ax - 8.0f, Ay));
-	Arrow.Add(FVector2f(Ax - 20.0f, Ay));
-	P.Polygon(Arrow, Glyph, 4.0f);
-	P.Text(TEXT("shift"), X + 92.0f, Ay - 20.0f, 36.0f, Glyph, EShiftAlign::Left, true);
+	for (const FVector2f& Point : ArrowShape)
+	{
+		Arrow.Add(FVector2f(Cx + (Point.X - 0.5f) * ArrowSize, ArrowY + (Point.Y - 0.5f) * ArrowSize));
+	}
+	P.Polygon(Arrow, Glyph, S * 0.045f);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // title
 
+void SShiftHud::MenuRow(FShiftPainter& P, const FPal& C, int32 Id, int32 Rank, float Y, const FString& Label, const FString& KeyHint, int32 EntryColor, float Bar, bool bNudge) const
+{
+	// one row of the title menu, drawn like a row of the jam's leaderboard: rank, the entry's dot, a vote bar
+	const float X = 243.0f;
+	const float W = 540.0f * Bar;
+	const float H = 48.0f;
+	const bool bHover = AddHit(X, Y, W, H, Id);
+	const FLinearColor Color = ShiftPalette::Entry(EntryColor);
+	P.Rect(X, Y + 3.0f, W, H, Hex(0x000000, 0.14f), 7.0f);
+	P.Rect(X, Y, W, H, Mix(C.PanelSolid, Color, bHover ? 0.48f : 0.26f), 7.0f);
+	P.Text(FString::FromInt(Rank), X + 28.0f, Y + 12.0f, 19.0f, C.InkDim, EShiftAlign::Center, true);
+	P.Disc(X + 66.0f, Y + H * 0.5f, 9.0f, Color);
+	P.Text(Label, X + 90.0f, Y + 10.0f, 22.0f, C.Ink, EShiftAlign::Left, bHover);
+	if (bNudge)
+	{
+		P.Text(TEXT("New? Start here"), X + W - 14.0f, Y + 15.0f, 14.0f, C.Teal, EShiftAlign::Right, true);
+	}
+	else if (!KeyHint.IsEmpty())
+	{
+		P.Text(KeyHint, X + W - 14.0f, Y + 15.0f, 15.0f, C.InkDim, EShiftAlign::Right);
+	}
+}
+
+void SShiftHud::PaintLogo(FShiftPainter& P, const FPal& C, float X, float Y, float Px, bool bPressed) const
+{
+	// the logo of Tools/itch/make_images.py: the key, then Roboto Black, SHIFT in teal and HAPPENS in white, a thick ink outline, drawn letter by letter so each outline laps the letter before it
+	const float Mark = Px * 1.05f;
+	PaintKeycap(P, C, X - Mark * 0.04f, Y + Px * 0.65f - Mark * 0.5f, Mark, bPressed);
+
+	const FLinearColor Outline = Hex(0x1B1930);
+	const float Stroke = FMath::RoundToFloat(Px * 0.075f);
+	const float Tracking = Px * 0.018f;
+	const auto Word = [&](const TCHAR* Letters, float At, const FLinearColor& Fill)
+		{
+			for (const TCHAR* Letter = Letters; *Letter; ++Letter)
+			{
+				const FString Glyph = FString::Chr(*Letter);
+				P.TextFx(Glyph, At, Y, Px, Fill, EShiftAlign::Left, EShiftTrailerFont::Black, 0, Stroke, Outline);
+				At += P.MeasureFx(Glyph, Px, EShiftTrailerFont::Black, 0).X + Tracking;
+			}
+			return At;
+		};
+	const float WordX = X - Mark * 0.04f + Mark + Px * 0.28f - Px * 0.085f;   // Slate draws an outlined glyph inset
+	const float AfterShift = Word(TEXT("SHIFT"), WordX, Hex(0x1FB6A6));
+	Word(TEXT("HAPPENS"), AfterShift + Px * 0.30f, FLinearColor::White);
+}
+
 void SShiftHud::PaintTitle(FShiftPainter& P, const FPal& C) const
 {
-	AddHit(0, 0, DesignW, DesignH, EShiftUi::TitleStart);   // the whole screen is the start button; later regions sit on top
-
+	// the game is letterboxed to 16:9 like every other screen: the bars are the engine's, and this paints only inside the design rect
 	P.Rect(0, 0, DesignW, DesignH, Mix(Hex(0xF6F1E6, 0.58f), Hex(0x04060F, 0.66f), C.N));
 
+	// the name, as it always was
 	const float Bob = FMath::Sin(PulseTime * 1.1f) * 3.0f;
-	P.Text(TEXT("SHIFT HAPPENS"), 643.0f, 112.0f + Bob + 4.0f, 92.0f, Hex(0x000000, 0.18f), EShiftAlign::Center, true);
-	P.Text(TEXT("SHIFT HAPPENS"), 640.0f, 108.0f + Bob, 92.0f, C.Ink, EShiftAlign::Center, true);
-	P.Text(TEXT("A game about winning a game jam by shifting the votes."), 640.0f, 224.0f, 21.0f, C.InkDim, EShiftAlign::Center);
-
-	PaintKeycap(P, C, 640.0f, 384.0f, Model.bShiftDown);
-
+	const float LogoX = 243.0f;   // the logo (about 794 wide at this size) centred on the screen
+	PaintLogo(P, C, LogoX, 76.0f + Bob, 88.0f, Model.bShiftDown);
 	const FString Hint = Model.bShiftDown ? FString(TEXT("NIGHT SHIFT: sockpuppets, bots, bribes. Powerful, fragile, risky."))
 		: FString(TEXT("Try it: hold SHIFT to work the night shift."));
-	P.Text(Hint, 640.0f, 484.0f, 17.0f, Model.bShiftDown ? Hex(0xB79BFF) : C.InkDim, EShiftAlign::Center, Model.bShiftDown);
+	P.Text(Hint, LogoX, 190.0f, 20.0f, Model.bShiftDown ? Hex(0xB79BFF) : C.InkDim, EShiftAlign::Left, Model.bShiftDown);
 
-	const float Blink = 0.55f + 0.45f * FMath::Sin(PulseTime * 3.0f);
-	P.Text(TEXT("Click anywhere to start"), 640.0f, 560.0f, 26.0f, WithAlpha(C.Teal, Blink), EShiftAlign::Center, true);
-	P.Text(TEXT("or press ENTER      ESC quits"), 640.0f, 596.0f, 13.0f, C.InkDim, EShiftAlign::Center);
+	// the menu is a leaderboard, and Play is in first place
+	const float RowX = 243.0f;   // every row starts where the logo icon does
+	const float RowW = 540.0f;
+	const float PlayY = 232.0f;
+	const float PlayH = 64.0f;
+	const bool bPlayHover = AddHit(RowX, PlayY, RowW, PlayH, EShiftUi::TitleStart);
+	P.Rect(RowX, PlayY, RowW, PlayH, bPlayHover ? Mix(C.Teal, FLinearColor::White, 0.16f) : C.Teal, 9.0f);
+	P.Text(TEXT("1"), RowX + 28.0f, PlayY + 16.0f, 25.0f, FLinearColor::White, EShiftAlign::Center, true);
+	P.Disc(RowX + 66.0f, PlayY + PlayH * 0.5f, 12.0f, FLinearColor::White);
+	P.Text(TEXT("Play"), RowX + 90.0f, PlayY + 13.0f, 29.0f, FLinearColor::White, EShiftAlign::Left, true);
 
-	// New here? The guided lessons teach the game hands-on; the reference page is one screen. The lessons button glows until the basics have been finished once.
-	const float LessonsPulse = 0.5f + 0.5f * FMath::Sin(PulseTime * 4.0f);
-	if (Model.bLessonNudge)
-	{
-		P.Rect(380.0f, 612.0f, 270.0f, 56.0f, WithAlpha(C.Teal, 0.20f + 0.25f * LessonsPulse), 28.0f);
-	}
-	Button(P, C, EShiftUi::LearnToPlay, 386.0f, 618.0f, 258.0f, 44.0f, TEXT("LEARN TO PLAY"), Model.bLessonNudge, 17.0f);
-	Button(P, C, EShiftUi::HowTo, 664.0f, 618.0f, 230.0f, 44.0f, TEXT("How to play  (H)"), false, 16.0f);
-	Button(P, C, EShiftUi::Achievements, 456.0f, 672.0f, 200.0f, 34.0f, TEXT("Achievements  (A)"), false, 14.0f);
-	Button(P, C, EShiftUi::Credits, 664.0f, 672.0f, 160.0f, 34.0f, TEXT("Credits  (C)"), false, 14.0f);
-
-	SettingsButton(P, C, 1246.0f, 24.0f);
+	const float Pitch = 56.0f;
+	float Y = 306.0f;
+	MenuRow(P, C, EShiftUi::LearnToPlay, 2, Y, TEXT("Learn to play"), FString(), 3, 0.74f, Model.bLessonNudge);
+	MenuRow(P, C, EShiftUi::HowTo, 3, Y += Pitch, TEXT("How to play"), FString(), 2, 0.64f, false);
+	MenuRow(P, C, EShiftUi::Achievements, 4, Y += Pitch, TEXT("Achievements"), FString(), 4, 0.56f, false);
+	MenuRow(P, C, EShiftUi::Settings, 5, Y += Pitch, TEXT("Settings"), FString(), 5, 0.49f, false);
+	MenuRow(P, C, EShiftUi::Credits, 6, Y += Pitch, TEXT("Credits"), FString(), 6, 0.43f, false);
+	MenuRow(P, C, EShiftUi::Quit, 7, Y += Pitch, TEXT("Quit"), FString(), 1, 0.38f, false);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -1466,15 +1588,21 @@ void SShiftHud::PaintExtras(FShiftPainter& P, const FPal& C) const
 	bModal = true;
 	AddHit(0.0f, 0.0f, DesignW, DesignH, EShiftUi::ExtrasClose);   // a click anywhere closes the page
 	P.Rect(0.0f, 0.0f, DesignW, DesignH, Hex(0x000000, 0.62f));
-	const float X = 90.0f;
-	const float Y = 36.0f;
-	const float W = 1100.0f;
-	const float H = 648.0f;
-	P.Rect(X, Y, W, H, C.PanelSolid, 18.0f);
 	if (Model.ExtrasPage == 2)
 	{
-		P.Text(TEXT("CREDITS"), X + W * 0.5f, Y + 22.0f, 34.0f, C.Ink, EShiftAlign::Center, true);
-		float Cy = Y + 96.0f;
+		// the credits are a small card, as tall as its lines
+		float Body = 0.0f;
+		for (const FString& Line : Model.CreditsText)
+		{
+			Body += Line.IsEmpty() ? 12.0f : (Line.EndsWith(TEXT(":")) ? 24.0f : 21.0f);
+		}
+		const float W = 380.0f;
+		const float H = 56.0f + 28.0f + Body + 20.0f + 28.0f;
+		const float X = (DesignW - W) * 0.5f;
+		const float Y = (DesignH - H) * 0.5f;
+		P.Rect(X, Y, W, H, C.PanelSolid, 18.0f);
+		P.Text(TEXT("CREDITS"), X + W * 0.5f, Y + 22.0f, 28.0f, C.Ink, EShiftAlign::Center, true);
+		float Cy = Y + 84.0f;
 		for (const FString& Line : Model.CreditsText)
 		{
 			if (Line.IsEmpty())
@@ -1483,12 +1611,17 @@ void SShiftHud::PaintExtras(FShiftPainter& P, const FPal& C) const
 				continue;
 			}
 			const bool bHead = Line.EndsWith(TEXT(":"));
-			P.Text(bHead ? Line.LeftChop(1) : Line, X + W * 0.5f, Cy, bHead ? 15.0f : 14.0f, bHead ? C.Teal : C.Ink, EShiftAlign::Center, bHead);
+			P.Text(bHead ? Line.LeftChop(1) : Line, X + W * 0.5f, Cy, bHead ? 15.0f : 16.0f, bHead ? C.Teal : C.Ink, EShiftAlign::Center, bHead);
 			Cy += bHead ? 24.0f : 21.0f;
 		}
-		P.Text(TEXT("Click anywhere or press C to close"), X + W * 0.5f, Y + H - 28.0f, 11.0f, C.InkDim, EShiftAlign::Center);
+		P.Text(TEXT("Click anywhere to close"), X + W * 0.5f, Y + H - 28.0f, 11.0f, C.InkDim, EShiftAlign::Center);
 		return;
 	}
+	const float X = 90.0f;
+	const float Y = 48.0f;
+	const float W = 1100.0f;
+	const float H = 624.0f;
+	P.Rect(X, Y, W, H, C.PanelSolid, 18.0f);
 	int32 Earned = 0;
 	for (const FShiftHudAchItem& Item : Model.Achievements)
 	{
@@ -1526,7 +1659,7 @@ void SShiftHud::PaintExtras(FShiftPainter& P, const FPal& C) const
 		P.Text(bShow ? Item.Name : FString(TEXT("Hidden achievement")), Cx + 52.0f, Cy + 6.0f, 14.0f, Item.bEarned ? C.Ink : C.InkDim, EShiftAlign::Left, true);
 		P.TextBlock(bShow ? Item.Desc : FString(TEXT("Keep playing to find out.")), Cx + 52.0f, Cy + 25.0f, CellW - 64.0f, 11.0f, 13.0f, C.InkDim);
 	}
-	P.Text(TEXT("Click anywhere or press A to close"), X + W * 0.5f, Y + H - 22.0f, 11.0f, C.InkDim, EShiftAlign::Center);
+	P.Text(TEXT("Click anywhere to close"), X + W * 0.5f, Y + H - 22.0f, 11.0f, C.InkDim, EShiftAlign::Center);
 }
 
 void SShiftHud::PaintHowTo(FShiftPainter& P, const FPal& C) const
@@ -1535,28 +1668,61 @@ void SShiftHud::PaintHowTo(FShiftPainter& P, const FPal& C) const
 	bModal = true;
 	AddHit(0.0f, 0.0f, DesignW, DesignH, EShiftUi::HowTo);   // a click anywhere closes it; the button sits on top
 	P.Rect(0.0f, 0.0f, DesignW, DesignH, Hex(0x000000, 0.62f));
-	const float X = 130.0f;
-	const float Y = 60.0f;
+
+	// the page is as tall as its text: every gap (under the title, between the rows, above the button, under the closing line) is the same
 	const float W = 1020.0f;
-	const float H = 600.0f;
-	P.Rect(X, Y, W, H, C.PanelSolid, 18.0f);
-	P.Text(TEXT("HOW TO PLAY"), X + W * 0.5f, Y + 20.0f, 34.0f, C.Ink, EShiftAlign::Center, true);
-	const float ColW = (W - 108.0f) * 0.5f;
+	const float Pad = 36.0f;
+	const float ColW = (W - 3.0f * Pad) * 0.5f;
+	const float Gap = 28.0f;
+	const float LineH = 19.0f;
+	const float HeadH = 26.0f;
+	const int32 Rows = (Model.HowToText.Num() + 1) / 2;
+	TArray<float> RowH;
+	RowH.Init(0.0f, Rows);
+	TArray<FString> Heads, Bodies;
 	for (int32 i = 0; i < Model.HowToText.Num(); ++i)
 	{
-		const float Bx = X + 36.0f + static_cast<float>(i % 2) * (ColW + 36.0f);
-		const float By = Y + 86.0f + static_cast<float>(i / 2) * 150.0f;
 		FString Head, Body;
 		if (!Model.HowToText[i].Split(TEXT(":"), &Head, &Body))
 		{
 			Body = Model.HowToText[i];
 		}
 		Body.TrimStartInline();
-		P.Text(Head, Bx, By, 16.0f, C.Teal, EShiftAlign::Left, true);
-		P.TextBlock(Body, Bx, By + 26.0f, ColW, 14.0f, 19.0f, C.Ink);
+		Heads.Add(Head);
+		Bodies.Add(Body);
+		RowH[i / 2] = FMath::Max(RowH[i / 2], HeadH + LineH * static_cast<float>(P.Wrap(Body, ColW, 14.0f, false).Num()));
 	}
-	Button(P, C, EShiftUi::LearnToPlay, X + W * 0.5f - 105.0f, Y + H - 64.0f, 210.0f, 42.0f, TEXT("Learn to play"), true, 16.0f);
-	P.Text(TEXT("Click anywhere or press H to close"), X + W * 0.5f, Y + H - 18.0f, 11.0f, C.InkDim, EShiftAlign::Center);
+	float Content = 0.0f;
+	for (const float H : RowH)
+	{
+		Content += H;
+	}
+	const float TitleH = 34.0f;
+	const float ButtonH = 42.0f;
+	const float CloseH = 12.0f;
+	const float H = Pad + TitleH + Gap + Content + Gap * static_cast<float>(FMath::Max(0, Rows - 1)) + Gap + ButtonH + Gap + CloseH + Pad;
+	const float X = (DesignW - W) * 0.5f;
+	const float Y = (DesignH - H) * 0.5f;
+	P.Rect(X, Y, W, H, C.PanelSolid, 18.0f);
+	P.Text(TEXT("HOW TO PLAY"), X + W * 0.5f, Y + Pad - 4.0f, 34.0f, C.Ink, EShiftAlign::Center, true);
+	float RowY = Y + Pad + TitleH + Gap;
+	for (int32 Row = 0; Row < Rows; ++Row)
+	{
+		for (int32 Col = 0; Col < 2; ++Col)
+		{
+			const int32 i = Row * 2 + Col;
+			if (i >= Heads.Num())
+			{
+				break;
+			}
+			const float Bx = X + Pad + static_cast<float>(Col) * (ColW + Pad);
+			P.Text(Heads[i], Bx, RowY, 16.0f, C.Teal, EShiftAlign::Left, true);
+			P.TextBlock(Bodies[i], Bx, RowY + HeadH, ColW, 14.0f, LineH, C.Ink);
+		}
+		RowY += RowH[Row] + Gap;
+	}
+	Button(P, C, EShiftUi::LearnToPlay, X + W * 0.5f - 105.0f, RowY, 210.0f, ButtonH, TEXT("Learn to play"), true, 16.0f);
+	P.Text(Model.Screen == EShiftScreen::Title ? TEXT("Click anywhere to close") : TEXT("Click anywhere or press H to close"), X + W * 0.5f, RowY + ButtonH + Gap, 11.0f, C.InkDim, EShiftAlign::Center);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -1737,7 +1903,7 @@ void SShiftHud::PaintCursor(FShiftPainter& P, const FPal& C) const
 	EShiftCursor Shape = Model.Tooltip.bVisible ? Model.Tooltip.Cursor : EShiftCursor::Arrow;
 	if (const FHit* Hit = FindHit(Pos))
 	{
-		if (Hit->Id != EShiftUi::TitleStart && Hit->Id != EShiftUi::SettingsClose && Hit->Id != EShiftUi::SettingsPanel)
+		if (Hit->Id != EShiftUi::SettingsClose && Hit->Id != EShiftUi::SettingsPanel)
 		{
 			Shape = EShiftCursor::Button;
 		}

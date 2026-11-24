@@ -61,6 +61,7 @@ namespace EShiftUi
 		Markers = 67,             // settings menu: shapes on every voter and leaderboard row, so colour is not the only signal
 		LargeText = 68,           // settings menu: a floor for the text size
 		ReduceMotion = 69,        // settings menu: steady instead of pulsing
+		Quit = 73,                // title: leave the game (also Esc)
 		ExtrasClose = 72,         // behind either page: a click anywhere closes it
 	};
 }

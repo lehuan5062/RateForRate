@@ -71,7 +71,6 @@ namespace
 		return FCoreStyle::GetDefaultFontStyle(bBold ? TEXT("Bold") : TEXT("Regular"), static_cast<float>(FMath::Max(6, FMath::RoundToInt(Px * 0.75f))));
 	}
 
-#if !UE_BUILD_SHIPPING
 	/** A composite font with one face read from the engine's own Roboto files; null (and a log line) when the file is missing, then the default bold face stands in. */
 	TSharedPtr<const FCompositeFont> TrailerComposite(EShiftTrailerFont Kind)
 	{
@@ -115,7 +114,6 @@ namespace
 		}
 		return Info;
 	}
-#endif
 }
 
 FPaintGeometry FShiftPainter::Geom(float X, float Y, float W, float H) const
@@ -288,7 +286,6 @@ void FShiftPainter::FillPolygon(const TArray<FVector2f>& Points, const FLinearCo
 	}
 }
 
-#if !UE_BUILD_SHIPPING
 FVector2f FShiftPainter::MeasureFx(const FString& Str, float Px, EShiftTrailerFont Font, int32 Tracking) const
 {
 	if (Str.IsEmpty())
@@ -324,7 +321,6 @@ void FShiftPainter::TextFx(const FString& Str, float X, float Y, float Px, const
 	const FPaintGeometry Paint = Geo.ToPaintGeometry(FVector2f(Size.X + 4.0f, Size.Y), FSlateLayoutTransform(Scale * TextScale, Origin + TopLeft * Scale));
 	FSlateDrawElement::MakeText(Out, ++Layer, Paint, Str, TrailerFont(Font, Px, Tracking, Outline, OutlineColor), ESlateDrawEffect::None, Color);
 }
-#endif
 
 void FShiftPainter::Text(const FString& Str, float X, float Y, float Px, const FLinearColor& Color, EShiftAlign Align, bool bBold)
 {
