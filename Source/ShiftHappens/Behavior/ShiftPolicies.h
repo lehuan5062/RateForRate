@@ -36,6 +36,9 @@ namespace ShiftSim
 		double EyeAwaySeconds = 9.0;         // length of one window
 		double EyeAwayEndMargin = 25.0;      // the last window ends at least this long before the jam does (past SockReview, so a burst cannot hide in it)
 		double EyeAwayWarn = 5.0;            // seconds of notice before a window starts
+		double SpotlightCount = 3.0;         // "a streamer spotlights a voter" moments per run (0 = none); a person who flips or backs that voter in time gets a bonus (round 14; never a bot)
+		double SpotlightSeconds = 9.0;       // how long a spotlight lasts
+		double SpotlightBonusPosts = 1.0;    // Posts a hit gives back
 		double FinalPushRegen = 1.10;        // the player's Post refill multiplier in the rival's final push (the last MegaDays days), 1 = off
 		double MegaAttackMult = 2.0;         // actions per rival tick during Mega
 		// stand-in others
@@ -1148,7 +1151,7 @@ namespace ShiftSim
 			static const Field kFields[] = {
 				SHIFT_PP(RivalDefendBelow), SHIFT_PP(RivalPlayerMult), SHIFT_PP(RivalCapShare), SHIFT_PP(RivalBandBase),
 				SHIFT_PP(RivalBandSlope), SHIFT_PP(RivalBandThreshold), SHIFT_PP(RivalPostsMax), SHIFT_PP(RivalPostsRegen), SHIFT_PP(RivalDefendCost), SHIFT_PP(RivalRevenge), SHIFT_PP(GrudgeSeconds), SHIFT_PP(RivalNodeCooldown), SHIFT_PP(MegaDays), SHIFT_PP(MegaConvBoost),
-				SHIFT_PP(MegaAttackMult), SHIFT_PP(FinalPushRegen), SHIFT_PP(EyeAwayCount), SHIFT_PP(EyeAwaySeconds), SHIFT_PP(EyeAwayEndMargin), SHIFT_PP(EyeAwayWarn), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV), SHIFT_PP(OthersTargetsPlayer), SHIFT_PP(OthersLeaderMult), SHIFT_PP(OthersLeaderPlayer), SHIFT_PP(OthersHubs), SHIFT_PP(OthersHubMaxV), SHIFT_PP(OthersStrength), SHIFT_PP(OthersRevengeStrength), SHIFT_PP(OthersRevenge),
+				SHIFT_PP(MegaAttackMult), SHIFT_PP(FinalPushRegen), SHIFT_PP(EyeAwayCount), SHIFT_PP(EyeAwaySeconds), SHIFT_PP(EyeAwayEndMargin), SHIFT_PP(EyeAwayWarn), SHIFT_PP(SpotlightCount), SHIFT_PP(SpotlightSeconds), SHIFT_PP(SpotlightBonusPosts), SHIFT_PP(OthersInterval), SHIFT_PP(OthersMaxV), SHIFT_PP(OthersTargetsPlayer), SHIFT_PP(OthersLeaderMult), SHIFT_PP(OthersLeaderPlayer), SHIFT_PP(OthersHubs), SHIFT_PP(OthersHubMaxV), SHIFT_PP(OthersStrength), SHIFT_PP(OthersRevengeStrength), SHIFT_PP(OthersRevenge),
 				SHIFT_PP(ModFirstSweepMin), SHIFT_PP(BotInterval), SHIFT_PP(BotStart), SHIFT_PP(BotNoise), SHIFT_PP(BotBlame), SHIFT_PP(QaGiveCelebs), SHIFT_PP(SockMaxHeat), SHIFT_PP(SockWindup), SHIFT_PP(LateSeconds), SHIFT_PP(RallyMinRisk), SHIFT_PP(ReactDelay), SHIFT_PP(ReactReserve), SHIFT_PP(ReactMinValue), SHIFT_PP(ReactRallyThreats), SHIFT_PP(ReactRallyValue), SHIFT_PP(XReact), SHIFT_PP(XRally), SHIFT_PP(XSock), SHIFT_PP(XBurst),
 				SHIFT_PP(XIdle), SHIFT_PP(XReinforceBelow), SHIFT_PP(XPlugMinV), SHIFT_PP(XSockMinV), SHIFT_PP(XSockShare), SHIFT_PP(XParry), SHIFT_PP(XWindow), SHIFT_PP(XWindowBank), SHIFT_PP(XValueFirst), SHIFT_PP(XKeepRally),
 			};

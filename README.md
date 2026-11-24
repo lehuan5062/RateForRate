@@ -33,6 +33,7 @@ Hubs and celebrities carry most of the vote weight. Flip them and their follower
 | **L** | Leaderboard: compact (default) / full / hidden |
 | **R** | Retry (when paused or on the results screen) |
 | **O** | Results screen: open the folder with the recording of the jam you just played |
+| **A** / **C** (title) | The **Achievements** page (14 achievements, a career strip per jam) and the **Credits** |
 
 * **Posts** are your energy and come back over time. Your build sets the bank (3 to 7, 5 at an even split), how fast they refill, how far each Plug goes and how many voters you start with: the build screen and the pause menu list the numbers.
 * **Gates**: a famous voter ignores you until enough of their own followers already back you (a padlock ring shows progress). Night shift skips gates. The rule binds the rival and the other entries too: a hub or a celebrity whose followers have come around to you is out of their reach (hover it to see).
@@ -40,6 +41,9 @@ Hubs and celebrities carry most of the vote weight. Flip them and their follower
 * **Sockpuppets are fake until backed**: plug your own sockpuppet (reinforce it three times inside its 3 s immunity) and it becomes a real vote. At the end of the jam a **final audit** purges every sockpuppet vote that is still fake, and every sockpuppet vote bought in the last 15 seconds even if you backed it, so night shift is an opening move, not a last-second trick. **Holding fake votes heats you up** (the **SOCKPUPPET VOTES** card in the right-hand strip shows your fake share against what your cooling can hold, red above it, and explains itself when you hover it), and a strike undoes every sockpuppet vote, backed or not, so cheating is a gamble: careful play gains a little on the hardest jam and costs you a lot of disqualifications.
 * **Voters drift back** to where their neighbours are. A voter that shakes is about to flip back, and a line in the pushing entry's colour runs from each neighbour pushing it: reinforce it or win those neighbours.
 * **Attacks are announced.** When the rival or another entry picks one of your voters, a ring in *their* colour closes in on it for 1.5 seconds before the plug lands. Click the voter to **parry** it (the ring bounces, 1 Post), or Rally it and its neighbours (the ring bounces off the shield), or let it go. Your fans are loyal (a voter you flip starts at 80% conviction). Sockpuppet votes are flagged and get no warning. The rival does not hammer one voter: it leaves a voter it just attacked alone for 30 seconds, so its attacks spread over many voters.
+* **Spotlights**: three times a jam, in the middle of it, a streamer looks at one voter (a card says who, the voter pulses). Flip or back that voter within 9 seconds and you get a Post back. Only a person can take it; bots never do.
+* **Chatter**: voters, mods and bots comment in the notification strip as things happen (a gate opens, a strike lands, a sweep starts, an algorithm boost, a streamer, drama, a long quiet). It is only flavour.
+* **Accessibility** (gear button): *Shapes beside colours* puts a distinct shape next to each entry's colour on every voter and in the leaderboard and results lists, *Large text* sets a floor for the text size, *Calm* stops the pulsing. All three are saved.
 * **Front page**: the top three entries get a boost, so leads snowball.
 * **Three celebrities**, each with an audience of its own (a voter follows at most one) and each owned by a different entry at the start: the rival's, and two other colours'. Taking one opens nothing at the gate of the next. A big account does not mind a small one's posts: your Plugs take a tenth less off a celebrity's conviction than off anyone else's, so a fully convinced circle takes three Plugs once its gate is open, not two.
 * **Grudges, not hunting**: the rival and the other entries go after your voters only for 30 seconds after you took one of theirs, and then they go for that very voter, the rival first of all (a ring in their colour closes in on it as soon as the voter is no longer immune), and an other colour's ring is hard enough to take even a fully convinced voter in one plug, so parry it or lose the voter (the circle you just took, say); otherwise yours are like anyone's. They also hold their own shaky big voters.
@@ -66,7 +70,7 @@ Flow: **Title** → **Pick a jam** (Tiny Jam #7, 48h Pixel Rumble, GAME OFF 2026
 
 ## Building and running
 
-Requirements: Unreal Engine 5.8 (default install path `C:\Program Files\Epic Games\UE_5.8`, or set `SHIFT_UE_ROOT`), Visual Studio 2022 with the *Game development with C++* workload, Git LFS.
+Requirements: Unreal Engine 5.8 (default install path `C:\Program Files\Epic Games\UE_5.8`, or set `SHIFT_UE_ROOT`), Visual Studio 2022 with the *Game development with C++* workload.
 
 ```powershell
 .\Tools\build.ps1                              # build the editor target
@@ -99,7 +103,7 @@ Testing and balance (also headless; see `Docs/QA.md`):
 
 ```
 Source/ShiftHappens/   Sim/ (numeric core)  Behavior/ (policies, StateTree nodes)  Board/  UI/ (Slate)  Audio/  Game/ (controller, run, content, build rules)  Jams/  Data/
-Content/Shift/         generated assets (Git LFS)
+Content/Shift/         generated assets
 Plugins/GameFeatures/  the three jam packs
 Data/                  CSV sources of truth (text, tuning, jams)
 Tools/                 build / run / balance / verify scripts, Python builders (py/), standalone sim harness
@@ -115,4 +119,5 @@ The names, handles and "entries" in the game are fictional.
 ## Credits
 
 * Engine: Unreal Engine 5.8 (Epic Games). The HUD uses the engine's Roboto font (Apache License 2.0).
+* Project owner: Huân Riêu. Tester: Phuong-Fang.
 * Design, code and content: the project owner with Claude (Anthropic).

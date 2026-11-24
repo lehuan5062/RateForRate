@@ -2,7 +2,7 @@
 
 All player-facing text lives here as CSV and is imported into Unreal Data Tables (`DT_*`) by the build scripts.
 The CSVs are the source of truth: edit them, run the validator, re-import. This README covers the **text** tables.
-`Jams.csv`, `Tuning.csv` and `Curves/` hold the numbers and are documented separately.
+`Jams.csv` and `Tuning.csv` are exports of the sim's C++ defaults for the standalone harness (the game itself reads the C++ defaults) and are documented separately.
 
 Tone: dry, affectionate satire of game-jam culture. The joke is always on the system (fame, rate-for-rate, devlog
 guilt), never on the player. All names are fictional. The jam's own name appears only as the final jam title
@@ -194,13 +194,13 @@ The guided lessons of *Learn to play* (`Game/ShiftLesson.cpp`; the steps and wha
 | Step | 1..N within the chapter. |
 | Text | Max **260** chars. |
 
-### Tutorial.csv  (`Id,Step,Trigger,Text`)  14 rows
-Coachmarks for the first jam (Tiny Jam #7). No placeholders.
+### Tutorial.csv  (`Id,Step,Trigger,Text`)  26 rows
+Coachmarks shown during play. Numbers that come from the sim tuning are written as placeholders (`{sockheat}`, `{heatrate}`, `{redzone}`, `{strikes}`, `{ban}`, `{launder}`, `{rallycost}`, ...; the whitelist is `TUT_ALLOWED` in `validate_text.py`) and filled in when a card is shown.
 
 | Column | Meaning |
 |---|---|
 | Id | `TUT01`... |
-| Step | 1..14 in teaching order (also the file order). |
+| Step | 1..N in teaching order (also the file order). |
 | Trigger | The moment that shows the coachmark (table below). Unique. |
 | Text | Max **90** chars. |
 
@@ -233,7 +233,7 @@ python -I Data/validate_text.py
 Run it from the repo root (it locates the CSVs next to itself). It checks: header and column count per row (an
 unquoted comma shows up as a wrong column count), pure ASCII, unique ids, enum values, minimum counts (Handles 120,
 Bios 80, Comments 200 with at least 8 per Context, Headlines 60 with at least 5 per Event, Blurbs 40 results lines
-plus 6 Wink lines, Achievements exactly 14, Tutorial about 14), length limits, the placeholder whitelist per file and
+plus 6 Wink lines, Achievements exactly 14, Tutorial 12 to 30 rows), length limits, the placeholder whitelist per file and
 Event, exactly 8 Other and 1 Rival entries per jam, duplicate and near-duplicate lines, and a blocklist of real brand
 names. It exits with status 1 and a list of problems if anything fails.
 

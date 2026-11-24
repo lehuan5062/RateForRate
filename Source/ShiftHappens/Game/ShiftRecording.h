@@ -22,7 +22,7 @@
  */
 namespace ShiftRecordingInfo
 {
-	inline const TCHAR* const BuildTag = TEXT("round13");
+	inline const TCHAR* const BuildTag = TEXT("round14");
 	constexpr int32 FormatVersion = 1;
 	constexpr int32 SampleEverySteps = 100;   // 5 s of jam time at 20 Hz
 }

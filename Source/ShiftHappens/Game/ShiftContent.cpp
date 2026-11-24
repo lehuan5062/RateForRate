@@ -30,10 +30,12 @@ namespace
 		TMap<FString, TArray<FString>> HandlesByKind;
 		TMap<FString, TArray<FString>> BiosByKind;
 		TMap<FString, TArray<FString>> CommentsByContext;
+		TMap<FString, TArray<FString>> CommentSentiments;   // parallel to CommentsByContext: Positive, Negative, Neutral or Suspicious
 		TMap<FString, TArray<FString>> HeadlinesByEvent;
 		TMap<FString, TArray<FString>> BlurbsByKey;       // key = Outcome + "/" + Condition
 		TMap<FString, FString> TutorialByTrigger;
 		TMap<int32, TMap<int32, FString>> LessonText;     // chapter -> step -> text
+		TMap<FString, FShiftAchievementRow> Achievements;   // row Id -> name, description, hidden
 		TMap<FString, TArray<FShiftEntryRow>> EntriesByJam; // key = jam key (Other and Rival rows)
 		TArray<FShiftEntryRow> YouRows;
 	};
@@ -105,6 +107,7 @@ bool FShiftContent::EnsureLoaded()
 		T->ForeachRow<FShiftCommentRow>(TEXT("Comments"), [&C](const FName&, const FShiftCommentRow& Row)
 			{
 				C.CommentsByContext.FindOrAdd(Row.Context).Add(Row.Text);
+					C.CommentSentiments.FindOrAdd(Row.Context).Add(Row.Sentiment);
 			});
 	}
 	if (UDataTable* T = LoadTable<FShiftHeadlineRow>(TEXT("DT_Headlines")))
@@ -138,6 +141,13 @@ bool FShiftContent::EnsureLoaded()
 				C.LessonText.FindOrAdd(Row.Chapter).Add(Row.Step, Row.Text);
 			});
 	}
+	if (UDataTable* T = LoadTable<FShiftAchievementRow>(TEXT("DT_Achievements")))
+	{
+		T->ForeachRow<FShiftAchievementRow>(TEXT("Achievements"), [&C](const FName& Id, const FShiftAchievementRow& Row)
+			{
+				C.Achievements.Add(Id.ToString(), Row);
+			});
+	}
 	if (UDataTable* T = LoadTable<FShiftEntryRow>(TEXT("DT_Entries")))
 	{
 		T->ForeachRow<FShiftEntryRow>(TEXT("Entries"), [&C](const FName&, const FShiftEntryRow& Row)
@@ -154,9 +164,9 @@ bool FShiftContent::EnsureLoaded()
 	}
 
 	C.bHaveCore = C.HandlesByKind.Num() > 0 && C.EntriesByJam.Num() > 0;
-	UE_LOG(LogShift, Log, TEXT("Content: handles=%d kinds, bios=%d kinds, comments=%d contexts, headlines=%d events, blurbs=%d keys, entries=%d jams, you=%d"),
+	UE_LOG(LogShift, Log, TEXT("Content: handles=%d kinds, bios=%d kinds, comments=%d contexts, headlines=%d events, blurbs=%d keys, entries=%d jams, you=%d, achievements=%d"),
 		C.HandlesByKind.Num(), C.BiosByKind.Num(), C.CommentsByContext.Num(), C.HeadlinesByEvent.Num(), C.BlurbsByKey.Num(),
-		C.EntriesByJam.Num(), C.YouRows.Num());
+		C.EntriesByJam.Num(), C.YouRows.Num(), C.Achievements.Num());
 	return C.bHaveCore;
 }
 
@@ -343,6 +353,30 @@ FString FShiftContent::PickComment(const FString& Context, FRandomStream& Rng)
 	return PickFrom(Cache().CommentsByContext.Find(Context), Rng);
 }
 
+FString FShiftContent::PickCommentLine(const FString& Context, FRandomStream& Rng, FString& OutSentiment)
+{
+	EnsureLoaded();
+	OutSentiment.Reset();
+	const TArray<FString>* Pool = Cache().CommentsByContext.Find(Context);
+	if (!Pool || Pool->Num() == 0)
+	{
+		return FString();
+	}
+	const int32 Index = Rng.RandRange(0, Pool->Num() - 1);   // the same single draw as PickComment
+	const TArray<FString>* Sentiments = Cache().CommentSentiments.Find(Context);
+	if (Sentiments && Sentiments->IsValidIndex(Index))
+	{
+		OutSentiment = (*Sentiments)[Index];
+	}
+	return (*Pool)[Index];
+}
+
+FString FShiftContent::PickHandleOfKind(const FString& Kind, FRandomStream& Rng)
+{
+	EnsureLoaded();
+	return PickFrom(Cache().HandlesByKind.Find(Kind), Rng);
+}
+
 FString FShiftContent::PickHeadline(const FString& Event, FRandomStream& Rng)
 {
 	EnsureLoaded();
@@ -353,6 +387,44 @@ FString FShiftContent::PickBlurb(const FString& Outcome, const FString& Conditio
 {
 	EnsureLoaded();
 	return PickFrom(Cache().BlurbsByKey.Find(Outcome + TEXT("/") + Condition), Rng);
+}
+
+FString FShiftContent::PickBlurbAny(const FString& Outcome, FRandomStream& Rng)
+{
+	EnsureLoaded();
+	TArray<const FString*> Lines;
+	const FString Prefix = Outcome + TEXT("/");
+	for (const TPair<FString, TArray<FString>>& Pair : Cache().BlurbsByKey)
+	{
+		if (Pair.Key.StartsWith(Prefix))
+		{
+			for (const FString& Line : Pair.Value)
+			{
+				Lines.Add(&Line);
+			}
+		}
+	}
+	return Lines.Num() > 0 ? *Lines[Rng.RandRange(0, Lines.Num() - 1)] : FString();
+}
+
+bool FShiftContent::Achievement(const FString& Id, FString& OutName, FString& OutDescription, bool& bOutHidden)
+{
+	EnsureLoaded();
+	const FShiftAchievementRow* Row = Cache().Achievements.Find(Id);
+	if (!Row)
+	{
+		return false;
+	}
+	OutName = Row->Name;
+	OutDescription = Row->Description;
+	bOutHidden = Row->Hidden;
+	return true;
+}
+
+int32 FShiftContent::AchievementCount()
+{
+	EnsureLoaded();
+	return Cache().Achievements.Num();
 }
 
 FString FShiftContent::LessonText(int32 Chapter, int32 Step)

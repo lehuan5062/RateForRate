@@ -80,6 +80,7 @@ void FShiftLesson::Configure(int32 Chapter, FShiftLessonSetup& Out)
 	O.Add(TEXT("Backlash"), 0.0);
 	O.Add(TEXT("MegaDays"), 0.0);
 	O.Add(TEXT("EyeAwayCount"), 0.0);
+	O.Add(TEXT("SpotlightCount"), 0.0);
 	// The run never ends by itself; Posts come back quickly; an announced attack gives a beginner time to answer.
 	O.Add(TEXT("SecPerDay"), 3600.0);
 	O.Add(TEXT("Regen"), 0.8);

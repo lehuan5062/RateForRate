@@ -185,3 +185,82 @@ void ShiftSave::SetLeaderboardMode(int32 Mode)
 		GConfig->Flush(false, GGameUserSettingsIni);
 	}
 }
+
+uint32 ShiftSave::Achievements()
+{
+	int32 Value = 0;
+	if (GConfig)
+	{
+		GConfig->GetInt(SaveSection, TEXT("Achievements"), Value, GGameUserSettingsIni);
+	}
+	return static_cast<uint32>(Value);
+}
+
+void ShiftSave::SetAchievements(uint32 Mask)
+{
+	if (GConfig)
+	{
+		GConfig->SetInt(SaveSection, TEXT("Achievements"), static_cast<int32>(Mask), GGameUserSettingsIni);
+		GConfig->Flush(false, GGameUserSettingsIni);
+	}
+}
+
+static int32 ReadCareerInt(const TCHAR* Key, int32 JamIndex)
+{
+	int32 Value = 0;
+	if (GConfig)
+	{
+		GConfig->GetInt(SaveSection, *FString::Printf(TEXT("%s%d"), Key, JamIndex), Value, GGameUserSettingsIni);
+	}
+	return Value;
+}
+
+void ShiftSave::RecordCareer(int32 JamIndex, bool bWon, bool bDisqualified, float Share)
+{
+	if (!GConfig)
+	{
+		return;
+	}
+	GConfig->SetInt(SaveSection, *FString::Printf(TEXT("CareerRuns%d"), JamIndex), ReadCareerInt(TEXT("CareerRuns"), JamIndex) + 1, GGameUserSettingsIni);
+	if (bWon)
+	{
+		GConfig->SetInt(SaveSection, *FString::Printf(TEXT("CareerWins%d"), JamIndex), ReadCareerInt(TEXT("CareerWins"), JamIndex) + 1, GGameUserSettingsIni);
+	}
+	if (bDisqualified)
+	{
+		GConfig->SetInt(SaveSection, *FString::Printf(TEXT("CareerDq%d"), JamIndex), ReadCareerInt(TEXT("CareerDq"), JamIndex) + 1, GGameUserSettingsIni);
+	}
+	else
+	{
+		const int32 Permille = FMath::Clamp(FMath::RoundToInt(Share * 1000.0f), 0, 1000);
+		if (Permille > ReadCareerInt(TEXT("CareerBest"), JamIndex))
+		{
+			GConfig->SetInt(SaveSection, *FString::Printf(TEXT("CareerBest%d"), JamIndex), Permille, GGameUserSettingsIni);
+		}
+	}
+	GConfig->Flush(false, GGameUserSettingsIni);
+}
+
+int32 ShiftSave::CareerRuns(int32 JamIndex) { return ReadCareerInt(TEXT("CareerRuns"), JamIndex); }
+int32 ShiftSave::CareerWins(int32 JamIndex) { return ReadCareerInt(TEXT("CareerWins"), JamIndex); }
+int32 ShiftSave::CareerDq(int32 JamIndex) { return ReadCareerInt(TEXT("CareerDq"), JamIndex); }
+float ShiftSave::CareerBestShare(int32 JamIndex) { return static_cast<float>(ReadCareerInt(TEXT("CareerBest"), JamIndex)) / 1000.0f; }
+
+bool ShiftSave::GetFlag(const TCHAR* Key)
+{
+	bool bValue = false;
+	if (GConfig)
+	{
+		GConfig->GetBool(SaveSection, Key, bValue, GGameUserSettingsIni);
+	}
+	return bValue;
+}
+
+void ShiftSave::SetFlag(const TCHAR* Key, bool bOn)
+{
+	if (GConfig)
+	{
+		GConfig->SetBool(SaveSection, Key, bOn, GGameUserSettingsIni);
+		GConfig->Flush(false, GGameUserSettingsIni);
+	}
+}

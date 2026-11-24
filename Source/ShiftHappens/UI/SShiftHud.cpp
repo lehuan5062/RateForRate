@@ -72,6 +72,51 @@ namespace
 		return M.EyeAwayLeft > 0.0f ? FString::Printf(TEXT("MODS AWAY %.0fs"), M.EyeAwayLeft) : FString::Printf(TEXT("MODS %.0fs"), M.NextSweepIn);
 	}
 
+	/** The shape of an entry, so ownership does not rest on colour alone: disc, triangle up, ring, square, triangle down, plus, hollow square, diamond, cross. */
+	void DrawMarker(FShiftPainter& P, int32 Id, float Cx, float Cy, float R)
+	{
+		const FLinearColor Dark(0.07f, 0.06f, 0.14f, 1.0f);
+		const FLinearColor Light(1.0f, 1.0f, 1.0f, 1.0f);
+		const int32 Kind = Id % 9;
+		auto Shape = [&](float Rr, const FLinearColor& Col)
+		{
+			switch (Kind)
+			{
+			case 0:
+			case 2:
+				P.Disc(Cx, Cy, Rr, Col);
+				break;
+			case 1:
+				P.FillPolygon({ FVector2f(Cx, Cy - Rr), FVector2f(Cx + Rr, Cy + Rr * 0.8f), FVector2f(Cx - Rr, Cy + Rr * 0.8f) }, Col);
+				break;
+			case 3:
+			case 6:
+				P.Rect(Cx - Rr, Cy - Rr, Rr * 2.0f, Rr * 2.0f, Col, 0.0f);
+				break;
+			case 4:
+				P.FillPolygon({ FVector2f(Cx - Rr, Cy - Rr * 0.8f), FVector2f(Cx + Rr, Cy - Rr * 0.8f), FVector2f(Cx, Cy + Rr) }, Col);
+				break;
+			case 5:
+				P.Rect(Cx - Rr, Cy - Rr * 0.34f, Rr * 2.0f, Rr * 0.68f, Col, 0.0f);
+				P.Rect(Cx - Rr * 0.34f, Cy - Rr, Rr * 0.68f, Rr * 2.0f, Col, 0.0f);
+				break;
+			case 7:
+				P.FillPolygon({ FVector2f(Cx, Cy - Rr * 1.2f), FVector2f(Cx + Rr * 1.1f, Cy), FVector2f(Cx, Cy + Rr * 1.2f), FVector2f(Cx - Rr * 1.1f, Cy) }, Col);
+				break;
+			default:
+				P.Line(FVector2f(Cx - Rr, Cy - Rr), FVector2f(Cx + Rr, Cy + Rr), Col, Rr * 0.8f);
+				P.Line(FVector2f(Cx - Rr, Cy + Rr), FVector2f(Cx + Rr, Cy - Rr), Col, Rr * 0.8f);
+				break;
+			}
+		};
+		Shape(R + 1.8f, Dark);
+		Shape(R, Light);
+		if (Kind == 2 || Kind == 6)
+		{
+			Shape(R * 0.45f, Dark);
+		}
+	}
+
 	FString HudOrdinal(int32 N)
 	{
 		const int32 Mod100 = N % 100;
@@ -311,6 +356,7 @@ FReply SShiftHud::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyE
 void SShiftHud::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	AnimTime += InDeltaTime;
+	PulseTime = Model.bReduceMotion ? 0.0f : AnimTime;   // the pulses stand still
 	Ripples.RemoveAll([this](const FRipple& R) { return AnimTime - R.Start > RippleSeconds; });
 	const float Rate = FMath::Min(1.0f, InDeltaTime * 9.0f);
 	for (const FShiftHudRow& Row : Model.Rows)
@@ -414,7 +460,7 @@ void SShiftHud::PaintSettings(FShiftPainter& P, const FPal& C) const
 	AddHit(0.0f, 0.0f, DesignW, DesignH, EShiftUi::SettingsClose);
 
 	const float W = 340.0f;
-	const float H = 240.0f;
+	const float H = 350.0f;
 	const float Pad = 18.0f;
 	const float X = DesignW - W - 14.0f;
 	const float Y = 48.0f;
@@ -442,6 +488,12 @@ void SShiftHud::PaintSettings(FShiftPainter& P, const FPal& C) const
 	{
 		Button(P, C, EShiftUi::WindowFullscreen + i, X + Pad + static_cast<float>(i) * (Third + 8.0f), Y + 192.0f, Third, 30.0f, Labels[i], Model.WindowMode == i, 13.0f);
 	}
+
+	P.Text(TEXT("ACCESSIBILITY"), X + Pad, Y + 238.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
+	Button(P, C, EShiftUi::Markers, X + Pad, Y + 256.0f, W - 2.0f * Pad, 30.0f, Model.bMarkers ? TEXT("Shapes beside colours: on") : TEXT("Shapes beside colours: off"), Model.bMarkers, 13.0f);
+	const float Half = (W - 2.0f * Pad - 8.0f) * 0.5f;
+	Button(P, C, EShiftUi::LargeText, X + Pad, Y + 296.0f, Half, 30.0f, Model.bLargeText ? TEXT("Large text: on") : TEXT("Large text: off"), Model.bLargeText, 13.0f);
+	Button(P, C, EShiftUi::ReduceMotion, X + Pad + Half + 8.0f, Y + 296.0f, Half, 30.0f, Model.bReduceMotion ? TEXT("Calm: on") : TEXT("Calm: off"), Model.bReduceMotion, 13.0f);
 }
 
 void SShiftHud::PaintKeycap(FShiftPainter& P, const FPal& C, float Cx, float Cy, bool bPressed) const
@@ -451,7 +503,7 @@ void SShiftHud::PaintKeycap(FShiftPainter& P, const FPal& C, float Cx, float Cy,
 	const float X = Cx - W * 0.5f;
 	const float Y = Cy - H * 0.5f;
 	const float Off = bPressed ? 9.0f : 0.0f;
-	const float Pulse = 0.5f + 0.5f * FMath::Sin(AnimTime * 2.4f);
+	const float Pulse = 0.5f + 0.5f * FMath::Sin(PulseTime * 2.4f);
 
 	P.Disc(Cx, Cy, 150.0f + 10.0f * Pulse, bPressed ? Hex(0x8B6CFF, 0.20f) : WithAlpha(C.Teal, 0.07f + 0.05f * Pulse));
 	P.Disc(Cx, Cy, 108.0f, bPressed ? Hex(0x8B6CFF, 0.22f) : WithAlpha(C.Teal, 0.08f));
@@ -488,7 +540,7 @@ void SShiftHud::PaintTitle(FShiftPainter& P, const FPal& C) const
 
 	P.Rect(0, 0, DesignW, DesignH, Mix(Hex(0xF6F1E6, 0.58f), Hex(0x04060F, 0.66f), C.N));
 
-	const float Bob = FMath::Sin(AnimTime * 1.1f) * 3.0f;
+	const float Bob = FMath::Sin(PulseTime * 1.1f) * 3.0f;
 	P.Text(TEXT("SHIFT HAPPENS"), 643.0f, 112.0f + Bob + 4.0f, 92.0f, Hex(0x000000, 0.18f), EShiftAlign::Center, true);
 	P.Text(TEXT("SHIFT HAPPENS"), 640.0f, 108.0f + Bob, 92.0f, C.Ink, EShiftAlign::Center, true);
 	P.Text(TEXT("A game about winning a game jam by shifting the votes."), 640.0f, 224.0f, 21.0f, C.InkDim, EShiftAlign::Center);
@@ -499,18 +551,20 @@ void SShiftHud::PaintTitle(FShiftPainter& P, const FPal& C) const
 		: FString(TEXT("Try it: hold SHIFT to work the night shift."));
 	P.Text(Hint, 640.0f, 484.0f, 17.0f, Model.bShiftDown ? Hex(0xB79BFF) : C.InkDim, EShiftAlign::Center, Model.bShiftDown);
 
-	const float Blink = 0.55f + 0.45f * FMath::Sin(AnimTime * 3.0f);
+	const float Blink = 0.55f + 0.45f * FMath::Sin(PulseTime * 3.0f);
 	P.Text(TEXT("Click anywhere to start"), 640.0f, 560.0f, 26.0f, WithAlpha(C.Teal, Blink), EShiftAlign::Center, true);
 	P.Text(TEXT("or press ENTER      ESC quits"), 640.0f, 596.0f, 13.0f, C.InkDim, EShiftAlign::Center);
 
 	// New here? The guided lessons teach the game hands-on; the reference page is one screen. The lessons button glows until the basics have been finished once.
-	const float LessonsPulse = 0.5f + 0.5f * FMath::Sin(AnimTime * 4.0f);
+	const float LessonsPulse = 0.5f + 0.5f * FMath::Sin(PulseTime * 4.0f);
 	if (Model.bLessonNudge)
 	{
 		P.Rect(380.0f, 612.0f, 270.0f, 56.0f, WithAlpha(C.Teal, 0.20f + 0.25f * LessonsPulse), 28.0f);
 	}
 	Button(P, C, EShiftUi::LearnToPlay, 386.0f, 618.0f, 258.0f, 44.0f, TEXT("LEARN TO PLAY"), Model.bLessonNudge, 17.0f);
 	Button(P, C, EShiftUi::HowTo, 664.0f, 618.0f, 230.0f, 44.0f, TEXT("How to play  (H)"), false, 16.0f);
+	Button(P, C, EShiftUi::Achievements, 456.0f, 672.0f, 200.0f, 34.0f, TEXT("Achievements  (A)"), false, 14.0f);
+	Button(P, C, EShiftUi::Credits, 664.0f, 672.0f, 160.0f, 34.0f, TEXT("Credits  (C)"), false, 14.0f);
 
 	SettingsButton(P, C, 1246.0f, 24.0f);
 }
@@ -760,7 +814,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		const bool bAway = Model.EyeAwayLeft > 0.0f;
 		const bool bSoon = !bAway && Model.NextSweepIn < 3.0f;
 		const FLinearColor EyeColor = bAway ? Hex(0x7B5CF0) : (bSoon ? C.Red : C.InkDim);
-		const float Pulse = bSoon ? 0.5f + 0.5f * FMath::Sin(AnimTime * 14.0f) : 0.0f;
+		const float Pulse = bSoon ? 0.5f + 0.5f * FMath::Sin(PulseTime * 14.0f) : 0.0f;
 		P.Disc(ModsIconX, ModsIconY, ModsIconR, EyeColor);
 		P.Disc(ModsIconX, ModsIconY, 7.0f, C.Panel);
 		if (!bAway)
@@ -797,6 +851,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 			}
 			P.Text(FString::FromInt(Row.Rank + 1), PanelX + 26, Y + 4, 14, Row.bPlayer ? C.Teal : C.Ink, EShiftAlign::Center, true);
 			P.Disc(PanelX + 46, Y + 13, 6.0f, Row.Color);
+			if (Model.bMarkers) { DrawMarker(P, Row.EntryId, PanelX + 46, Y + 13, 3.6f); }
 			P.Text(P.Fit(Row.Name, 134.0f, 13, Row.bPlayer), PanelX + 60, Y + 2, 13, C.Ink, EShiftAlign::Left, Row.bPlayer);
 			P.Text(FString::Printf(TEXT("%s  %.0f%%"), *Compact(Row.Votes), Share * 100.0f), PanelX + 264, Y + 3, 12, C.InkDim, EShiftAlign::Right);
 			P.Rect(PanelX + 60, Y + 21, 170, 4, C.Track, 2);
@@ -821,6 +876,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 			}
 			P.Text(FString::FromInt(Row.Rank + 1), PanelX + 14, Y + 1, 11, Row.bPlayer ? C.Teal : C.Ink, EShiftAlign::Center, true);
 			P.Disc(PanelX + 28, Y + 7, 4.0f, Row.Color);
+			if (Model.bMarkers) { DrawMarker(P, Row.EntryId, PanelX + 28, Y + 7, 2.8f); }
 			P.Text(P.Fit(Row.Name, Row.bPlayer && Model.FakeShare > 0.004f ? 74.0f : 92.0f, 11, Row.bPlayer), PanelX + 38, Y + 1, 11, C.Ink, EShiftAlign::Left, Row.bPlayer);
 			if (Row.bPlayer && Model.FakeShare > 0.004f)
 			{
@@ -924,7 +980,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		const float Dy = (1.0f - In) * 4.0f;
 		const bool bLive = A.bClickable && !Model.bPaused;
 		const bool bHover = bLive && AddHit(X0, Y0, W, H, EShiftUi::Blame);
-		const float Pulse = A.bClickable ? 0.5f + 0.5f * FMath::Sin(AnimTime * 9.0f) : 0.0f;
+		const float Pulse = A.bClickable ? 0.5f + 0.5f * FMath::Sin(PulseTime * 9.0f) : 0.0f;
 		FLinearColor Fill = A.Color;
 		Fill = Mix(Fill, FLinearColor::White, (bHover ? 0.18f : 0.0f) + 0.10f * Pulse);
 		if (Model.bPaused)
@@ -1018,7 +1074,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		}
 		if (Model.FinalAuditIn >= 0.0f)
 		{
-			const float Pulse = 0.5f + 0.5f * FMath::Sin(AnimTime * 10.0f);
+			const float Pulse = 0.5f + 0.5f * FMath::Sin(PulseTime * 10.0f);
 			Pin(FString::Printf(TEXT("FINAL AUDIT  %.0fs"), FMath::CeilToFloat(Model.FinalAuditIn)), TEXT("new sockpuppet votes are purged"), WithAlpha(C.Red, 0.80f + 0.15f * Pulse));
 		}
 		bool bFakeHover = false;
@@ -1036,7 +1092,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		// the notification feed: toasts and news, newest first, as cards that only take the room the pinned states leave
 		for (const FShiftHudFeedItem& Item : Model.Feed)
 		{
-			const TArray<FString> Lines = P.Wrap(Item.Text, GW - 24.0f, 11.0f, !Item.bNews);
+			const TArray<FString> Lines = P.Wrap(Item.Text, GW - 24.0f, 11.0f, !Item.bNews && !Item.bInk);
 			const int32 LineCount = FMath::Min(Lines.Num(), 5);
 			const float H = 12.0f + 14.0f * static_cast<float>(LineCount) + (Item.bNews ? 12.0f : 0.0f);
 			if (Y + H > BottomY)
@@ -1044,7 +1100,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 				break;
 			}
 			P.Rect(GX, Y, GW, H, WithAlpha(C.PanelSolid, 0.94f * Item.Alpha), 9.0f);
-			P.Rect(GX, Y, 4.0f, H, WithAlpha(Item.bNews ? C.Amber : Item.Color, Item.Alpha), 2.0f);
+			P.Rect(GX, Y, 4.0f, H, WithAlpha(Item.bNews ? C.Amber : Item.Color, Item.Alpha), 2.0f);   // chatter keeps its sentiment colour here only
 			float Ty = Y + 6.0f;
 			if (Item.bNews)
 			{
@@ -1053,7 +1109,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 			}
 			for (int32 L = 0; L < LineCount; ++L)
 			{
-				P.Text(Lines[L], GX + 12.0f, Ty, 11.0f, WithAlpha(Item.bNews ? C.Ink : Item.Color, Item.Alpha), EShiftAlign::Left, !Item.bNews);
+				P.Text(Lines[L], GX + 12.0f, Ty, 11.0f, WithAlpha((Item.bNews || Item.bInk) ? C.Ink : Item.Color, Item.Alpha), EShiftAlign::Left, !Item.bNews && !Item.bInk);
 				Ty += 14.0f;
 			}
 			Y += H + 5.0f;
@@ -1183,6 +1239,7 @@ void SShiftHud::PaintResults(FShiftPainter& P, const FPal& C) const
 		}
 		P.Text(FString::FromInt(Row.Rank + 1), 138, Ry + 1, 14, Row.bPlayer ? C.Teal : C.Ink, EShiftAlign::Center, true);
 		P.Disc(164, Ry + 10, 5.5f, Row.Color);
+		if (Model.bMarkers) { DrawMarker(P, Row.EntryId, 164, Ry + 10, 3.6f); }
 		P.Text(P.Fit(Row.Name, 250.0f, 13, Row.bPlayer), 178, Ry, 13, C.Ink, EShiftAlign::Left, Row.bPlayer);
 		P.Text(FString::Printf(TEXT("%s   %.1f%%"), *Compact(Row.Votes), Row.Share * 100.0f), 574, Ry + 1, 12, C.InkDim, EShiftAlign::Right);
 		Ry += 27.0f;
@@ -1196,6 +1253,21 @@ void SShiftHud::PaintResults(FShiftPainter& P, const FPal& C) const
 	PaintScatter(P, C, 902.0f, ListY - 6.0f, 280.0f, 250.0f, TEXT("Starting fame vs votes"), Model.FameDots, Model.FameFit, TEXT("more followers at the start  ->"));
 
 	P.Text(Model.OutcomeLine3, 640, 500, 13, C.InkDim, EShiftAlign::Center);
+	if (!Model.OutcomeNews.IsEmpty())
+	{
+		P.Text(TEXT("NEWS"), 640, 522, 9, C.Amber, EShiftAlign::Center, true);
+		P.Text(Model.OutcomeNews, 640, 536, 12, C.Ink, EShiftAlign::Center);
+	}
+	if (Model.NewAchievements.Num() > 0)
+	{
+		FString Names;
+		for (const FString& Name : Model.NewAchievements)
+		{
+			Names += (Names.IsEmpty() ? TEXT("") : TEXT("  |  ")) + Name;
+		}
+		P.Text(TEXT("ACHIEVEMENT UNLOCKED"), 640, 558, 9, C.Teal, EShiftAlign::Center, true);
+		P.Text(Names, 640, 572, 13, C.Teal, EShiftAlign::Center, true);
+	}
 
 	// honest vs sockpuppet bar
 	const float BarX = 116.0f;
@@ -1279,7 +1351,7 @@ void SShiftHud::PaintPause(FShiftPainter& P, const FPal& C) const
 void SShiftHud::PaintLesson(FShiftPainter& P, const FPal& C) const
 {
 	const FShiftLessonView& L = Model.Lesson;
-	const float Pulse = 0.5f + 0.5f * FMath::Sin(AnimTime * 6.0f);
+	const float Pulse = 0.5f + 0.5f * FMath::Sin(PulseTime * 6.0f);
 	const FLinearColor Glow = Hex(0xFFB020);
 
 	// the part of the HUD the step points at (the rectangles are where PaintPlay draws them)
@@ -1388,6 +1460,75 @@ void SShiftHud::PaintLesson(FShiftPainter& P, const FPal& C) const
 	}
 }
 
+void SShiftHud::PaintExtras(FShiftPainter& P, const FPal& C) const
+{
+	Hits.Reset();
+	bModal = true;
+	AddHit(0.0f, 0.0f, DesignW, DesignH, EShiftUi::ExtrasClose);   // a click anywhere closes the page
+	P.Rect(0.0f, 0.0f, DesignW, DesignH, Hex(0x000000, 0.62f));
+	const float X = 90.0f;
+	const float Y = 36.0f;
+	const float W = 1100.0f;
+	const float H = 648.0f;
+	P.Rect(X, Y, W, H, C.PanelSolid, 18.0f);
+	if (Model.ExtrasPage == 2)
+	{
+		P.Text(TEXT("CREDITS"), X + W * 0.5f, Y + 22.0f, 34.0f, C.Ink, EShiftAlign::Center, true);
+		float Cy = Y + 96.0f;
+		for (const FString& Line : Model.CreditsText)
+		{
+			if (Line.IsEmpty())
+			{
+				Cy += 12.0f;
+				continue;
+			}
+			const bool bHead = Line.EndsWith(TEXT(":"));
+			P.Text(bHead ? Line.LeftChop(1) : Line, X + W * 0.5f, Cy, bHead ? 15.0f : 14.0f, bHead ? C.Teal : C.Ink, EShiftAlign::Center, bHead);
+			Cy += bHead ? 24.0f : 21.0f;
+		}
+		P.Text(TEXT("Click anywhere or press C to close"), X + W * 0.5f, Y + H - 28.0f, 11.0f, C.InkDim, EShiftAlign::Center);
+		return;
+	}
+	int32 Earned = 0;
+	for (const FShiftHudAchItem& Item : Model.Achievements)
+	{
+		Earned += Item.bEarned ? 1 : 0;
+	}
+	P.Text(TEXT("ACHIEVEMENTS"), X + W * 0.5f, Y + 18.0f, 32.0f, C.Ink, EShiftAlign::Center, true);
+	P.Text(FString::Printf(TEXT("%d of %d earned"), Earned, Model.Achievements.Num()), X + W * 0.5f, Y + 58.0f, 13.0f, C.InkDim, EShiftAlign::Center);
+
+	// the career strip: one block per jam
+	const float StripY = Y + 90.0f;
+	const float BlockW = (W - 72.0f - 2.0f * 16.0f) / 3.0f;
+	for (int32 I = 0; I < Model.Career.Num() && I < 3; ++I)
+	{
+		const FShiftHudCareerRow& R = Model.Career[I];
+		const float Bx = X + 36.0f + static_cast<float>(I) * (BlockW + 16.0f);
+		P.Rect(Bx, StripY, BlockW, 62.0f, WithAlpha(C.Ink, 0.06f), 10.0f);
+		P.Text(R.Jam, Bx + 14.0f, StripY + 8.0f, 13.0f, C.Teal, EShiftAlign::Left, true);
+		const FString Best = R.BestRank > 0 ? FString::Printf(TEXT("best %s place, %.1f%% of the vote"), *HudOrdinal(R.BestRank), R.BestShare * 100.0f) : FString(TEXT("not finished yet"));
+		P.Text(FString::Printf(TEXT("%d run%s, %d won, %d disqualified"), R.Runs, R.Runs == 1 ? TEXT("") : TEXT("s"), R.Wins, R.Dq), Bx + 14.0f, StripY + 26.0f, 12.0f, C.Ink);
+		P.Text(Best, Bx + 14.0f, StripY + 42.0f, 12.0f, C.InkDim);
+	}
+
+	// the grid: two columns
+	const float GridY = StripY + 82.0f;
+	const float CellW = (W - 72.0f - 16.0f) * 0.5f;
+	for (int32 I = 0; I < Model.Achievements.Num(); ++I)
+	{
+		const FShiftHudAchItem& Item = Model.Achievements[I];
+		const float Cx = X + 36.0f + static_cast<float>(I % 2) * (CellW + 16.0f);
+		const float Cy = GridY + static_cast<float>(I / 2) * 58.0f;
+		P.Rect(Cx, Cy, CellW, 52.0f, WithAlpha(Item.bEarned ? C.Teal : C.Ink, Item.bEarned ? 0.14f : 0.05f), 10.0f);
+		P.Disc(Cx + 26.0f, Cy + 26.0f, 13.0f, Item.bEarned ? C.Teal : WithAlpha(C.Ink, 0.20f));
+		P.Text(Item.bEarned ? TEXT("+") : TEXT("?"), Cx + 26.0f, Cy + 15.0f, 18.0f, Item.bEarned ? C.PanelSolid : C.InkDim, EShiftAlign::Center, true);
+		const bool bShow = Item.bEarned || !Item.bHidden;
+		P.Text(bShow ? Item.Name : FString(TEXT("Hidden achievement")), Cx + 52.0f, Cy + 6.0f, 14.0f, Item.bEarned ? C.Ink : C.InkDim, EShiftAlign::Left, true);
+		P.TextBlock(bShow ? Item.Desc : FString(TEXT("Keep playing to find out.")), Cx + 52.0f, Cy + 25.0f, CellW - 64.0f, 11.0f, 13.0f, C.InkDim);
+	}
+	P.Text(TEXT("Click anywhere or press A to close"), X + W * 0.5f, Y + H - 22.0f, 11.0f, C.InkDim, EShiftAlign::Center);
+}
+
 void SShiftHud::PaintHowTo(FShiftPainter& P, const FPal& C) const
 {
 	Hits.Reset();
@@ -1456,7 +1597,7 @@ void SShiftHud::PaintTrailer(FShiftPainter& P, const FPal& C) const
 		P.Rect(X0, Sy + Sh, W, Y0 + H - (Sy + Sh), Dim);
 		P.Rect(X0, Sy, Sx - X0, Sh, Dim);
 		P.Rect(Sx + Sw, Sy, X0 + W - (Sx + Sw), Sh, Dim);
-		const float Pulse = 0.5f + 0.5f * FMath::Sin(AnimTime * 7.0f);
+		const float Pulse = 0.5f + 0.5f * FMath::Sin(PulseTime * 7.0f);
 		const FLinearColor Frame = WithAlpha(C.Teal, (0.65f + 0.35f * Pulse) * T.SpotAlpha);
 		const float Th = 3.0f;
 		P.Rect(Sx - Th, Sy - Th, Sw + 2.0f * Th, Th, Frame);
@@ -1676,6 +1817,7 @@ int32 SShiftHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeomet
 	const FVector2f Size = FVector2f(AllottedGeometry.GetLocalSize());
 	const float Scale = FMath::Max(0.01f, FMath::Min(Size.X / DesignW, Size.Y / DesignH));
 	const FVector2f Origin = (Size - FVector2f(DesignW, DesignH) * Scale) * 0.5f;
+	FShiftPainter::MinPx = Model.bLargeText ? 14.0f : 0.0f;
 	FShiftPainter P(OutDrawElements, AllottedGeometry, LayerId, Origin, Scale);
 
 	// the trailer's zoom-in: the HUD is scaled about the focus point exactly as the board camera is (the trailer's own overlay is not)
@@ -1724,6 +1866,10 @@ int32 SShiftHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeomet
 		break;
 	case EShiftScreen::Play:
 	default:
+		for (const FShiftHudModel::FMarker& M : Model.Markers)
+		{
+			DrawMarker(P, M.Owner, M.X, M.Y - 15.0f, 4.5f);
+		}
 		PaintPlay(P, C);
 		if (Model.bOver)
 		{
@@ -1744,6 +1890,10 @@ int32 SShiftHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeomet
 	if (Model.bHowTo)
 	{
 		PaintHowTo(P, C);
+	}
+	else if (Model.ExtrasPage != 0)
+	{
+		PaintExtras(P, C);
 	}
 	else if (Model.bSettingsOpen)
 	{

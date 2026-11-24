@@ -9,6 +9,7 @@
 #include "Containers/UnrealString.h"
 #include "Engine/EngineTypes.h"
 #include "Engine/TimerHandle.h"
+#include "Game/ShiftAchievements.h"
 #include "Game/ShiftBuild.h"
 #include "Game/ShiftForecast.h"
 #include "Game/ShiftForecastService.h"
@@ -125,6 +126,12 @@ private:
 	void PlaySfx(EShiftSfx Which, float Volume = 1.0f) const { if (Audio) { Audio->Play(Which, Volume); } }
 	void TickAudio(float DeltaTime);
 	void ShowHeadline(const FString& Event, const FString& EntryName);
+	/** The text of a headline with its placeholders filled; empty if the Event has none. Draws from Rng (the end-of-jam news uses a seeded stream). */
+	FString BuildHeadline(const FString& Event, const FString& Entry, FRandomStream& Rng) const;
+	/** Chatter: a comment line from the Comments table in a card of the feed, spoken by Speaker (empty = a random voter). At most 2 wait; none in lessons or attract. */
+	void Chatter(const TCHAR* Context, const FString& Speaker, float Delay, float Seconds = 3.4f);
+	void TickChatter(float DeltaTime);
+	FString RandomHandle();
 	void TickLostVoters(float DeltaTime);
 	void TickShareTrend();
 
@@ -230,9 +237,38 @@ private:
 		float Remaining = 0.0f;
 		float Duration = 1.0f;
 		bool bNews = false;
+		bool bInk = false;       // chatter: ink text, the colour on the accent bar only
+		bool bChatter = false;   // chatter never counts as an active toast (it must not starve the lost-voter summary)
 	};
 	TArray<FFeedItem> Feed;
-	void PushFeed(const FString& Text, const FLinearColor& Color, float Seconds, bool bNews);
+	void PushFeed(const FString& Text, const FLinearColor& Color, float Seconds, bool bNews, bool bChatter = false);
+
+	struct FChatter
+	{
+		FString Context;
+		FString Speaker;
+		float Delay = 0.0f;
+		float Seconds = 3.4f;
+	};
+	TArray<FChatter> ChatterQueue;
+	float ChatterGap = 0.0f;      // quiet time after a chatter card
+	float IdleClock = 0.0f;       // real seconds since the last click
+	TArray<int32> GateChatted;    // gates whose opening was already commented
+
+	// achievements and career
+	FShiftAchTracker Ach;
+	uint32 AchSaved = 0;                      // the achievements already in the save
+	TArray<FString> AchNewThisRun;            // their names, for the results card
+	int32 ExtrasPage = 0;                     // title: 0 none, 1 achievements, 2 credits
+	float SpotFlashClock = 0.0f;              // heartbeat of the spotlighted voter
+	bool bMarkers = false;                    // accessibility switches (saved; -ShiftMarkers / -ShiftLargeText / -ShiftCalm force them on for a QA session)
+	bool bLargeText = false;
+	bool bReduceMotion = false;
+	void FillAccessModel(FShiftHudModel& M) const;
+	bool AchEligible() const;                 // a real human run: not QA, a bot, the attract loop, a lesson, a replay, a forced night or a -ShiftSet world
+	void PollAchievements();
+	void FinishAchievements();
+	void FillExtrasModel(FShiftHudModel& M) const;
 	bool HasActiveToast(float MinRemaining) const;
 
 	// voters the player lost to opinion pressure or a rival attack, gathered into one toast every few seconds (see TickLostVoters)

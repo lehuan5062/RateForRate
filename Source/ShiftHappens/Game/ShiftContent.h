@@ -35,11 +35,20 @@ public:
 
 	/** A random line for a comment context (FlipToYou, Dent, Strike, ...); empty if the table is missing. */
 	static FString PickComment(const FString& Context, FRandomStream& Rng);
+	/** Like PickComment (one draw from Rng), and the line's Sentiment: "Positive", "Negative", "Neutral" or "Suspicious" (empty when there is no line). */
+	static FString PickCommentLine(const FString& Context, FRandomStream& Rng, FString& OutSentiment);
+	/** A random handle of a Kind ("Bot", "Mod", "Lurker", ...); empty if there is none. Not unique within a run: for chatter speakers, not for voters. */
+	static FString PickHandleOfKind(const FString& Kind, FRandomStream& Rng);
 	static FString PickHeadline(const FString& Event, FRandomStream& Rng);
 	static FString PickBlurb(const FString& Outcome, const FString& Condition, FRandomStream& Rng);
+	/** Any line of an Outcome ("Win", "Lose", "DQ"), whatever its condition: the fallback when no condition has a line. */
+	static FString PickBlurbAny(const FString& Outcome, FRandomStream& Rng);
 	static FString PickTutorial(const FString& Trigger);
 
 	/** The guided tutorial: text of one step of a chapter (0 = the "How to play" reference page, 1 = the basics, 2 = night shift), and how many steps a chapter has. */
 	static FString LessonText(int32 Chapter, int32 Step);
 	static int32 LessonStepCount(int32 Chapter);
+	/** An achievement by its row Id (Data/Achievements.csv); false if there is none. */
+	static bool Achievement(const FString& Id, FString& OutName, FString& OutDescription, bool& bOutHidden);
+	static int32 AchievementCount();
 };

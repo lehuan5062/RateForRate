@@ -26,7 +26,7 @@ PACKS = (
     ("ShiftJam_Rumble48", 1, "Rumble48", "48h Pixel Rumble",
      "52 voters, streamers behind gates and a Mod Eye that sweeps. The rival has 48K followers.", "48K"),
     ("ShiftJam_GameOff2026", 2, "GameOff2026", "GAME OFF 2026",
-     "72 voters, two celebrities and a Mega Campaign in the last days. The rival has 1.2M followers.", "1.2M"),
+     "72 voters, three celebrities and a Mega Campaign in the last days. The rival has 1.2M followers.", "1.2M"),
 )
 
 PLUGIN_TOOLSET = "PluginToolset.PluginToolset"

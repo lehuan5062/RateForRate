@@ -9,11 +9,13 @@
 #include "Containers/StringConv.h"
 #include "Containers/UnrealString.h"
 #include "Game/ShiftBuild.h"
+#include "Game/ShiftResults.h"
 #include "Game/ShiftRun.h"
 #include "GenericPlatform/GenericPlatformMisc.h"
 #include "HAL/FileManager.h"
 #include "HAL/Platform.h"
 #include "Logging/LogMacros.h"
+#include "Math/RandomStream.h"
 #include "Math/UnrealMathUtility.h"
 #include "Misc/CString.h"
 #include "Misc/DateTime.h"
@@ -43,6 +45,7 @@ namespace
 	struct FStats
 	{
 		int32 Runs = 0;
+		TMap<FString, int32> Blurbs;   // how often each Outcome/condition blurb is the one a run would show
 		int32 Wins = 0;
 		int32 Dq = 0;
 		double RankSum = 0.0;
@@ -336,6 +339,18 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 				St.SockSum += S.SockpuppetWeight() / Total;
 				St.StrikeSum += S.Strikes();
 				St.RivalShare += S.Share(S.RivalId());
+				{
+					TArray<float> Starts;
+					for (const FShiftHudDot& Dot : FameDots)
+					{
+						Starts.Add(Dot.X);
+					}
+					const FShiftResultFacts Facts = ShiftResults::MakeFacts(S, Run.GetFlipStats(), Run.GetBlameStats().Taken > 0, Starts);
+					FRandomStream BlurbRng(R * 7 + 3);
+					FString Condition;
+					ShiftResults::PickBlurb(ShiftResults::Classify(Facts), BlurbRng, &Condition);
+					St.Blurbs.FindOrAdd(ShiftResults::Classify(Facts).Outcome + TEXT("/") + Condition)++;
+				}
 				St.R2Quality += FShiftHudFit::Compute(QualityDots).R2;
 				St.R2Fame += FShiftHudFit::Compute(FameDots).R2;
 				const FShiftFlipStats& Flips = Run.GetFlipStats();
@@ -442,6 +457,18 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 			UE_LOG(LogShift, Display, TEXT("jam=%d bot=%-6s runs=%d  win %5.1f%%  dq %5.1f%%  rank %.2f  share %5.1f%%  sock %5.1f%%  strikes %.2f  rival %5.1f%%  R2(quality) %.2f  R2(fame) %.2f"),
 				Jam, *BotName, St.Runs, 100.0 * St.Wins / N, 100.0 * St.Dq / N, St.RankSum / N, 100.0 * St.ShareSum / N, 100.0 * St.SockSum / N,
 				St.StrikeSum / N, 100.0 * St.RivalShare / N, St.R2Quality / N, St.R2Fame / N);
+			{
+				// which results blurb condition each run would show (a separate line: the determinism compare only reads "jam=")
+				TArray<FString> BlurbKeys;
+				St.Blurbs.GenerateKeyArray(BlurbKeys);
+				BlurbKeys.Sort();
+				FString BlurbLine;
+				for (const FString& Key : BlurbKeys)
+				{
+					BlurbLine += FString::Printf(TEXT(" %s=%d"), *Key, St.Blurbs[Key]);
+				}
+				UE_LOG(LogShift, Display, TEXT("Balance: blurbs jam=%d bot=%-8s%s"), Jam, *BotName, *BlurbLine);
+			}
 			// A separate line (it does not start with "jam=", so the determinism compare in Tools/verify.ps1 ignores it): how the player's voters came and went, per run.
 			// Dwell = seconds a flipped voter stayed the player's before being lost again; the voters still held at the end are not counted.
 			UE_LOG(LogShift, Display, TEXT("Balance: flips jam=%d bot=%-8s per run: gains %.1f (sock %.1f)  lost %.1f (herd %.1f rival %.1f others %.1f)  strike-reverts %.1f  audit-purged %.1f  dwell plug %.1fs (%d)  sock %.1fs (%d)  threats %.1f (landed %.1f flipped %.1f blocked %.1f fizzled %.1f shield-blocked %.1f parried %.1f)  posts: rally %.1f parry %.1f"),
@@ -467,7 +494,7 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 						Weight += From != To ? St.Flow.HerdWeight[From][To] : 0.0;
 					}
 					return FString::Printf(TEXT("%.1f (%.1f)"), Count / N, 100.0 * Weight / N);
-				};
+					};
 				UE_LOG(LogShift, Display, TEXT("Balance: flow jam=%d bot=%-8s per run, voters (points of the vote): other entries' plugs took from you %s, from the rival %s, from each other %s, from undecided %s | rival's plugs took from you %s, from others %s, from undecided %s | your plugs took from the rival %s, from others %s, from undecided %s | opinion pressure moved to the rival %s, to others %s, to you %s"),
 					Jam, *BotName, *Plugs(2, 0), *Plugs(2, 1), *Plugs(2, 2), *Plugs(2, 3), *Plugs(1, 0), *Plugs(1, 2), *Plugs(1, 3), *Plugs(0, 1), *Plugs(0, 2), *Plugs(0, 3), *Herd(1), *Herd(2), *Herd(0));
 			}

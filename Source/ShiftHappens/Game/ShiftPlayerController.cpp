@@ -7,7 +7,6 @@
 #include "AudioDevice.h"
 #include "Behavior/ShiftPolicies.h"
 #include "Behavior/StateTree/ShiftBehavior.h"
-#include "Trailer/ShiftTrailer.h"
 #include "Board/ShiftBoard.h"
 #include "Board/ShiftPalette.h"
 #include "Camera/CameraTypes.h"
@@ -22,6 +21,7 @@
 #include "Engine/GameViewportClient.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Game/ShiftContent.h"
+#include "Game/ShiftResults.h"
 #include "GameFramework/GameUserSettings.h"
 #include "GameFramework/PlayerController.h"
 #include "GenericPlatform/GenericPlatformMisc.h"
@@ -38,11 +38,13 @@
 #include "Math/MathFwd.h"
 #include "Math/RandomStream.h"
 #include "Math/UnrealMathUtility.h"
+#include "Misc/Build.h"
 #include "Misc/CommandLine.h"
 #include "Misc/CString.h"
 #include "Misc/DateTime.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "ShiftAchievements.h"
 #include "ShiftBuild.h"
 #include "ShiftForecast.h"
 #include "ShiftHappens.h"
@@ -58,6 +60,7 @@
 #include "Templates/UniquePtr.h"
 #include "Templates/UnrealTemplate.h"
 #include "TimerManager.h"
+#include "Trailer/ShiftTrailer.h"
 #include "UI/ShiftHudModel.h"
 #include "UI/SShiftHud.h"
 #include "UnrealClient.h"
@@ -108,7 +111,7 @@ namespace
 		{
 		case 0: return TEXT("A cosy 36-voter jam. The rival has 3K followers. Learn the ropes, then try the night shift.");
 		case 1: return TEXT("52 voters, streamers behind gates and a Mod Eye that sweeps. The rival has 48K followers.");
-		default: return TEXT("72 voters, two celebrities and a Mega Campaign in the last days. The rival has 1.2M followers.");
+		default: return TEXT("72 voters, three celebrities and a Mega Campaign in the last days. The rival has 1.2M followers.");
 		}
 	}
 
@@ -371,6 +374,9 @@ void AShiftPlayerController::BeginPlay()
 	bForceNoMusic = FParse::Param(Cmd, TEXT("ShiftNoMusic"));
 	bLessonNudge = !bQaRun && (ShiftSave::LessonsDone() & 1) == 0;
 	EdgeMode = ShiftSave::EdgeMode();
+	bMarkers = ShiftSave::GetFlag(TEXT("Markers")) || FParse::Param(FCommandLine::Get(), TEXT("ShiftMarkers"));
+	bLargeText = ShiftSave::GetFlag(TEXT("LargeText")) || FParse::Param(FCommandLine::Get(), TEXT("ShiftLargeText"));
+	bReduceMotion = ShiftSave::GetFlag(TEXT("ReduceMotion")) || FParse::Param(FCommandLine::Get(), TEXT("ShiftCalm"));
 	LeaderboardMode = ShiftSave::LeaderboardMode();
 	ApplySoundSettings();
 
@@ -666,6 +672,14 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 	GatedSeenNodes.Reset();
 	LostRecently.Reset();
 	LostCooldown = 0.0f;
+	ChatterQueue.Reset();
+	ChatterGap = 0.0f;
+	Ach.Reset();
+	AchSaved = FParse::Param(FCommandLine::Get(), TEXT("ShiftAchTest")) ? 0u : ShiftSave::Achievements();
+	AchNewThisRun.Reset();
+	ExtrasPage = 0;
+	IdleClock = 0.0f;
+	GateChatted.Reset();
 	bAuditWarned = false;
 	RallyFxNode = -1;
 	RallyFxAge = 99.0f;
@@ -1137,7 +1151,114 @@ FString AShiftPlayerController::EntryName(int32 EntryId) const
 	return FShiftContent::EntryName(JamIndex, EntryId, Seed);
 }
 
-void AShiftPlayerController::PushFeed(const FString& Text, const FLinearColor& Color, float Seconds, bool bNews)
+bool AShiftPlayerController::AchEligible() const
+{
+	static const bool bSetWorld = []() { FString Value; return FParse::Value(FCommandLine::Get(), TEXT("ShiftSet="), Value, false); }();
+	static const bool bAchTest = FParse::Param(FCommandLine::Get(), TEXT("ShiftAchTest"));   // QA: a bot or scripted run counts, nothing is saved (see PollAchievements)
+	if (bAchTest)
+	{
+		return Screen == EShiftScreen::Play && !bAttract && !bLessonRun && !bReplayMode && Run.IsValid();
+	}
+	return Screen == EShiftScreen::Play && !bAttract && !bQaRunFlag && !bLessonRun && !bReplayMode && !bSetWorld && NightOverride < 0.0f && Run.IsValid() && !Run->HasBot();
+}
+
+void AShiftPlayerController::PollAchievements()
+{
+	const uint32 Fresh = Ach.Mask() & ~AchSaved;
+	if (Fresh == 0 || !AchEligible())
+	{
+		return;
+	}
+	AchSaved |= Fresh;
+	static const bool bAchTest = FParse::Param(FCommandLine::Get(), TEXT("ShiftAchTest"));
+	if (!bAchTest)
+	{
+		ShiftSave::SetAchievements(AchSaved);
+	}
+	for (int32 I = 0; I < ShiftAch::Num; ++I)
+	{
+		if ((Fresh & (1u << static_cast<uint32>(I))) == 0)
+		{
+			continue;
+		}
+		FString Name, Desc;
+		bool bSecret = false;
+		UE_LOG(LogShift, Display, TEXT("Achievement: earned %s at t=%.1f"), ShiftAch::IdOf(I), Run->GetSim().Time());
+		if (FShiftContent::Achievement(ShiftAch::IdOf(I), Name, Desc, bSecret))
+		{
+			AchNewThisRun.Add(Name);
+			PushFeed(FString::Printf(TEXT("ACHIEVEMENT: %s. %s"), *Name, *Desc), TealColor(), 5.0f, false);
+			PlaySfx(EShiftSfx::Tip);
+		}
+	}
+}
+
+void AShiftPlayerController::FinishAchievements()
+{
+	if (!AchEligible() || !Run.IsValid())
+	{
+		return;
+	}
+	const ShiftSim::Sim& S = Run->GetSim();
+	const FShiftResultFacts Facts = ShiftResults::MakeFacts(S, Run->GetFlipStats(), Run->GetBlameStats().Taken > 0, InitialShares);
+	Ach.OnFinished(Facts, Run->GetFlipStats(), JamIndex);
+	UE_LOG(LogShift, Display, TEXT("Achievements: finished jam=%d won=%d dq=%d rank=%d qualityRank=%d cheated=%d rivalCollapsed=%d earned mask=0x%x"), JamIndex, Facts.bWon ? 1 : 0, Facts.bDisqualified ? 1 : 0, Facts.Rank, Facts.QualityRank, Facts.bCheated ? 1 : 0, Facts.bRivalCollapsed ? 1 : 0, Ach.Mask());
+	PollAchievements();
+	if (!FParse::Param(FCommandLine::Get(), TEXT("ShiftAchTest")))
+	{
+		ShiftSave::RecordCareer(JamIndex, Facts.bWon, Facts.bDisqualified, static_cast<float>(S.Share(ShiftSim::kPlayerId)));
+	}
+	ResultsModel.NewAchievements = AchNewThisRun;
+}
+
+void AShiftPlayerController::FillAccessModel(FShiftHudModel& M) const
+{
+	M.bMarkers = bMarkers;
+	M.bLargeText = bLargeText;
+	M.bReduceMotion = bReduceMotion;
+}
+
+void AShiftPlayerController::FillExtrasModel(FShiftHudModel& M) const
+{
+	M.ExtrasPage = ExtrasPage;
+	if (ExtrasPage == 0)
+	{
+		return;
+	}
+	if (ExtrasPage == 1)
+	{
+		const uint32 Saved = ShiftSave::Achievements();
+		for (int32 I = 0; I < ShiftAch::Num; ++I)
+		{
+			FShiftHudAchItem Item;
+			bool bSecret = false;
+			if (FShiftContent::Achievement(ShiftAch::IdOf(I), Item.Name, Item.Desc, bSecret))
+			{
+				Item.bHidden = bSecret;
+				Item.bEarned = (Saved & (1u << static_cast<uint32>(I))) != 0;
+				M.Achievements.Add(Item);
+			}
+		}
+		for (int32 Jam = 0; Jam < 3; ++Jam)
+		{
+			FShiftHudCareerRow Row;
+			Row.Jam = FString::Printf(TEXT("JAM %d"), Jam + 1);
+			Row.Runs = ShiftSave::CareerRuns(Jam);
+			Row.Wins = ShiftSave::CareerWins(Jam);
+			Row.Dq = ShiftSave::CareerDq(Jam);
+			Row.BestRank = ShiftSave::BestRank(Jam);
+			Row.BestShare = ShiftSave::CareerBestShare(Jam);
+			M.Career.Add(Row);
+		}
+		return;
+	}
+	M.CreditsText = {
+		TEXT("Project owner:"), TEXT("Hu\u00e2n Ri\u00eau"), TEXT(""),
+		TEXT("Tester:"), TEXT("Phuong-Fang"),
+	};
+}
+
+void AShiftPlayerController::PushFeed(const FString& Text, const FLinearColor& Color, float Seconds, bool bNews, bool bChatter)
 {
 	for (FFeedItem& Existing : Feed)
 	{
@@ -1154,6 +1275,8 @@ void AShiftPlayerController::PushFeed(const FString& Text, const FLinearColor& C
 	Item.Remaining = Seconds;
 	Item.Duration = FMath::Max(0.1f, Seconds);
 	Item.bNews = bNews;
+	Item.bInk = bChatter;
+	Item.bChatter = bChatter;
 	Feed.Insert(Item, 0);
 	while (Feed.Num() > 6)
 	{
@@ -1165,7 +1288,7 @@ bool AShiftPlayerController::HasActiveToast(float MinRemaining) const
 {
 	for (const FFeedItem& Item : Feed)
 	{
-		if (!Item.bNews && Item.Remaining > MinRemaining)
+		if (!Item.bNews && !Item.bChatter && Item.Remaining > MinRemaining)
 		{
 			return true;
 		}
@@ -1178,22 +1301,90 @@ void AShiftPlayerController::ShowToast(const FString& Text, const FLinearColor& 
 	PushFeed(Text, Color, Seconds, false);
 }
 
-void AShiftPlayerController::ShowHeadline(const FString& Event, const FString& Entry)
+FString AShiftPlayerController::BuildHeadline(const FString& Event, const FString& Entry, FRandomStream& Rng) const
 {
-	FString Line = FShiftContent::PickHeadline(Event, CosmeticRng);
+	FString Line = FShiftContent::PickHeadline(Event, Rng);
 	if (Line.IsEmpty())
 	{
-		return;
+		return Line;
 	}
 	Line.ReplaceInline(TEXT("{entry}"), *Entry);
 	Line.ReplaceInline(TEXT("{you}"), *EntryName(ShiftSim::kPlayerId));
 	Line.ReplaceInline(TEXT("{rival}"), *EntryName(Run.IsValid() ? Run->GetSim().RivalId() : 1));
 	if (Line.Contains(TEXT("{handle}")))
 	{
-		const FString Handle = NodeHandles.Num() > 0 ? NodeHandles[CosmeticRng.RandRange(0, NodeHandles.Num() - 1)] : FString(TEXT("someone"));
+		const FString Handle = NodeHandles.Num() > 0 ? NodeHandles[Rng.RandRange(0, NodeHandles.Num() - 1)] : FString(TEXT("someone"));
 		Line.ReplaceInline(TEXT("{handle}"), *(TEXT("@") + Handle));
 	}
-	PushFeed(Line, AmberColor(), 6.5f, true);
+	return Line;
+}
+
+void AShiftPlayerController::ShowHeadline(const FString& Event, const FString& Entry)
+{
+	const FString Line = BuildHeadline(Event, Entry, CosmeticRng);
+	if (!Line.IsEmpty())
+	{
+		PushFeed(Line, AmberColor(), 6.5f, true);
+	}
+}
+
+FString AShiftPlayerController::RandomHandle()
+{
+	return NodeHandles.Num() > 0 ? NodeHandles[CosmeticRng.RandRange(0, NodeHandles.Num() - 1)] : FString(TEXT("someone"));
+}
+
+void AShiftPlayerController::Chatter(const TCHAR* Context, const FString& Speaker, float Delay, float Seconds)
+{
+	if (bLessonRun || bAttract || ChatterQueue.Num() >= 2)
+	{
+		return;
+	}
+	FChatter C;
+	C.Context = Context;
+	C.Speaker = Speaker;
+	C.Delay = Delay;
+	C.Seconds = Seconds;
+	ChatterQueue.Add(C);
+}
+
+void AShiftPlayerController::TickChatter(float DeltaTime)
+{
+	ChatterGap = FMath::Max(0.0f, ChatterGap - DeltaTime);
+	if (ChatterQueue.Num() == 0)
+	{
+		return;
+	}
+	for (FChatter& C : ChatterQueue)
+	{
+		C.Delay -= DeltaTime;
+	}
+	if (ChatterQueue[0].Delay > 0.0f || ChatterGap > 0.0f)
+	{
+		return;
+	}
+	const FChatter C = ChatterQueue[0];
+	ChatterQueue.RemoveAt(0);
+	FString Sentiment;
+	const FString Line = FShiftContent::PickCommentLine(C.Context, CosmeticRng, Sentiment);
+	if (Line.IsEmpty())
+	{
+		return;
+	}
+	FLinearColor Color(0.55f, 0.58f, 0.62f);   // Neutral
+	if (Sentiment == TEXT("Positive"))
+	{
+		Color = TealColor();
+	}
+	else if (Sentiment == TEXT("Negative"))
+	{
+		Color = RedColor();
+	}
+	else if (Sentiment == TEXT("Suspicious"))
+	{
+		Color = FLinearColor::FromSRGBColor(FColor(0xB7, 0x9B, 0xFF));
+	}
+	PushFeed(FString::Printf(TEXT("@%s: %s"), C.Speaker.IsEmpty() ? *RandomHandle() : *C.Speaker, *Line), Color, C.Seconds, false, true);
+	ChatterGap = 2.5f;
 }
 
 FString AShiftPlayerController::RecordingsDir() const
@@ -1308,6 +1499,29 @@ void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 		bHowTo = !bHowTo;
 		bSettingsOpen = false;
 		break;
+	case EShiftUi::Markers:
+		bMarkers = !bMarkers;
+		if (!bQaRunFlag) { ShiftSave::SetFlag(TEXT("Markers"), bMarkers); }
+		break;
+	case EShiftUi::LargeText:
+		bLargeText = !bLargeText;
+		if (!bQaRunFlag) { ShiftSave::SetFlag(TEXT("LargeText"), bLargeText); }
+		break;
+	case EShiftUi::ReduceMotion:
+		bReduceMotion = !bReduceMotion;
+		if (!bQaRunFlag) { ShiftSave::SetFlag(TEXT("ReduceMotion"), bReduceMotion); }
+		break;
+	case EShiftUi::Achievements:
+		ExtrasPage = 1;
+		bSettingsOpen = false;
+		break;
+	case EShiftUi::Credits:
+		ExtrasPage = 2;
+		bSettingsOpen = false;
+		break;
+	case EShiftUi::ExtrasClose:
+		ExtrasPage = 0;
+		break;
 	case EShiftUi::Pause:
 		SetPaused(!bPaused);
 		break;
@@ -1411,6 +1625,7 @@ void AShiftPlayerController::HandleHudClick(const FVector2D& LocalPos, bool bShi
 		}
 	}
 	bPlayerActed = true;
+	IdleClock = 0.0f;
 	if (bRightButton)
 	{
 		Run->QueueRally(Node);   // right-click: Rally a voter you hold
@@ -1438,6 +1653,20 @@ void AShiftPlayerController::HandleHudKey(const FKey& Key)
 		{
 			bHowTo = false;   // the reference page closes
 		}
+		return;
+	}
+	if (ExtrasPage != 0)
+	{
+		if (Key == EKeys::Escape || Key == EKeys::Enter || Key == EKeys::SpaceBar || (Key == EKeys::A && ExtrasPage == 1) || (Key == EKeys::C && ExtrasPage == 2))
+		{
+			ExtrasPage = 0;
+		}
+		return;
+	}
+	if (Screen == EShiftScreen::Title && !bLessonRun && !bSettingsOpen && (Key == EKeys::A || Key == EKeys::C))
+	{
+		ExtrasPage = Key == EKeys::A ? 1 : 2;
+		PlaySfx(EShiftSfx::Click);
 		return;
 	}
 	if (Key == EKeys::H && !(Screen == EShiftScreen::Play && ResultsShown()))
@@ -1498,6 +1727,10 @@ void AShiftPlayerController::HandleHudKey(const FKey& Key)
 		else if (Key == EKeys::N)
 		{
 			bNightLatch = !bNightLatch;
+			if (bNightLatch && Screen == EShiftScreen::Play && AchEligible())
+			{
+				Ach.OnNightLatch();
+			}
 		}
 		else if (Key == EKeys::B)
 		{
@@ -1529,6 +1762,10 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 {
 	for (const FShiftEvent& E : Events)
 	{
+		if (AchEligible())
+		{
+			Ach.OnEvent(E, Run->GetSim());
+		}
 		if (E.Type != EShiftEventType::DayChanged)
 		{
 			UE_LOG(LogShift, Log, TEXT("event type=%d node=%d prev=%d new=%d sock=%d value=%.2f"), static_cast<int32>(E.Type), E.Node, E.PrevOwner, E.NewOwner, E.bSock ? 1 : 0, E.Value);
@@ -1541,6 +1778,10 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			PlaySfx(E.bSock ? EShiftSfx::Sock : EShiftSfx::Flip);
 			const FString Line = FShiftContent::PickComment(E.bSock ? TEXT("Sockpuppet") : TEXT("FlipToYou"), CosmeticRng);
 			ShowToast(FString::Printf(TEXT("@%s: %s"), *NodeHandle(E.Node), Line.IsEmpty() ? TEXT("fine, you win me over") : *Line), TealColor());
+			if (E.bSock && CosmeticRng.FRand() < 0.5f)
+			{
+				Chatter(TEXT("BotComment"), FShiftContent::PickHandleOfKind(TEXT("Bot"), CosmeticRng), 0.8f);
+			}
 			break;
 		}
 		case EShiftEventType::PlayerReinforced:
@@ -1605,10 +1846,12 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 				}
 				PushAlert(AlertStrike, Number == Max - 1 ? FString::Printf(TEXT("STRIKE %d OF %d: ONE MORE AND YOU ARE OUT"), Number, Max) : FString::Printf(TEXT("STRIKE %d OF %d"), Number, Max),
 					E.Count > 0 ? FString::Printf(TEXT("%d fake vote%s reverted (-%.1f%% of the vote). Banned %.0f s."), E.Count, E.Count == 1 ? TEXT("") : TEXT("s"), E.Share * 100.0f, Run->GetSim().GetParams().ShadowbanSeconds)
-						: FString::Printf(TEXT("Caught in the red zone. Banned %.0f s."), Run->GetSim().GetParams().ShadowbanSeconds),
+					: FString::Printf(TEXT("Caught in the red zone. Banned %.0f s."), Run->GetSim().GetParams().ShadowbanSeconds),
 					RedColor(), 3.4f, 50);
 				EdgeFlash = 1.0f;
 				EdgeColor = RedColor();
+				Chatter(TEXT("Strike"), FShiftContent::PickHandleOfKind(TEXT("Mod"), CosmeticRng), 1.4f);
+				Chatter(TEXT("Shadowban"), FShiftContent::PickHandleOfKind(TEXT("Lurker"), CosmeticRng), 3.2f);
 			}
 			break;
 		case EShiftEventType::BlameOffered:
@@ -1646,6 +1889,7 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 				Reason = FString::Printf(TEXT("%d strikes."), static_cast<int32>(DP.MaxStrikes));
 			}
 			ResultsHold = 1.8f;
+			ShowHeadline(TEXT("Disqualified"), EntryName(ShiftSim::kPlayerId));
 			PushAlert(AlertDisqualified, TEXT("DISQUALIFIED"), Reason, DeepRedColor(), ResultsHold, 100);
 			EdgeFlash = 1.0f;
 			EdgeColor = RedColor();
@@ -1720,6 +1964,10 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			break;
 		case EShiftEventType::ModTelegraph:
 			TutEventMask |= EvTelegraph;
+			if (CosmeticRng.FRand() < 0.6f)
+			{
+				Chatter(TEXT("ModScan"), FShiftContent::PickHandleOfKind(TEXT("Mod"), CosmeticRng), 0.3f);
+			}
 			break;
 		case EShiftEventType::BlameTaken:
 			PlaySfx(EShiftSfx::Blame);
@@ -1741,9 +1989,35 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 		case EShiftEventType::DirectorEvent:
 		{
 			static const TCHAR* const Kinds[3] = { TEXT("AlgorithmBoost"), TEXT("StreamerDiscovers"), TEXT("DramaThread") };
+			static const TCHAR* const Talk[3] = { TEXT("AlgorithmBoost"), TEXT("StreamerFeature"), TEXT("Drama") };
 			ShowHeadline(Kinds[FMath::Clamp(E.Node, 0, 2)], EntryName(E.NewOwner));
+			if (E.Node >= 0 && E.Node < 3)
+			{
+				Chatter(Talk[E.Node], FString(), 1.2f);
+			}
 			break;
 		}
+		case EShiftEventType::SpotlightStart:
+			if (!Run->HasBot() && !bLessonRun)
+			{
+				PlaySfx(EShiftSfx::Tip);
+				SpotFlashClock = 0.0f;
+				PushFeed(FString::Printf(TEXT("SPOTLIGHT: a streamer is looking at @%s. Flip or back them within %.0f s for +%.0f Post."), *NodeHandle(E.Node), E.Value, Run->GetPolicy().SpotlightBonusPosts), AmberColor(), E.Value, false, true);
+				if (Board)
+				{
+					Board->FlashNode(E.Node);
+				}
+			}
+			break;
+		case EShiftEventType::SpotlightHit:
+			if (!Run->HasBot())
+			{
+				PlaySfx(EShiftSfx::Reinforce);
+				ShowToast(FString::Printf(TEXT("Spotlight! +%.0f Post: the streamer liked that."), E.Value), TealColor(), 2.4f);
+			}
+			break;
+		case EShiftEventType::SpotlightEnd:
+			break;
 		case EShiftEventType::DayChanged:
 			PlaySfx(EShiftSfx::Day);
 			break;
@@ -1836,7 +2110,7 @@ void AShiftPlayerController::TickAlerts(float DeltaTime)
 
 void AShiftPlayerController::FillAlertModel(FShiftHudModel& M) const
 {
-	M.EdgeFlash = EdgeFlash;
+	M.EdgeFlash = bReduceMotion ? EdgeFlash * 0.35f : EdgeFlash;
 	M.EdgeColor = EdgeColor;
 	FShiftHudAlert& A = M.Alert;
 	if (Run->BlameAvailable())
@@ -1876,16 +2150,16 @@ void AShiftPlayerController::TickShareTrend()
 {
 	const ShiftSim::Sim& S = Run->GetSim();
 	const auto AddSample = [this, &S]()
-	{
-		for (int32 E = 0; E < S.NumEntries(); ++E)
 		{
-			ShareHistory[E].Add(static_cast<float>(S.Share(E)));
-			if (ShareHistory[E].Num() > 21)
+			for (int32 E = 0; E < S.NumEntries(); ++E)
 			{
-				ShareHistory[E].RemoveAt(0);
+				ShareHistory[E].Add(static_cast<float>(S.Share(E)));
+				if (ShareHistory[E].Num() > 21)
+				{
+					ShareHistory[E].RemoveAt(0);
+				}
 			}
-		}
-	};
+		};
 	if (ShareSampleTime < 0.0 || S.Time() + 1.0e-6 < ShareSampleTime || ShareHistory.Num() != S.NumEntries())
 	{
 		ShareHistory.Reset();
@@ -2409,49 +2683,30 @@ void AShiftPlayerController::BuildResults(FShiftHudModel& Out) const
 	const int32 Rank = S.RankOf(ShiftSim::kPlayerId) + 1;
 	const double Total = FMath::Max(1.0, S.TotalWeight());
 	const double Votes = S.Tally(ShiftSim::kPlayerId);
-	const double SockVotes = S.SockpuppetWeight();
-	const int32 QualityRank = [&S]()
-		{
-			int32 Better = 0;
-			for (int32 E = 1; E < S.NumEntries(); ++E)
-			{
-				if (S.GetEntry(E).quality > S.GetEntry(ShiftSim::kPlayerId).quality)
-				{
-					++Better;
-				}
-			}
-			return Better + 1;
-		}();
-	const int32 Leader = S.Leader();
-	const bool bWon = !bDq && Leader == ShiftSim::kPlayerId;
-	const double Runner = [&S, Leader]() { double Best = 0.0; for (int32 E = 0; E < S.NumEntries(); ++E) { if (E != Leader) { Best = FMath::Max(Best, S.Tally(E)); } } return Best; }();
-	const double Margin = bWon ? (Votes - Runner) / Total : (S.Tally(Leader) - Votes) / Total;
+	const double SockVotes = S.SockBoughtWeight();
+	const FShiftFlipStats& Flips = Run->GetFlipStats();
+	const FShiftResultFacts Facts = ShiftResults::MakeFacts(S, Flips, Run->GetBlameStats().Taken > 0, InitialShares);
+	const int32 QualityRank = Facts.QualityRank;
+	const bool bWon = Facts.bWon;
 
 	FRandomStream Rng(static_cast<int32>(Seed * 31u + 7u));
-	FString Outcome, Condition;
 	if (bDq)
 	{
-		Outcome = TEXT("DQ");
-		Condition = (S.Time() / FMath::Max(1.0, S.TotalSeconds())) < 0.5 ? TEXT("DQEarly") : TEXT("DQLate");
 		Out.OutcomeTitle = TEXT("DISQUALIFIED");
 		Out.OutcomeColor = RedColor();
 	}
 	else if (bWon)
 	{
-		Outcome = TEXT("Win");
-		Condition = SockVotes > 0.25 * Votes ? TEXT("SockpuppetWin") : (SockVotes < 1.0 ? TEXT("CleanWin") : (Margin < 0.03 ? TEXT("NarrowWin") : (Votes / Total > 0.5 ? TEXT("Landslide") : TEXT("CleanWin"))));
 		Out.OutcomeTitle = TEXT("YOU WON THE JAM");
 		Out.OutcomeColor = TealColor();
 	}
 	else
 	{
-		Outcome = TEXT("Lose");
-		Condition = Margin < 0.04 ? TEXT("NearMiss") : (QualityRank <= 3 ? TEXT("QualityIgnored") : TEXT("NobodyPlayed"));
 		Out.OutcomeTitle = FString::Printf(TEXT("%s PLACE"), *Ordinal(Rank).ToUpper());
 		Out.OutcomeColor = AmberColor();
 	}
 
-	FString Blurb = FShiftContent::PickBlurb(Outcome, Condition, Rng);
+	FString Blurb = ShiftResults::PickBlurb(ShiftResults::Classify(Facts), Rng);
 	if (Blurb.IsEmpty())
 	{
 		Blurb = bWon ? TEXT("The best-known entry won. Funny how that works.") : TEXT("Fame won again.");
@@ -2466,8 +2721,19 @@ void AShiftPlayerController::BuildResults(FShiftHudModel& Out) const
 	Out.OutcomeLine1 = Blurb;
 	Out.OutcomeLine2 = FString::Printf(TEXT("Your game: quality rank %d of %d, final rank %d. Honest votes %.1f%%, sockpuppet votes %.1f%%."),
 		QualityRank, S.NumEntries(), Rank, (Votes - SockVotes) / Total * 100.0, SockVotes / Total * 100.0);
-	Out.OutcomeLine3 = FShiftContent::PickBlurb(TEXT("Wink"), TEXT("Closing"), Rng);
-	const FShiftFlipStats& Flips = Run->GetFlipStats();
+	FRandomStream WinkRng(static_cast<int32>(Seed * 53u + 11u));   // its own stream: the Wink line does not move when the blurb pool changes
+	Out.OutcomeLine3 = FShiftContent::PickBlurb(TEXT("Wink"), TEXT("Closing"), WinkRng);
+	{
+		FRandomStream NewsRng(static_cast<int32>(Seed * 97u + 13u));
+		if (!bDq)
+		{
+			Out.OutcomeNews = BuildHeadline(bWon ? TEXT("YouWin") : TEXT("RivalWins"), EntryName(S.Leader()), NewsRng);
+			if (!bWon && S.Leader() != S.RivalId())
+			{
+				Out.OutcomeNews.Reset();   // RivalWins names the rival: only when it did win
+			}
+		}
+	}
 	Out.PlaysLine = FString::Printf(TEXT("%d votes cast for your game. About %d people played it. You won %d voters: %d drifted away, %d were snatched."), FMath::RoundToInt(static_cast<float>(Votes)),
 		Plays, Flips.Gains, Flips.LossHerd, Flips.LossRival + Flips.LossOthers);
 	if (Flips.SockGains > 0)
@@ -2522,6 +2788,8 @@ void AShiftPlayerController::BuildMenuModel(FShiftHudModel& M)
 	M.WindowMode = CurrentWindowMode();
 	M.bSettingsOpen = bSettingsOpen;
 	M.bLessonNudge = bLessonNudge;
+	FillExtrasModel(M);
+	FillAccessModel(M);
 	M.bHowTo = bHowTo;
 	if (bHowTo)
 	{
@@ -2648,6 +2916,7 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 		Out.Text = Item.Text;
 		Out.Color = Item.Color;
 		Out.bNews = Item.bNews;
+		Out.bInk = Item.bInk;
 		Out.Alpha = FMath::Clamp(Item.Remaining / 0.4f, 0.0f, 1.0f) * FMath::Clamp((Item.Duration - Item.Remaining) / 0.12f, 0.0f, 1.0f);
 		M.Feed.Add(Out);
 	}
@@ -2705,6 +2974,23 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 	M.BlameSeconds = static_cast<float>(Run->BlameSecondsLeft());
 	M.BlameWindow = static_cast<float>(Run->BlameWindowSeconds());
 	FillAlertModel(M);
+	if (bMarkers)
+	{
+		const ShiftSim::Sim& MS = Run->GetSim();
+		for (int32 I = 0; I < MS.NodeCount(); ++I)
+		{
+			const int32 Holder = MS.Opinion(I);
+			if (Holder >= 0)
+			{
+				const ShiftSim::GraphNode& N = MS.GetGraph().nodes[static_cast<size_t>(I)];
+				FShiftHudModel::FMarker Marker;
+				Marker.X = static_cast<float>(N.x);
+				Marker.Y = static_cast<float>(N.y);
+				Marker.Owner = Holder;
+				M.Markers.Add(Marker);
+			}
+		}
+	}
 	BuildHoverTooltip(M.Tooltip);
 
 	if (M.bOver)
@@ -2713,6 +2999,7 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 		{
 			BuildResults(ResultsModel);
 			bResultsBuilt = true;
+			FinishAchievements();
 			SaveRecording(TEXT("abandoned"));
 			if (bReplayMode && Run->IsReplaying())
 			{
@@ -2728,6 +3015,8 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 		M.OutcomeLine1 = ResultsModel.OutcomeLine1;
 		M.OutcomeLine2 = ResultsModel.OutcomeLine2;
 		M.OutcomeLine3 = ResultsModel.OutcomeLine3;
+		M.OutcomeNews = ResultsModel.OutcomeNews;
+		M.NewAchievements = ResultsModel.NewAchievements;
 		M.PlaysLine = ResultsModel.PlaysLine;
 		M.OutcomeColor = ResultsModel.OutcomeColor;
 		M.HonestShare = ResultsModel.HonestShare;
@@ -2746,6 +3035,7 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 		M.Lesson = Lesson->View();
 		M.bModsEnabled = M.bModsEnabled && M.Lesson.bModEye;
 	}
+	FillAccessModel(M);
 	M.bHowTo = bHowTo;
 	if (bHowTo)
 	{
@@ -2883,6 +3173,44 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 		HandleEvents(EventScratch);
 		TickLostVoters(DeltaTime);
 		TickShareTrend();
+		TickChatter(DeltaTime);
+		if (Board && Run->SpotlightNode() >= 0 && !Run->HasBot() && !bPaused)
+		{
+			SpotFlashClock += DeltaTime;
+			if (SpotFlashClock >= 0.9f)
+			{
+				SpotFlashClock = 0.0f;
+				Board->FlashNode(Run->SpotlightNode());
+			}
+		}
+		if (AchEligible() && !Run->IsOver() && !bPaused)
+		{
+			Ach.Tick(Run->GetSim(), Run->GetFlipStats(), DeltaTime, IsNightHeldNow());
+			PollAchievements();
+		}
+		if (!Run->IsOver() && !bPaused && !bLessonRun)
+		{
+			IdleClock += DeltaTime;
+			if (IdleClock >= 10.0f)
+			{
+				IdleClock = 0.0f;
+				Chatter(TEXT("Idle"), FString(), 0.0f);
+			}
+			// a gate that opened for the player: a voter says so, and the hub flashes
+			const ShiftSim::Sim& GS = Run->GetSim();
+			for (const int32 Node : GatedSeenNodes)
+			{
+				if (!GS.IsGated(Node) && !GateChatted.Contains(Node))
+				{
+					GateChatted.Add(Node);
+					Chatter(TEXT("GateOpen"), NodeHandle(Node), 0.0f);
+					if (Board)
+					{
+						Board->FlashNode(Node);
+					}
+				}
+			}
+		}
 
 		const ShiftSim::Sim& Sim = Run->GetSim();
 		const int32 Leader = Sim.Leader();

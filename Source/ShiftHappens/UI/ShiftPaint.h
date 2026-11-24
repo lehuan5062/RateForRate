@@ -34,6 +34,9 @@ enum class EShiftTrailerFont : uint8
  */
 struct FShiftPainter
 {
+	/** The smallest text size in design pixels while "Large text" is on (0 = off). Set by the HUD before it paints. */
+	static float MinPx;
+
 	FShiftPainter(FSlateWindowElementList& InOut, const FGeometry& InGeo, int32 InLayer, const FVector2f& InOrigin, float InScale)
 		: Out(InOut), Geo(InGeo), Layer(InLayer), Origin(InOrigin), Scale(InScale)
 	{

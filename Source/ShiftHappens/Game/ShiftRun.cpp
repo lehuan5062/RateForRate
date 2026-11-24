@@ -110,6 +110,23 @@ bool FShiftRun::Start(int32 InJamIndex, uint32 InSeed, const FShiftBuild& InBuil
 		}
 	}
 
+	// Spotlights: a few moments spread over the middle of the jam, from their own stream
+	SpotStart.Reset();
+	SpotNext = 0;
+	SpotNode = -1;
+	SpotEnd = 0.0;
+	SpotRng.Seed(ShiftSim::Rng::Derive(Seed, 0x53504Fu));
+	if (Policy.SpotlightCount >= 0.5 && Policy.SpotlightSeconds > 0.0)
+	{
+		const int32 Count = FMath::RoundToInt(static_cast<float>(Policy.SpotlightCount));
+		const double Total = Sim->TotalSeconds();
+		for (int32 I = 0; I < Count; ++I)
+		{
+			const double Slot = (0.78 - 0.22) * Total / Count;
+			SpotStart.Add(0.22 * Total + Slot * I + SpotRng.Uniform(0.1, 0.9) * Slot);
+		}
+	}
+
 	Accumulator = 0.0;
 	LastDay = 0;
 	BlameRemaining = 0.0;
@@ -390,6 +407,45 @@ void FShiftRun::TrackOwnership()
 }
 
 /** Starts, announces and ends the Mod Eye's windows. A sweep that would fall inside a window (or just after it) waits until 3.5 s after it. */
+void FShiftRun::UpdateSpotlight()
+{
+	ShiftSim::Sim& S = *Sim;
+	const double Now = S.Time();
+	if (SpotNode >= 0 && Now + 1.0e-9 >= SpotEnd)
+	{
+		FShiftEvent End;
+		End.Type = EShiftEventType::SpotlightEnd;
+		End.Node = SpotNode;
+		Emit(End);
+		SpotNode = -1;
+	}
+	if (SpotNode >= 0 || !SpotStart.IsValidIndex(SpotNext) || Now + 1.0e-9 < SpotStart[SpotNext])
+	{
+		return;
+	}
+	++SpotNext;
+	// a voter anyone could win over: not the player's, not a hub or a celebrity, no gate in the way
+	TArray<int32> Candidates;
+	for (int32 I = 0; I < S.NodeCount(); ++I)
+	{
+		if (S.Opinion(I) != ShiftSim::kPlayerId && !S.GetGraph().IsGateNode(I) && !S.IsGated(I) && S.LockRemaining(I) <= 0.0)
+		{
+			Candidates.Add(I);
+		}
+	}
+	if (Candidates.Num() == 0)
+	{
+		return;
+	}
+	SpotNode = Candidates[FMath::Clamp(static_cast<int32>(SpotRng.Uniform(0.0, static_cast<double>(Candidates.Num()))), 0, Candidates.Num() - 1)];
+	SpotEnd = Now + Policy.SpotlightSeconds;
+	FShiftEvent Start;
+	Start.Type = EShiftEventType::SpotlightStart;
+	Start.Node = SpotNode;
+	Start.Value = static_cast<float>(Policy.SpotlightSeconds);
+	Emit(Start);
+}
+
 void FShiftRun::UpdateEyeWindows()
 {
 	ShiftSim::Sim& S = *Sim;
@@ -453,6 +509,7 @@ void FShiftRun::StepOnce()
 		++BlameStats.Lapsed;   // the player let the window run out
 	}
 	UpdateEyeWindows();
+	UpdateSpotlight();
 	if (Driver.IsValid())
 	{
 		Driver->Tick(static_cast<float>(S.GetParams().Dt));   // StateTrees: rival, other entries, jam director
@@ -540,6 +597,18 @@ void FShiftRun::StepOnce()
 			break;
 		}
 		Emit(Event);
+		// a person who flips or backs the spotlighted voter in time gets Posts back (a bot's actions do not come through here)
+		if (SpotNode >= 0 && Action.Node == SpotNode && !bBotActive && !bSockClick
+			&& (Event.Type == EShiftEventType::PlayerFlipped || Event.Type == EShiftEventType::PlayerReinforced || Event.Type == EShiftEventType::PlayerParried))
+		{
+			S.SetPosts(S.Posts() + Policy.SpotlightBonusPosts);
+			FShiftEvent Hit;
+			Hit.Type = EShiftEventType::SpotlightHit;
+			Hit.Node = SpotNode;
+			Hit.Value = static_cast<float>(Policy.SpotlightBonusPosts);
+			Emit(Hit);
+			SpotNode = -1;
+		}
 	}
 	Pending.Reset();
 

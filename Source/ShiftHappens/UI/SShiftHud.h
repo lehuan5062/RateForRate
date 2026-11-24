@@ -130,6 +130,7 @@ private:
 	void PaintPause(FShiftPainter& P, const FPal& C) const;
 	void PaintLesson(FShiftPainter& P, const FPal& C) const;
 	void PaintHowTo(FShiftPainter& P, const FPal& C) const;
+	void PaintExtras(FShiftPainter& P, const FPal& C) const;
 	void PaintScatter(FShiftPainter& P, const FPal& C, float X, float Y, float W, float H, const FString& Title, const TArray<FShiftHudDot>& Dots,
 		const FShiftHudFit& Fit, const FString& Caption) const;
 	void PaintKeycap(FShiftPainter& P, const FPal& C, float Cx, float Cy, bool bPressed) const;
@@ -164,6 +165,7 @@ private:
 	int32 DragId = -1;
 	FHit DragHit;
 	float AnimTime = 0.0f;
+	float PulseTime = 0.0f;                // AnimTime, or 0 while Reduce motion is on: every pulse reads it
 	float PressUntil = -1.0f;              // AnimTime until which the cursor is drawn pressed
 	TArray<FRipple> Ripples;
 };

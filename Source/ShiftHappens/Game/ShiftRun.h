@@ -50,6 +50,11 @@ enum class EShiftEventType : uint8
 	BlameRefused,        // ... but too many fake votes to blame on anyone, the run ends now: Share = the fake votes the strike took
 	// appended in round 8
 	EntryTookBig,        // another entry took a hub or a celebrity from the rival by a plug (the player's own losses have their own event): Node, PrevOwner, NewOwner, Value = its vote weight
+
+	// appended in round 14
+	SpotlightStart,      // a streamer spotlights a voter: Node, Value = seconds it lasts
+	SpotlightHit,        // the player flipped or backed it in time: Node, Value = Posts given back
+	SpotlightEnd,        // it ran out unanswered: Node
 };
 
 struct FShiftEvent
@@ -211,6 +216,9 @@ public:
 	/** Sim time of the next Mod Eye sweep (seconds). */
 	double NextModSweep() const { return NextSweep; }
 	/** Sim time the next Mod Eye window starts (1e30 while one is on or none is left). */
+	/** The voter a streamer is spotlighting right now (-1 = none) and the seconds it has left. Only a person can take the bonus. */
+	int32 SpotlightNode() const { return SpotNode; }
+	double SpotlightRemaining() const { return SpotNode >= 0 && Sim.IsValid() ? FMath::Max(0.0, SpotEnd - Sim->Time()) : 0.0; }
 	double NextEyeWindowStart() const { return (bEyeActive || !EyeWindowStart.IsValidIndex(EyeWindowNext)) ? 1.0e30 : EyeWindowStart[EyeWindowNext]; }
 	/** True from the notice (EyeAwayWarn seconds ahead) until the window is over. */
 	bool EyeWindowAnnounced() const { return bEyeWarned || bEyeActive; }
@@ -307,6 +315,12 @@ private:
 	FShiftPushSnapshot PushStart;
 
 	// the Mod Eye looks away (round 4): windows scheduled at Start with their own RNG, announced ahead
+	TArray<double> SpotStart;          // when each spotlight begins (its own stream, so nothing else is re-rolled)
+	int32 SpotNext = 0;
+	int32 SpotNode = -1;
+	double SpotEnd = 0.0;
+	ShiftSim::Rng SpotRng;
+	void UpdateSpotlight();
 	TArray<double> EyeWindowStart;
 	int32 EyeWindowNext = 0;
 	bool bEyeWarned = false;

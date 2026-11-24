@@ -1,5 +1,5 @@
 # Runs a Python script headless inside the UE 5.8 editor (UnrealEditor-Cmd) and prints its log.
-#   Tools\run_py.ps1 -Script Tools\py\s1_probe.py
+#   Tools\run_py.ps1 -Script Tools\py\build_materials.py
 # The script should call unreal.SystemLibrary.quit_editor() at the end (the helper in Tools\py\shift_common.py does).
 param(
 	[Parameter(Mandatory = $true)][string]$Script,

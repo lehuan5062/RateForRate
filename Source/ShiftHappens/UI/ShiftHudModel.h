@@ -56,6 +56,12 @@ namespace EShiftUi
 		EffectsOff = 64,
 		MusicOn = 65,             // settings menu: music on / off (the M key and id 50 mute or restore both)
 		MusicOff = 66,
+		Achievements = 70,        // title: the achievements and career page (also the key A)
+		Credits = 71,             // title: the credits page (also the key C)
+		Markers = 67,             // settings menu: shapes on every voter and leaderboard row, so colour is not the only signal
+		LargeText = 68,           // settings menu: a floor for the text size
+		ReduceMotion = 69,        // settings menu: steady instead of pulsing
+		ExtrasClose = 72,         // behind either page: a click anywhere closes it
 	};
 }
 
@@ -137,6 +143,26 @@ struct FShiftHudBuild
 	FString Effects[3];                        // what each lever comes to in play (quality, thumbnail, network), with numbers, from the same rules the sim uses
 };
 
+/** One achievement on its page. */
+struct FShiftHudAchItem
+{
+	FString Name;
+	FString Desc;
+	bool bEarned = false;
+	bool bHidden = false;     // a hidden achievement shows no description until it is earned
+};
+
+/** One jam of the career strip. */
+struct FShiftHudCareerRow
+{
+	FString Jam;
+	int32 Runs = 0;
+	int32 Wins = 0;
+	int32 Dq = 0;
+	int32 BestRank = 0;       // 0 = never finished
+	float BestShare = 0.0f;   // 0..1
+};
+
 /** One card of the notification feed in the right gutter: a toast, or a news headline (bNews). */
 struct FShiftHudFeedItem
 {
@@ -144,6 +170,7 @@ struct FShiftHudFeedItem
 	FLinearColor Color = FLinearColor::White;
 	float Alpha = 1.0f;       // fades in and out
 	bool bNews = false;
+	bool bInk = false;        // chatter: ink text on the card, the colour only on the accent bar
 };
 
 /** An urgent event that takes over the middle of the bottom bar for a few seconds: a strike, the Shift the Blame offer, a disqualification. The right gutter is peripheral, this is not. */
@@ -371,6 +398,7 @@ struct FShiftHudModel
 	FString OutcomeLine1;
 	FString OutcomeLine2;
 	FString OutcomeLine3;
+	FString OutcomeNews;      // the end-of-jam headline, painted under the blurb (the feed is covered by the results card)
 	FString PlaysLine;
 	FString RecordingPath;                 // where the recording of this jam was saved ("" = none)
 	bool bReplay = false;                  // a recording is being replayed: your clicks do nothing
@@ -379,6 +407,16 @@ struct FShiftHudModel
 	FShiftLessonView Lesson;
 	bool bInLesson = false;                // the run on screen is a lesson (the pause menu says so)
 	bool bHowTo = false;                   // the reference page is open
+	bool bMarkers = false;                 // accessibility: a shape per entry next to its colour
+	bool bLargeText = false;
+	bool bReduceMotion = false;
+	struct FMarker { float X = 0.0f; float Y = 0.0f; int32 Owner = 0; };
+	TArray<FMarker> Markers;               // one per voter, in design pixels (only while bMarkers)
+	int32 ExtrasPage = 0;                  // title: 0 none, 1 the achievements and career page, 2 the credits
+	TArray<FShiftHudAchItem> Achievements;
+	TArray<FShiftHudCareerRow> Career;
+	TArray<FString> CreditsText;           // one line each; a line ending in ":" is a heading
+	TArray<FString> NewAchievements;       // results: the names earned in this run
 	TArray<FString> HowToText;             // its blocks, "Title: text" each
 	bool bLessonNudge = false;             // never finished the basics: the title screen points at Learn to play
 	FLinearColor OutcomeColor = FLinearColor::White;

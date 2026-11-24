@@ -40,6 +40,15 @@ namespace ShiftSave
 	void SetLessonsDone(int32 Mask);
 	int32 EdgeMode();                               // relation lines: 0 faint, 1 off, 2 full
 	void SetEdgeMode(int32 Mode);
+	bool GetFlag(const TCHAR* Key);                // a saved on / off switch (accessibility settings)
+	void SetFlag(const TCHAR* Key, bool bOn);
+	uint32 Achievements();                          // bit per achievement earned (EShiftAch)
+	void SetAchievements(uint32 Mask);
+	void RecordCareer(int32 JamIndex, bool bWon, bool bDisqualified, float Share);   // one finished run of a human player
+	int32 CareerRuns(int32 JamIndex);
+	int32 CareerWins(int32 JamIndex);
+	int32 CareerDq(int32 JamIndex);
+	float CareerBestShare(int32 JamIndex);          // 0..1
 	int32 LeaderboardMode();                        // 0 compact, 1 full, 2 hidden
 	void SetLeaderboardMode(int32 Mode);
 }

@@ -1,6 +1,6 @@
 # itch.io page and hand-off checklist
 
-Everything below is for **you** to do or paste; nothing here has been done on your behalf (no repository was created or pushed, nothing was uploaded or submitted).
+Everything below is for **you** to do or paste: nothing has been uploaded to itch.io or submitted to the jam. The code is pushed to the private GitHub repository `lehuan5062/ShiftHappens`.
 
 ## Page copy (paste into the itch.io project)
 
@@ -17,7 +17,7 @@ Everything below is for **you** to do or paste; nothing here has been done on yo
 >
 > Three jams, a build screen that asks how to spend your last 12 hours, and a results screen that computes, from your own run, how much of the vote was explained by quality and how much by fame.
 >
-> **Controls:** mouse = Plug (hover for details) · hold SHIFT (or N) = night shift · B = shift the blame (when offered) · Space/Esc = pause · M = mute · R = retry
+> **Controls:** mouse = Plug (hover a voter for its actions), click your own voter or a ring closing in on it to reinforce / parry, right-click your own voter = Rally · hold SHIFT (or N) = night shift · B = shift the blame (when offered) · Space/Esc = pause · H = how to play (or press *Learn to play* on the title screen) · M = mute · gear = settings · R = retry
 >
 > Windows 10/11 with a DirectX 12 GPU (Shader Model 6). Made with Unreal Engine 5.8 for GitHub Game Off 2026 (theme: SHIFT).
 
@@ -61,14 +61,9 @@ Before the first **public** publish (it fixes the page's place in "Most Recent")
 
 ## What is left for you
 
-1. **GitHub**: the jam needs a public repository created during the jam. `gh` is logged in as the account used in this session, but I did **not** create or push anything. Typical steps: `git lfs install`, `git lfs track "*.uasset" "*.umap" "*.png"` (there is no `.gitattributes` yet; there are no `.wav` files, and `*.wav` is git-ignored), commit, create the public repo, push (`Saved/`, `Intermediate/`, `Binaries/` are ignored).
+1. **GitHub**: the repository `lehuan5062/ShiftHappens` is pushed but currently **private**; the jam needs a public repository, so make it public (Settings, Danger zone) before you submit. No Git LFS is used: the largest tracked file is under 2 MB, and `Saved/`, `Intermediate/`, `Binaries/` are git-ignored.
 2. **License**: none chosen yet (the README says TBD). Pick one before you publish.
-3. **Package** a Windows build yourself. The standard command (I only compiled the Shipping target and ran a headless cook as a pre-flight; I did not package):
-
-   ```powershell
-   & "C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\RunUAT.bat" BuildCookRun -project="D:\GameOff111609\ShiftHappens.uproject" -noP4 -platform=Win64 -clientconfig=Shipping -cook -build -stage -pak -archive -archivedirectory="D:\GameOff111609\Saved\Package" -prereqs -utf8output
-   ```
-   (`Saved/` is git-ignored.) Zip the staged `Windows` folder and upload it as the Windows download. The packaged game needs the DX12 runtime that ships with Windows 10/11.
+3. **Package** a Windows build with `Tools\package.ps1 -Config Shipping` (cook, stage, pak, archive into `Saved\PackageShipping`; the first run compiles the shaders and takes a while). A Shipping package was staged and smoke-tested headless on 23 Nov, but before the latest feature work, so rebuild it before you upload. Zip the staged `Windows` folder and upload it as the Windows download. The packaged game needs the DX12 runtime that ships with Windows 10/11.
 4. **itch.io**: create the project, upload the zip, add the page copy and screenshots above, then **submit it to the jam** (pushing code is not submitting) before **Dec 1 2026, 13:37 PST (21:37 UTC)**.
 5. **Listen to it**: the audio was verified with in-graph meters only (levels, spectra, clock, every lane firing), not by ear. All of it is MetaSound and Harmonix, so it is tweakable in the MetaSound editor, and the levels can be re-trimmed with `Tools\calibrate_audio.ps1`.
 
@@ -76,4 +71,4 @@ Before the first **public** publish (it fixes the page's place in "Most Recent")
 
 * DX12 / Shader Model 6 only (older GPUs will not run it).
 * Windows only (no browser export in Unreal Engine 5).
-* The pre-flight cook and Shipping compile passed, but a packaged build has not been run.
+* The Shipping package must be rebuilt after the last code change (see "What is left for you").

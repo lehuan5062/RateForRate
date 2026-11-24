@@ -29,6 +29,8 @@
 #include "Templates/SharedPointer.h"
 #include "Templates/UniquePtr.h"
 
+float FShiftPainter::MinPx = 0.0f;
+
 namespace
 {
 	const FSlateBrush* RectBrush()
@@ -64,6 +66,7 @@ namespace
 
 	FSlateFontInfo MakeFont(float Px, bool bBold)
 	{
+		Px = FMath::Max(Px, FShiftPainter::MinPx);
 		// Slate font sizes are points: 1 pt = 4/3 px at DPI scale 1.
 		return FCoreStyle::GetDefaultFontStyle(bBold ? TEXT("Bold") : TEXT("Regular"), static_cast<float>(FMath::Max(6, FMath::RoundToInt(Px * 0.75f))));
 	}

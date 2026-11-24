@@ -13,7 +13,7 @@
 #include "UObject/StrongObjectPtrTemplates.h"
 #include "ShiftJamPack.generated.h"
 
-/** What a jam pack plugin ships: which built-in jam it plays (sim parameters live in Data/Jams.csv), its card text, and its own entry table. */
+/** What a jam pack plugin ships: which built-in jam it plays (the sim parameters are DefaultJam in Sim/ShiftParams.cpp; Data/Jams.csv is only a harness export), its card text, and its own entry table. */
 UCLASS(BlueprintType)
 class SHIFTHAPPENS_API UShiftJamPackData : public UDataAsset
 {
