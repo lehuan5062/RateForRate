@@ -25,12 +25,13 @@
 
 bool FShiftRun::Start(int32 InJamIndex, uint32 InSeed, const FShiftBuild& InBuild, bool bInModsEnabled)
 {
-	JamIndex = FMath::Clamp(InJamIndex, 0, 2);
+	JamIndex = FMath::Clamp(InJamIndex, 0, ShiftSim::kJamCount - 1);
 	Seed = InSeed;
 	bModsEnabled = bInModsEnabled;
 
 	ShiftSim::Params Params;
-	ShiftSim::JamDef Jam = ShiftSim::DefaultJam(JamIndex);
+	ShiftSim::JamDef Jam;
+	ShiftSim::SetupJam(JamIndex, Params, Jam);
 	// QA overrides go in twice: before the build, so that its slopes (Params::Build*) can be tuned by name, and after it, so that an explicit value (-Set PostsMax=3) wins over what
 	// the build made of it.
 	for (int32 Pass = 0; Pass < 2; ++Pass)
@@ -65,6 +66,9 @@ bool FShiftRun::Start(int32 InJamIndex, uint32 InSeed, const FShiftBuild& InBuil
 		}
 	}
 	RunBuild = InBuild;
+	History.Reset();
+	Marks.Reset();
+	SampleHistory();
 	Rec = FShiftRecording();
 	bRecordingStarted = false;
 	bRecording = false;
@@ -634,6 +638,10 @@ void FShiftRun::StepOnce()
 	}
 
 	S.Step();
+	if (S.StepCount() % ShiftRecordingInfo::SampleEverySteps == 0)
+	{
+		SampleHistory();
+	}
 	if (bRecording && S.StepCount() % ShiftRecordingInfo::SampleEverySteps == 0)
 	{
 		FShiftRecSample Sample;
@@ -681,6 +689,7 @@ void FShiftRun::StepOnce()
 	if ((S.Disqualified() && !bBlamePending) || S.Finished())
 	{
 		bOver = true;
+		SampleHistory();   // the last point of the timeline is the final tally
 		FShiftEvent Event;
 		Event.Type = S.Disqualified() ? EShiftEventType::Disqualified : EShiftEventType::Finished;
 		Emit(Event);
@@ -689,6 +698,63 @@ void FShiftRun::StepOnce()
 			FinishRecording(S.Disqualified() ? TEXT("disqualified") : (S.Leader() == ShiftSim::kPlayerId ? TEXT("won") : TEXT("lost")));
 		}
 	}
+}
+
+void FShiftRun::SampleHistory()
+{
+	if (!Sim.IsValid())
+	{
+		return;
+	}
+	const ShiftSim::Sim& S = *Sim;
+	FShiftRecSample Sample;
+	Sample.Step = static_cast<int32>(S.StepCount());
+	Sample.Posts = static_cast<float>(S.Posts());
+	Sample.Heat = static_cast<float>(S.Heat());
+	for (int32 E = 0; E < S.NumEntries(); ++E)
+	{
+		Sample.Shares.Add(static_cast<float>(S.Share(E)));
+	}
+	if (History.Num() > 0 && History.Last().Step == Sample.Step)
+	{
+		History.Last() = MoveTemp(Sample);
+	}
+	else
+	{
+		History.Add(MoveTemp(Sample));
+	}
+}
+
+void FShiftRun::NoteMark(const FShiftEvent& Event)
+{
+	if (!Sim.IsValid())
+	{
+		return;
+	}
+	FShiftTimelineMark Mark;
+	Mark.Step = static_cast<int32>(Sim->StepCount());
+	switch (Event.Type)
+	{
+	case EShiftEventType::Strike:
+		Mark.Kind = 0;
+		break;
+	case EShiftEventType::FinalPushStart:
+		Mark.Kind = 2;
+		break;
+	case EShiftEventType::PlayerFlipped:
+	{
+		const std::vector<int>& Celebs = Sim->GetGraph().celebrities;
+		if (std::find(Celebs.begin(), Celebs.end(), Event.Node) == Celebs.end())
+		{
+			return;
+		}
+		Mark.Kind = 1;
+		break;
+	}
+	default:
+		return;
+	}
+	Marks.Add(Mark);
 }
 
 void FShiftRun::StartRecording()

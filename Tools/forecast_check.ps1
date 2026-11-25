@@ -42,7 +42,7 @@ foreach ($r in $rows) {
 function RankOf($v) { $n = 1; for ($i = 1; $i -lt 9; $i++) { if ($v[$i] -gt $v[0]) { $n++ } }; return $n }
 
 $metrics = @{}   # jam -> metric -> value
-foreach ($jam in 0, 1, 2) {
+foreach ($jam in 0, 1, 2, 3) {
 	$drops = 0; $steps = 0; $worse = 0; $abs = New-Object System.Collections.Generic.List[double]
 	$qOk = 0; $nOk = 0; $tSum = 0.0; $count = 0; $neutral = 0.0
 	foreach ($k in $worldsIdx.Keys) {

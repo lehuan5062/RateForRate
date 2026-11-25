@@ -120,7 +120,7 @@ int32 UShiftForecastCommandlet::Main(const FString& Params)
 	FParse::Value(*Params, TEXT("BuildSet="), BuildSet);
 
 	TArray<int32> Jams;
-	if (JamArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { Jams = { 0, 1, 2 }; }
+	if (JamArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { for (int32 J = 0; J < ShiftSim::kJamCount; ++J) { Jams.Add(J); } }
 	else { Jams.Add(FCString::Atoi(*JamArg)); }
 
 	if (FParse::Param(*Params, TEXT("Model")))

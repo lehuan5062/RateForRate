@@ -106,6 +106,15 @@ private:
 	void SaveRecording(const TCHAR* AbandonedResult);
 	FString RecordingsDir() const;
 	void OpenRecordingsFolder() const;
+	/** The replays page: the newest recordings in Saved/Recordings, their header read. */
+	void RefreshReplays();
+	/** The paper wash between two screens: starts now (nothing in QA runs and with Reduce motion). */
+	void BeginTransition();
+	/** A vote count that rises from a voter: "+82" for a voter the player won, "-31" for one it lost. */
+	void SpawnFloat(int32 Node, const FString& Text, const FLinearColor& Color);
+	/** The replay viewer: plays a recording back in the game, exactly as it was played (the sim is deterministic), with pause, speed and seeking. */
+	void StartReplayFile(const FString& Path);
+	void SeekReplay(float Value01);
 
 	// ---- input
 	void HandleUi(int32 Id, float Value01);
@@ -198,6 +207,8 @@ private:
 	uint32 LastRegistryVersion = 0;
 
 	int32 JamIndex = 2;
+	int32 QaResultsTab = 0;         // -ShiftResultsTab: the tab every run starts on
+	int32 ResultsTab = 0;           // the results card's chart tab: 0 quality and fame, 1 the shares over time
 	uint32 Seed = 7;
 	bool bFixedSeed = false;
 	bool bEffectsOn = true;         // the settings menu's Effects switch (remembered)
@@ -216,6 +227,17 @@ private:
 	bool bForceRecord = false;          // -ShiftRecord: a QA run is recorded too
 	bool bReplayMode = false;           // -ShiftReplay=<file>: the recording is replayed instead of played
 	FShiftRecording ReplaySource;
+	bool bTransitions = false;          // the paper wash between screens (off in QA runs, so scripted shots and flows are unaffected)
+	float TransitionAge = 1.0f;         // seconds since a screen change; at or past TransitionLength there is no wash
+	static constexpr float TransitionLength = 0.4f;
+	TArray<FShiftHudFloat> FloatTexts;  // the rising vote counts
+	bool bViewer = false;               // the replay was started from the interface (not -ShiftReplay): the viewer bar is up and leaving restores the build sliders
+	bool bViewerPaused = false;
+	int32 ViewerSpeed = 0;              // index into the speeds 1, 2, 4, 8
+	double LastSeekReal = 0.0;
+	FShiftBuild ViewerSavedBuild;
+	TArray<FString> ReplayFiles;        // the file behind each row of the replays page
+	TArray<FShiftHudReplayRow> ReplayRows;
 	FString RecordingPath;              // the file the last jam was recorded to
 	FAlert AlertNow;                // the alert on screen (Kind AlertNone = none); the Blame offer is not queued, it is read from the run
 	TArray<FAlert> AlertQueue;      // lower priority ones waiting for it

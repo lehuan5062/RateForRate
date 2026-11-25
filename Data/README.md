@@ -125,7 +125,7 @@ entries mine the jam's suggested readings of SHIFT (night shift, dimensions, gea
 shapeshifting, the Shift keys as the only controls) plus the "Cat Game" and "Untitled Platformer (Final).exe"
 gags; each jam uses six of the seven readings and both gags, so names never repeat between jams.
 Rivals: `@pixel_prince` / "Prince of Pixels" (Tiny Jam #7), `DevLegend` / "LEGEND OF DEV" (48h Pixel Rumble),
-`MEGA STUDIOS` / "ULTRA GAME 9 (AAA)" (GAME OFF 2026). Follower counts (3K, 48K, 1.2M) in the rival blurbs are flavour
+`MEGA STUDIOS` / "ULTRA GAME 9 (AAA)" (GAME OFF 2026), `just_started` / "Beginner's Luck" (Level Playing Field, key `LevelField`). Follower counts (3K, 48K, 1.2M) in the rival blurbs are flavour
 only; the numeric source of truth is `Jams.csv`.
 
 Note: the brief listed only the three jam ids for `Jam`; You rows use the extra value `All` because the same

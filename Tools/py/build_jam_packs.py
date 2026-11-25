@@ -27,6 +27,8 @@ PACKS = (
      "52 voters, streamers behind gates and a Mod Eye that sweeps. The rival has 48K followers.", "48K"),
     ("ShiftJam_GameOff2026", 2, "GameOff2026", "GAME OFF 2026",
      "72 voters, three celebrities and a Mega Campaign in the last days. The rival has 1.2M followers.", "1.2M"),
+    ("ShiftJam_LevelField", 3, "LevelField", "Level Playing Field",
+     "The control group: 60 voters, no head start for anyone. The rival has 41 followers, like you.", "41"),
 )
 
 PLUGIN_TOOLSET = "PluginToolset.PluginToolset"

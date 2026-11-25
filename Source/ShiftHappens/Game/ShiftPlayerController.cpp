@@ -143,7 +143,8 @@ namespace
 		{
 		case 0: return TEXT("A cosy 36-voter jam. The rival has 3K followers. Learn the ropes, then try the night shift.");
 		case 1: return TEXT("52 voters, streamers behind gates and a Mod Eye that sweeps. The rival has 48K followers.");
-		default: return TEXT("72 voters, three celebrities and a Mega Campaign in the last days. The rival has 1.2M followers.");
+		case 2: return TEXT("72 voters, three celebrities and a Mega Campaign in the last days. The rival has 1.2M followers.");
+		default: return TEXT("The control group: 60 voters, no head start for anyone. The rival has 41 followers, like you.");
 		}
 	}
 
@@ -153,7 +154,8 @@ namespace
 		{
 		case 0: return TEXT("3K");
 		case 1: return TEXT("48K");
-		default: return TEXT("1.2M");
+		case 2: return TEXT("1.2M");
+		default: return TEXT("41");
 		}
 	}
 
@@ -288,8 +290,9 @@ void AShiftPlayerController::BeginPlay()
 	{
 		bQaRun = true;
 	}
-	JamIndex = FMath::Clamp(JamIndex, 0, 2);
+	JamIndex = FMath::Clamp(JamIndex, 0, ShiftSim::kJamCount - 1);
 	FParse::Value(Cmd, TEXT("ShiftNight="), NightOverride);
+	FParse::Value(Cmd, TEXT("ShiftResultsTab="), QaResultsTab);   // QA: open the results card on this tab
 
 	// -ShiftLesson=<chapter>[:<step>] starts a guided lesson directly (a QA run: nothing is saved); -ShiftLessonAuto performs every step by itself and exits when it is done
 	int32 LessonFlagChapter = 0;
@@ -417,6 +420,7 @@ void AShiftPlayerController::BeginPlay()
 	FParse::Value(Cmd, TEXT("ShiftMasterVolume="), QaMasterVolume);
 	FParse::Value(Cmd, TEXT("ShiftAudioMeter="), QaAudioMeterSpec, false);
 	bAutoPauseOnFocusLoss = !bQaRun && !FParse::Param(Cmd, TEXT("ShiftNoAutoPause"));
+	bTransitions = (!bQaRun || FParse::Param(Cmd, TEXT("ShiftTransitions"))) && !FParse::Param(Cmd, TEXT("ShiftNoTransitions"));   // -ShiftTransitions: QA shots of the wash itself
 	bQaRunFlag = bQaRun;
 	bEffectsOn = ShiftSave::IsEffectsOn();
 	bMusicOn = ShiftSave::IsMusicOn();
@@ -553,7 +557,7 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 	SaveRecording(TEXT("abandoned"));   // the jam that is being replaced, if it was left unfinished
 	bAttract = bInAttract;
 	const bool bLesson = bLessonRun && !bInAttract && Lesson.IsValid();   // a guided lesson: the practice board of ShiftLesson.h
-	const int32 RunJam = FMath::Clamp(InJamIndex, 0, 2);
+	const int32 RunJam = FMath::Clamp(InJamIndex, 0, ShiftSim::kJamCount - 1);
 	if (!bAttract)
 	{
 		JamIndex = RunJam;
@@ -561,6 +565,7 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 	}
 
 	Run = MakeShared<FShiftRun>();
+	ResultsTab = QaResultsTab;
 	FShiftLessonSetup LessonSetup;
 	if (bLesson)
 	{
@@ -609,6 +614,10 @@ void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInA
 		{
 			Run->StartRecording();   // every jam a person plays is recorded: a few kilobytes that replay it
 		}
+	}
+	if (bViewer && !bAttract)
+	{
+		Run->SetTimeScale(static_cast<double>(1 << FMath::Clamp(ViewerSpeed, 0, 3)));   // 1x, 2x, 4x, 8x
 	}
 
 	float Warp = 0.0f;
@@ -930,6 +939,7 @@ void AShiftPlayerController::StartAttract()
 void AShiftPlayerController::StartPlay()
 {
 	ForecastService.Cancel();   // the plays of the forecast must not take the CPU from the jam being played
+	BeginTransition();
 	Screen = EShiftScreen::Play;
 	StartRun(JamIndex, Seed, false);
 }
@@ -954,6 +964,13 @@ void AShiftPlayerController::EnterScreen(EShiftScreen NewScreen)
 	if (Previous == EShiftScreen::Play && NewScreen != EShiftScreen::Play)
 	{
 		SaveRecording(TEXT("abandoned"));
+		if (bViewer)
+		{
+			bViewer = false;   // the viewer is over: the world and the sliders are the player's own again
+			bReplayMode = false;
+			bViewerPaused = false;
+			Build = ViewerSavedBuild;
+		}
 	}
 	Screen = NewScreen;
 	bPaused = false;
@@ -961,6 +978,7 @@ void AShiftPlayerController::EnterScreen(EShiftScreen NewScreen)
 	if (Previous != NewScreen)
 	{
 		PlaySfx(EShiftSfx::Transition);
+		BeginTransition();
 	}
 	switch (Screen)
 	{
@@ -1008,7 +1026,7 @@ void AShiftPlayerController::RefreshJamCards()
 			Card.Facts.Add(FString::Printf(TEXT("%d voters in %d communities"), Def.nodes, Def.communities));
 			Card.Facts.Add(FString::Printf(TEXT("%d celebrity hubs behind gates"), Def.celebs));
 			Card.Facts.Add(FString::Printf(TEXT("Mod sweeps every %.0f-%.0f seconds"), Def.modIntervalMin, Def.modIntervalMax));
-			Card.Difficulty = Jam + 1;
+			Card.Difficulty = Jam < 3 ? Jam + 1 : 0;   // 0: no star rating, the card says "fair" (the control group)
 			Card.BestRank = ShiftSave::BestRank(Jam);
 			JamCards.Add(Card);
 			CardJam.Add(Jam);
@@ -1018,14 +1036,14 @@ void AShiftPlayerController::RefreshJamCards()
 	const TArray<const UShiftJamPackData*> Packs = FShiftJamRegistry::Get().Active();
 	for (const UShiftJamPackData* Pack : Packs)
 	{
-		if (Pack && JamCards.Num() < 3)
+		if (Pack && JamCards.Num() < ShiftSim::kJamCount)
 		{
-			AddCard(FMath::Clamp(Pack->JamIndex, 0, 2), Pack->Title, Pack->Subtitle);
+			AddCard(FMath::Clamp(Pack->JamIndex, 0, ShiftSim::kJamCount - 1), Pack->Title, Pack->Subtitle);
 		}
 	}
 	if (JamCards.Num() == 0)
 	{
-		for (int32 i = 0; i < 3; ++i)
+		for (int32 i = 0; i < ShiftSim::kJamCount; ++i)
 		{
 			AddCard(i, FString(UTF8_TO_TCHAR(ShiftSim::DefaultJam(i).name.c_str())), JamSubtitle(i));
 		}
@@ -1418,6 +1436,8 @@ void AShiftPlayerController::FillAccessModel(FShiftHudModel& M) const
 	M.bMarkers = bMarkers;
 	M.bLargeText = bLargeText;
 	M.bReduceMotion = bReduceMotion;
+	M.TransitionCover = TransitionAge < TransitionLength ? FMath::Square(1.0f - TransitionAge / TransitionLength) : 0.0f;
+	M.Floats = FloatTexts;
 	M.bGlassActive = ShiftGlass::IsActive();
 	M.bGlassSaved = bGlassSaved;
 	M.GlassOpacity = GlassOpacityPct;
@@ -1429,6 +1449,11 @@ void AShiftPlayerController::FillExtrasModel(FShiftHudModel& M) const
 	M.ExtrasPage = ExtrasPage;
 	if (ExtrasPage == 0)
 	{
+		return;
+	}
+	if (ExtrasPage == 3)
+	{
+		M.Replays = ReplayRows;
 		return;
 	}
 	if (ExtrasPage == 1)
@@ -1445,7 +1470,7 @@ void AShiftPlayerController::FillExtrasModel(FShiftHudModel& M) const
 				M.Achievements.Add(Item);
 			}
 		}
-		for (int32 Jam = 0; Jam < 3; ++Jam)
+		for (int32 Jam = 0; Jam < ShiftSim::kJamCount; ++Jam)
 		{
 			FShiftHudCareerRow Row;
 			Row.Jam = FString::Printf(TEXT("JAM %d"), Jam + 1);
@@ -1626,6 +1651,147 @@ void AShiftPlayerController::SaveRecording(const TCHAR* AbandonedResult)
 	}
 }
 
+void AShiftPlayerController::BeginTransition()
+{
+	if (bTransitions && !bReduceMotion)
+	{
+		TransitionAge = 0.0f;
+	}
+}
+
+void AShiftPlayerController::SpawnFloat(int32 Node, const FString& Text, const FLinearColor& Color)
+{
+	if (!Run.IsValid() || bAttract || Node < 0 || Node >= Run->GetSim().NodeCount())
+	{
+		return;
+	}
+	const ShiftSim::GraphNode& N = Run->GetSim().GetGraph().nodes[static_cast<size_t>(Node)];
+	FShiftHudFloat Float;
+	Float.X = static_cast<float>(N.x + ViewShift.X);
+	Float.Y = static_cast<float>(N.y + ViewShift.Y);
+	Float.Text = Text;
+	Float.Color = Color;
+	Float.bBig = N.role != ShiftSim::NodeRole::Member;
+	if (FloatTexts.Num() >= 24)
+	{
+		FloatTexts.RemoveAt(0);
+	}
+	FloatTexts.Add(Float);
+}
+
+void AShiftPlayerController::RefreshReplays()
+{
+	ReplayFiles.Reset();
+	ReplayRows.Reset();
+	TArray<FString> Names;
+	IFileManager::Get().FindFiles(Names, *FPaths::Combine(RecordingsDir(), TEXT("*.shiftrec.txt")), true, false);
+	struct FFound
+	{
+		FString Path;
+		FDateTime Time;
+	};
+	TArray<FFound> Found;
+	for (const FString& Name : Names)
+	{
+		const FString Path = FPaths::Combine(RecordingsDir(), Name);
+		Found.Add({ Path, IFileManager::Get().GetTimeStamp(*Path) });
+	}
+	Found.Sort([](const FFound& A, const FFound& B) { return A.Time > B.Time; });
+	constexpr int32 MaxRows = 7;
+	for (const FFound& One : Found)
+	{
+		if (ReplayRows.Num() >= MaxRows)
+		{
+			break;
+		}
+		FShiftRecording R;
+		FString Error;
+		if (!FShiftRecording::Load(One.Path, R, Error) || R.Result.IsEmpty() || R.Jam < 0 || R.Jam >= ShiftSim::kJamCount || (R.Result == TEXT("abandoned") && R.Events.Num() == 0))
+		{
+			continue;
+		}
+		FShiftHudReplayRow Row;
+		Row.Title = FString::Printf(TEXT("%s  -  %s"), UTF8_TO_TCHAR(ShiftSim::DefaultJam(R.Jam).name.c_str()), *One.Time.ToString(TEXT("%d %b, %H:%M")));
+		const float Share = R.FinalShares.IsValidIndex(0) ? R.FinalShares[0] * 100.0f : 0.0f;
+		Row.bStale = R.Tag != ShiftRecordingInfo::BuildTag;
+		if (R.Result == TEXT("disqualified"))
+		{
+			Row.Detail = FString::Printf(TEXT("Disqualified after %.0f seconds of the jam, %d clicks"), R.EndTime, R.Events.Num());
+		}
+		else if (R.Result == TEXT("abandoned"))
+		{
+			Row.Detail = FString::Printf(TEXT("Left unfinished after %.0f seconds, %d clicks"), R.EndTime, R.Events.Num());
+		}
+		else
+		{
+			Row.Detail = FString::Printf(TEXT("%s, %s place with %.1f%% of the vote, %d clicks"), R.Result == TEXT("won") ? TEXT("Won") : TEXT("Lost"), *Ordinal(R.Rank), Share, R.Events.Num());
+		}
+		if (Row.bStale)
+		{
+			Row.Detail += TEXT("  (the rules changed since: it may play out differently)");
+		}
+		ReplayFiles.Add(One.Path);
+		ReplayRows.Add(Row);
+	}
+}
+
+void AShiftPlayerController::StartReplayFile(const FString& Path)
+{
+	FShiftRecording Loaded;
+	FString Error;
+	if (!FShiftRecording::Load(Path, Loaded, Error) || Loaded.Jam < 0 || Loaded.Jam >= ShiftSim::kJamCount)
+	{
+		ShowToast(TEXT("That recording could not be read."), RedColor(), 3.0f);
+		return;
+	}
+	if (!bViewer)
+	{
+		ViewerSavedBuild = Build;
+	}
+	ReplaySource = Loaded;
+	bReplayMode = true;
+	bViewer = true;
+	bViewerPaused = false;
+	ViewerSpeed = 0;
+	JamIndex = Loaded.Jam;
+	Seed = Loaded.Seed;
+	Build.Quality = Loaded.Quality;
+	Build.Thumbnail = Loaded.Thumbnail;
+	Build.Network = Loaded.Network;
+	ExtrasPage = 0;
+	bSettingsOpen = false;
+	bPaused = false;
+	ForecastService.Cancel();
+	BeginTransition();
+	Screen = EShiftScreen::Play;
+	StartRun(JamIndex, Seed, false);
+}
+
+void AShiftPlayerController::SeekReplay(float Value01)
+{
+	const double Now = FPlatformTime::Seconds();
+	if (!bViewer || !Run.IsValid() || Now - LastSeekReal < 0.35)
+	{
+		return;   // dragging along the bar asks again on every mouse move: a seek takes a moment, so only the first of a burst is taken
+	}
+	LastSeekReal = Now;
+	const double Target = FMath::Clamp(static_cast<double>(Value01), 0.0, 0.995) * Run->GetSim().TotalSeconds();
+	if (Target < Run->GetSim().Time() || Run->IsOver())
+	{
+		StartRun(JamIndex, Seed, false);   // back in time: start over (the replay is deterministic) and run forward to the moment
+	}
+	Run->SetPaused(false);
+	Run->SetTimeScale(1.0);
+	while (Run->GetSim().Time() < Target && !Run->IsOver())
+	{
+		Run->Tick(0.2);
+	}
+	Run->SetTimeScale(static_cast<double>(1 << FMath::Clamp(ViewerSpeed, 0, 3)));
+	EventScratch.Reset();
+	Run->DrainEvents(EventScratch);   // what happened on the way is not announced
+	EventScratch.Reset();
+}
+
 void AShiftPlayerController::OpenRecordingsFolder() const
 {
 	IFileManager::Get().MakeDirectory(*RecordingsDir(), true);
@@ -1648,7 +1814,7 @@ void AShiftPlayerController::CopyResultToClipboard()
 void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 {
 	const bool bSilent = Id == EShiftUi::SliderQuality || Id == EShiftUi::SliderThumbnail || Id == EShiftUi::SliderNetwork || Id == EShiftUi::GlassOpacity
-		|| Id == EShiftUi::Upload || Id == EShiftUi::Blame || Id == EShiftUi::TitleStart || Id == EShiftUi::FakeInfo || Id == EShiftUi::SettingsPanel;
+		|| Id == EShiftUi::ViewerSeek || Id == EShiftUi::Upload || Id == EShiftUi::Blame || Id == EShiftUi::TitleStart || Id == EShiftUi::FakeInfo || Id == EShiftUi::SettingsPanel;
 	if (!bSilent)
 	{
 		PlaySfx(EShiftSfx::Click);
@@ -1665,7 +1831,8 @@ void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 	case EShiftUi::JamCard0:
 	case EShiftUi::JamCard0 + 1:
 	case EShiftUi::JamCard0 + 2:
-		JamIndex = CardJam.IsValidIndex(Id - EShiftUi::JamCard0) ? CardJam[Id - EShiftUi::JamCard0] : FMath::Clamp(Id - EShiftUi::JamCard0, 0, 2);
+	case EShiftUi::JamCard0 + 3:
+		JamIndex = CardJam.IsValidIndex(Id - EShiftUi::JamCard0) ? CardJam[Id - EShiftUi::JamCard0] : FMath::Clamp(Id - EShiftUi::JamCard0, 0, ShiftSim::kJamCount - 1);
 		Seed = NewSeed();
 		EnterScreen(EShiftScreen::Build);
 		break;
@@ -1682,7 +1849,7 @@ void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 		RestartRun();
 		break;
 	case EShiftUi::NextJam:
-		if (JamIndex < 2)
+		if (JamIndex < ShiftSim::kJamCount - 1)
 		{
 			++JamIndex;
 			Seed = NewSeed();
@@ -1817,6 +1984,50 @@ void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 	case EShiftUi::Recordings:
 		OpenRecordingsFolder();
 		break;
+	case EShiftUi::Replays:
+		RefreshReplays();
+		ExtrasPage = 3;
+		bSettingsOpen = false;
+		break;
+	case EShiftUi::WatchReplay:
+		if (!RecordingPath.IsEmpty())
+		{
+			StartReplayFile(RecordingPath);
+		}
+		break;
+	case EShiftUi::ViewerPause:
+		bViewerPaused = !bViewerPaused;
+		break;
+	case EShiftUi::ViewerSeek:
+		SeekReplay(Value01);
+		break;
+	case EShiftUi::ViewerSpeed0:
+	case EShiftUi::ViewerSpeed0 + 1:
+	case EShiftUi::ViewerSpeed0 + 2:
+	case EShiftUi::ViewerSpeed0 + 3:
+		ViewerSpeed = Id - EShiftUi::ViewerSpeed0;
+		if (Run.IsValid())
+		{
+			Run->SetTimeScale(static_cast<double>(1 << ViewerSpeed));
+		}
+		break;
+	case EShiftUi::ReplayWatch0:
+	case EShiftUi::ReplayWatch0 + 1:
+	case EShiftUi::ReplayWatch0 + 2:
+	case EShiftUi::ReplayWatch0 + 3:
+	case EShiftUi::ReplayWatch0 + 4:
+	case EShiftUi::ReplayWatch0 + 5:
+	case EShiftUi::ReplayWatch0 + 6:
+		if (ReplayFiles.IsValidIndex(Id - EShiftUi::ReplayWatch0))
+		{
+			StartReplayFile(ReplayFiles[Id - EShiftUi::ReplayWatch0]);
+		}
+		break;
+	case EShiftUi::ResultsTab0:
+	case EShiftUi::ResultsTab0 + 1:
+		ResultsTab = Id - EShiftUi::ResultsTab0;
+		PlaySfx(EShiftSfx::Click);
+		break;
 	default:
 		break;
 	}
@@ -1889,15 +2100,19 @@ void AShiftPlayerController::HandleHudKey(const FKey& Key)
 	}
 	if (ExtrasPage != 0)
 	{
-		if (Key == EKeys::Escape || Key == EKeys::Enter || Key == EKeys::SpaceBar || (Key == EKeys::A && ExtrasPage == 1) || (Key == EKeys::C && ExtrasPage == 2))
+		if (Key == EKeys::Escape || Key == EKeys::Enter || Key == EKeys::SpaceBar || (Key == EKeys::A && ExtrasPage == 1) || (Key == EKeys::C && ExtrasPage == 2) || (Key == EKeys::R && ExtrasPage == 3))
 		{
 			ExtrasPage = 0;
 		}
 		return;
 	}
-	if (Screen == EShiftScreen::Title && !bLessonRun && !bSettingsOpen && (Key == EKeys::A || Key == EKeys::C))
+	if (Screen == EShiftScreen::Title && !bLessonRun && !bSettingsOpen && (Key == EKeys::A || Key == EKeys::C || Key == EKeys::R))
 	{
-		ExtrasPage = Key == EKeys::A ? 1 : 2;
+		ExtrasPage = Key == EKeys::A ? 1 : (Key == EKeys::C ? 2 : 3);
+		if (ExtrasPage == 3)
+		{
+			RefreshReplays();
+		}
 		PlaySfx(EShiftSfx::Click);
 		return;
 	}
@@ -1940,6 +2155,7 @@ void AShiftPlayerController::HandleHudKey(const FKey& Key)
 		if (Key == EKeys::One) { HandleUi(EShiftUi::JamCard0, 0.0f); }
 		else if (Key == EKeys::Two) { HandleUi(EShiftUi::JamCard0 + 1, 0.0f); }
 		else if (Key == EKeys::Three) { HandleUi(EShiftUi::JamCard0 + 2, 0.0f); }
+		else if (Key == EKeys::Four) { HandleUi(EShiftUi::JamCard0 + 3, 0.0f); }
 		else if (Key == EKeys::Escape || Key == EKeys::BackSpace) { HandleUi(EShiftUi::Back, 0.0f); }
 		break;
 	case EShiftScreen::Build:
@@ -2010,6 +2226,10 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 		{
 			TutEventMask |= EvPlug | (E.bSock ? EvSock : 0u);
 			PlaySfx(E.bSock ? EShiftSfx::Sock : EShiftSfx::Flip);
+			if (Run.IsValid() && E.Node >= 0 && E.Node < Run->GetSim().NodeCount())
+			{
+				SpawnFloat(E.Node, FString::Printf(TEXT("+%d"), FMath::RoundToInt(static_cast<float>(Run->GetSim().GetGraph().nodes[static_cast<size_t>(E.Node)].weight))), E.bSock ? PurpleColor() : TealColor());
+			}
 			const FString Line = FShiftContent::PickComment(E.bSock ? TEXT("Sockpuppet") : TEXT("FlipToYou"), CosmeticRng);
 			ShowToast(FString::Printf(TEXT("@%s: %s"), *NodeHandle(E.Node), Line.IsEmpty() ? TEXT("fine, you win me over") : *Line), TealColor());
 			if (E.bSock && CosmeticRng.FRand() < 0.5f)
@@ -2131,6 +2351,10 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 		}
 		case EShiftEventType::PlayerLostVoter:
 			TutEventMask |= EvLost;
+			if (Run.IsValid() && E.Node >= 0 && E.Node < Run->GetSim().NodeCount())
+			{
+				SpawnFloat(E.Node, FString::Printf(TEXT("-%d"), FMath::RoundToInt(static_cast<float>(Run->GetSim().GetGraph().nodes[static_cast<size_t>(E.Node)].weight))), RedColor());
+			}
 			LostRecently.Add({ E.Node, E.NewOwner, static_cast<int32>(E.Value) });
 			break;
 		case EShiftEventType::PlayerRallied:
@@ -2515,7 +2739,7 @@ void AShiftPlayerController::DismissCoach()
 
 void AShiftPlayerController::TickTutorial(float DeltaTime)
 {
-	const bool bActive = bCoachEnabled && !bLessonRun && Screen == EShiftScreen::Play && !bAttract && Run.IsValid() && !Run->IsOver();
+	const bool bActive = bCoachEnabled && !bLessonRun && !bViewer && Screen == EShiftScreen::Play && !bAttract && Run.IsValid() && !Run->IsOver();
 	if (!bActive)
 	{
 		CoachAlpha = 0.0f;
@@ -2976,7 +3200,7 @@ void AShiftPlayerController::BuildResults(FShiftHudModel& Out) const
 	}
 	Out.HonestShare = static_cast<float>((Votes - SockVotes) / Total);
 	Out.SockShare = static_cast<float>(SockVotes / Total);
-	Out.bCanNextJam = JamIndex < 2;
+	Out.bCanNextJam = JamIndex < ShiftSim::kJamCount - 1;
 
 	// The thesis, from this very run: does the better game or the more famous one get the votes?
 	Out.QualityDots.Reset();
@@ -2995,7 +3219,31 @@ void AShiftPlayerController::BuildResults(FShiftHudModel& Out) const
 	Out.QualityFit = FShiftHudFit::Compute(Out.QualityDots);
 	Out.FameFit = FShiftHudFit::Compute(Out.FameDots);
 
-	if (!bAttract && !bDq && !bQaRunFlag && !Run->HasBot())
+	// The shares over the jam (the sampler of the run): a point every 5 s, the last one is the final tally.
+	Out.TimelineEntries = S.NumEntries();
+	Out.TimelineDays = S.Jam().days;
+	Out.TimelineT.Reset();
+	Out.TimelineShares.Reset();
+	Out.TimelineMarks.Reset();
+	const double JamSteps = FMath::Max(1.0, S.TotalSeconds() / S.GetParams().Dt);
+	for (const FShiftRecSample& Sample : Run->GetHistory())
+	{
+		if (Sample.Shares.Num() != Out.TimelineEntries)
+		{
+			continue;
+		}
+		Out.TimelineT.Add(static_cast<float>(FMath::Clamp(Sample.Step / JamSteps, 0.0, 1.0)));
+		Out.TimelineShares.Append(Sample.Shares);
+	}
+	for (const FShiftTimelineMark& Mark : Run->GetMarks())
+	{
+		FShiftHudMark HudMark;
+		HudMark.T = static_cast<float>(FMath::Clamp(Mark.Step / JamSteps, 0.0, 1.0));
+		HudMark.Kind = Mark.Kind;
+		Out.TimelineMarks.Add(HudMark);
+	}
+
+	if (!bAttract && !bDq && !bQaRunFlag && !bReplayMode && !Run->HasBot())
 	{
 		ShiftSave::RecordResult(JamIndex, Rank);
 	}
@@ -3260,9 +3508,19 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 		M.FameDots = ResultsModel.FameDots;
 		M.QualityFit = ResultsModel.QualityFit;
 		M.FameFit = ResultsModel.FameFit;
+		M.TimelineEntries = ResultsModel.TimelineEntries;
+		M.TimelineDays = ResultsModel.TimelineDays;
+		M.TimelineT = ResultsModel.TimelineT;
+		M.TimelineShares = ResultsModel.TimelineShares;
+		M.TimelineMarks = ResultsModel.TimelineMarks;
+		M.ResultsTab = ResultsTab;
 		M.RecordingPath = RecordingPath;
 	}
 	M.bReplay = Run->IsReplaying();
+	M.bViewer = bViewer;
+	M.bViewerPaused = bViewerPaused;
+	M.ViewerSpeed = ViewerSpeed;
+	M.ViewerProgress = static_cast<float>(FMath::Clamp(S.Time() / FMath::Max(1.0, S.TotalSeconds()), 0.0, 1.0));
 	M.bInLesson = bLessonRun;
 	if (bLessonRun && Lesson.IsValid())
 	{
@@ -3412,8 +3670,18 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 	const bool bNight = IsNightHeldNow();
 	Run->SetNightHeld(bPlaying && bNight);
 	// the world stands still in the pause menu, behind the reference page, and while a lesson card is being read
-	Run->SetPaused(bPlaying && (bPaused || bHowTo || (bLessonRun && Lesson.IsValid() && Lesson->IsFrozen())));
+	Run->SetPaused(bPlaying && (bPaused || bHowTo || bViewerPaused || (bLessonRun && Lesson.IsValid() && Lesson->IsFrozen())));
 	Run->Tick(DeltaTime);
+
+	TransitionAge += DeltaTime;
+	for (int32 I = FloatTexts.Num() - 1; I >= 0; --I)
+	{
+		FloatTexts[I].Age += DeltaTime;
+		if (FloatTexts[I].Age >= FloatTexts[I].Life)
+		{
+			FloatTexts.RemoveAt(I);
+		}
+	}
 
 	const float NightTarget = NightOverride >= 0.0f ? NightOverride : (bNight ? 1.0f : 0.0f);
 	NightBlend = FMath::FInterpTo(NightBlend, NightTarget, DeltaTime, 7.0f);
@@ -3528,6 +3796,7 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 	View.Beat = Audio ? Audio->BeatPulse() : 0.0f;
 	View.EdgeMode = EdgeMode;
 	View.BackgroundOpacity = PaperAlpha();
+	View.Mood = (Screen == EShiftScreen::Title || Screen == EShiftScreen::JamSelect) ? -1 : JamIndex;   // the title and the jam list keep the dots; a jam, and its build screen, wear their own look
 	RallyFxAge = FMath::Min(RallyFxAge + DeltaTime, 99.0f);
 	View.RallyNode = RallyFxAge < 1.2f ? RallyFxNode : -1;
 	Board->Update(S, View, DeltaTime);

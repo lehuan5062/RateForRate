@@ -24,6 +24,7 @@ enum class EShiftAch : uint8
 	StickySituation,
 	Schadenfreude,
 	NobodyPlayedIt,
+	FairAndSquare,
 	Count
 };
 

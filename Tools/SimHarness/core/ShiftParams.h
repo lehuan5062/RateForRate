@@ -12,6 +12,7 @@ namespace ShiftSim
 
 	constexpr int kMaxEntries = 16;   // buffer size only; a jam has JamDef::entries (9)
 	constexpr int kPlayerId = 0;      // entry index of the player
+	constexpr int kJamCount = 4;      // built-in jams: Tiny Jam, 48h Pixel Rumble, GAME OFF 2026, Level Playing Field (index 3, the control group: nobody starts famous)
 
 	struct Params
 	{
@@ -193,7 +194,15 @@ namespace ShiftSim
 	bool SetJamField(JamDef& J, const std::string& Name, double Value);
 	bool SetJamName(JamDef& J, const std::string& Value);
 
-	// Built-in defaults for jam index 0..2 (Tiny Jam, 48h Pixel Rumble, GAME OFF 2026).
+	// Built-in defaults for jam index 0..kJamCount-1 (Tiny Jam, 48h Pixel Rumble, GAME OFF 2026, Level Playing Field). Data/Jams.csv is an export of these.
 	JamDef DefaultJam(int Index);
+
+	// The jam's own rule tweaks that are Params, not JamDef fields (a no-op for jams 0..2, which play on the shared defaults). Applied to a default Params before any
+	// override or build lever, so QA names (-Set, -ShiftSet) and the build still win over it.
+	void ApplyJamTuning(int Index, Params& P);
+
+	// The one place a jam is set up: its JamDef and its tweaks on top of the Params the caller passes in (default-constructed). The run, the build screen's lever summary and the
+	// forecast all start here, so they cannot disagree about which rules a jam plays.
+	void SetupJam(int Index, Params& P, JamDef& J);
 
 } // namespace ShiftSim

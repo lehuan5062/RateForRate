@@ -751,14 +751,15 @@ void SShiftHud::PaintTitle(FShiftPainter& P, const FPal& C) const
 	P.Disc(RowX + 66.0f, PlayY + PlayH * 0.5f, 12.0f, FLinearColor::White);
 	P.Text(TEXT("Play"), RowX + 90.0f, PlayY + 13.0f, 29.0f, FLinearColor::White, EShiftAlign::Left, true);
 
-	const float Pitch = 56.0f;
+	const float Pitch = 50.0f;   // eight rows below Play now
 	float Y = 306.0f;
 	MenuRow(P, C, EShiftUi::LearnToPlay, 2, Y, TEXT("Learn to play"), FString(), 3, 0.74f, Model.bLessonNudge);
 	MenuRow(P, C, EShiftUi::HowTo, 3, Y += Pitch, TEXT("How to play"), FString(), 2, 0.64f, false);
 	MenuRow(P, C, EShiftUi::Achievements, 4, Y += Pitch, TEXT("Achievements"), FString(), 4, 0.56f, false);
-	MenuRow(P, C, EShiftUi::Settings, 5, Y += Pitch, TEXT("Settings"), FString(), 5, 0.49f, false);
-	MenuRow(P, C, EShiftUi::Credits, 6, Y += Pitch, TEXT("Credits"), FString(), 6, 0.43f, false);
-	MenuRow(P, C, EShiftUi::Quit, 7, Y += Pitch, TEXT("Quit"), FString(), 1, 0.38f, false);
+	MenuRow(P, C, EShiftUi::Replays, 5, Y += Pitch, TEXT("Replays"), FString(), 7, 0.52f, false);
+	MenuRow(P, C, EShiftUi::Settings, 6, Y += Pitch, TEXT("Settings"), FString(), 5, 0.47f, false);
+	MenuRow(P, C, EShiftUi::Credits, 7, Y += Pitch, TEXT("Credits"), FString(), 6, 0.42f, false);
+	MenuRow(P, C, EShiftUi::Quit, 8, Y += Pitch, TEXT("Quit"), FString(), 1, 0.37f, false);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -771,12 +772,17 @@ void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 	P.Text(TEXT("Pick a jam"), 640.0f, 34.0f, 36.0f, C.Ink, EShiftAlign::Center, true);
 	P.Text(TEXT("Each jam has its own rival, its own network and its own mood."), 640.0f, 84.0f, 15.0f, C.InkDim, EShiftAlign::Center);
 
-	const float CardW = 360.0f;
-	const float CardH = 480.0f;
+	// Up to three jams: the wide cards of old. A fourth makes them narrower (the same 1280 design units) and a little taller, so the text still has its room.
+	const bool bCompact = Model.JamCards.Num() > 3;
+	const float CardW = bCompact ? 288.0f : 360.0f;
+	const float CardStride = bCompact ? 304.0f : 400.0f;
+	const float CardX0 = bCompact ? 40.0f : 60.0f;
+	const float Extra = bCompact ? 22.0f : 0.0f;
+	const float CardH = 480.0f + Extra;
 	for (int32 i = 0; i < Model.JamCards.Num(); ++i)
 	{
 		const FShiftHudJamCard& Card = Model.JamCards[i];
-		const float X = 60.0f + 400.0f * static_cast<float>(i);
+		const float X = CardX0 + CardStride * static_cast<float>(i);
 		const float Y0 = 128.0f;
 		const bool bHover = AddHit(X, Y0 - 6.0f, CardW, CardH + 6.0f, EShiftUi::JamCard0 + i);
 		const float Y = Y0 + (bHover ? -6.0f : 0.0f);
@@ -786,7 +792,8 @@ void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 		P.Rect(X, Y, CardW, CardH, C.PanelSolid, 18.0f);
 
 		P.Text(FString::Printf(TEXT("JAM %d"), i + 1), X + 24.0f, Y + 22.0f, 12.0f, C.Teal, EShiftAlign::Left, true);
-		P.Text(P.Fit(Card.Title, CardW - 48.0f, 26.0f, true), X + 24.0f, Y + 42.0f, 26.0f, C.Ink, EShiftAlign::Left, true);
+		const float TitleSize = bCompact ? 22.0f : 26.0f;
+		P.Text(P.Fit(Card.Title, CardW - 48.0f, TitleSize, true), X + 24.0f, Y + (bCompact ? 46.0f : 42.0f), TitleSize, C.Ink, EShiftAlign::Left, true);
 		P.TextBlock(Card.Subtitle, X + 24.0f, Y + 84.0f, CardW - 48.0f, 13.0f, 18.0f, C.InkDim);
 
 		P.Rect(X + 24.0f, Y + 150.0f, CardW - 48.0f, 1.0f, C.Stroke);
@@ -795,7 +802,7 @@ void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 		P.Text(FString::Printf(TEXT("by @%s"), *Card.RivalAuthor), X + 24.0f, Y + 212.0f, 13.0f, C.InkDim);
 		P.TextBlock(Card.RivalBlurb, X + 24.0f, Y + 240.0f, CardW - 48.0f, 13.0f, 18.0f, C.Ink);
 
-		float Fy = Y + 292.0f;
+		float Fy = Y + 292.0f + Extra;
 		for (const FString& Fact : Card.Facts)
 		{
 			P.Disc(X + 30.0f, Fy + 8.0f, 2.5f, C.Teal);
@@ -803,13 +810,20 @@ void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 			Fy += 19.0f;
 		}
 
-		P.Text(TEXT("DIFFICULTY"), X + 24.0f, Y + 356.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
-		for (int32 s = 0; s < 3; ++s)
+		P.Text(TEXT("DIFFICULTY"), X + 24.0f, Y + 356.0f + Extra, 11.0f, C.InkDim, EShiftAlign::Left, true);
+		if (Card.Difficulty > 0)
 		{
-			P.Disc(X + 28.0f + 24.0f * static_cast<float>(s), Y + 392.0f, 8.0f, s < Card.Difficulty ? C.Amber : C.Track);
+			for (int32 s = 0; s < 3; ++s)
+			{
+				P.Disc(X + 28.0f + 24.0f * static_cast<float>(s), Y + 392.0f + Extra, 8.0f, s < Card.Difficulty ? C.Amber : C.Track);
+			}
+		}
+		else
+		{
+			P.Text(TEXT("Fair"), X + 24.0f, Y + 383.0f + Extra, 15.0f, C.Teal, EShiftAlign::Left, true);   // the control group: the rating is no head start
 		}
 		const FString Best = Card.BestRank > 0 ? FString::Printf(TEXT("Best: %s place"), *HudOrdinal(Card.BestRank)) : FString(TEXT("Not played yet"));
-		P.Text(Best, X + CardW - 24.0f, Y + 383.0f, 15.0f, Card.BestRank == 1 ? C.Teal : C.Ink, EShiftAlign::Right, Card.BestRank == 1);
+		P.Text(Best, X + CardW - 24.0f, Y + 383.0f + Extra, 15.0f, Card.BestRank == 1 ? C.Teal : C.Ink, EShiftAlign::Right, Card.BestRank == 1);
 
 		P.Rect(X + 24.0f, Y + CardH - 62.0f, CardW - 48.0f, 40.0f, bHover ? C.Teal : WithAlpha(C.Teal, 0.16f), 20.0f);
 		P.Text(TEXT("Build your entry"), X + CardW * 0.5f, Y + CardH - 52.0f, 16.0f, bHover ? FLinearColor::White : C.Teal, EShiftAlign::Center, true);
@@ -1216,6 +1230,48 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		}
 	}
 
+	// ------------------------------------------------------------------ the replay viewer: pause, speed, where in the jam and the way out, over the middle of the bottom bar
+	if (Model.bViewer && !Model.bOver)
+	{
+		Dock(P, EShiftDock::BL);
+		const float X0 = 280.0f;
+		const float W = 512.0f;
+		const float Y0 = 678.0f;
+		const float H = 32.0f;
+		P.Rect(X0, Y0 + 2.0f, W, H, Hex(0x000000, 0.22f), 9.0f);
+		P.Rect(X0, Y0, W, H, C.PanelSolid, 9.0f);
+		float X = X0 + 8.0f;
+		{
+			const bool bHover = AddHit(X, Y0 + 4.0f, 50.0f, 24.0f, EShiftUi::ViewerPause);
+			P.Rect(X, Y0 + 4.0f, 50.0f, 24.0f, bHover ? Mix(C.Teal, FLinearColor::White, 0.16f) : C.Teal, 8.0f);
+			P.Text(Model.bViewerPaused ? TEXT("Play") : TEXT("Pause"), X + 25.0f, Y0 + 8.0f, 12.0f, FLinearColor::White, EShiftAlign::Center, true);
+			X += 56.0f;
+		}
+		static const TCHAR* const Speeds[4] = { TEXT("1x"), TEXT("2x"), TEXT("4x"), TEXT("8x") };
+		for (int32 Si = 0; Si < 4; ++Si)
+		{
+			const bool bOn = Model.ViewerSpeed == Si;
+			const bool bHover = AddHit(X, Y0 + 4.0f, 32.0f, 24.0f, EShiftUi::ViewerSpeed0 + Si);
+			P.Rect(X, Y0 + 4.0f, 32.0f, 24.0f, bOn ? C.Amber : (bHover ? WithAlpha(C.Teal, 0.30f) : WithAlpha(C.Track, 0.7f)), 8.0f);
+			P.Text(Speeds[Si], X + 16.0f, Y0 + 8.0f, 12.0f, bOn ? Hex(0x1B1930) : C.Ink, EShiftAlign::Center, bOn);
+			X += 36.0f;
+		}
+		X += 8.0f;
+		const float ExitW = 52.0f;
+		const float BarW = X0 + W - 8.0f - ExitW - 10.0f - X;
+		AddHit(X, Y0 + 4.0f, BarW, 24.0f, EShiftUi::ViewerSeek, true, X, X + BarW);
+		const float Fill = BarW * FMath::Clamp(Model.ViewerProgress, 0.0f, 1.0f);
+		P.Rect(X, Y0 + 13.0f, BarW, 6.0f, C.Track, 3.0f);
+		P.Rect(X, Y0 + 13.0f, Fill, 6.0f, C.Teal, 3.0f);
+		P.Disc(X + Fill, Y0 + 16.0f, 6.5f, C.Teal);
+		X += BarW + 10.0f;
+		{
+			const bool bHover = AddHit(X, Y0 + 4.0f, ExitW, 24.0f, EShiftUi::Menu);
+			P.Rect(X, Y0 + 4.0f, ExitW, 24.0f, bHover ? WithAlpha(C.Red, 0.85f) : WithAlpha(C.Track, 0.7f), 8.0f);
+			P.Text(TEXT("Exit"), X + ExitW * 0.5f, Y0 + 8.0f, 12.0f, bHover ? FLinearColor::White : C.Ink, EShiftAlign::Center, true);
+		}
+	}
+
 	// ------------------------------------------------------------------ the right gutter
 	// Everything that is not the board lives in the strip right of the voters (the layout keeps them left of x = 1084): under the leaderboard the states you are in, then the
 	// notification feed; at the bottom the coach card. Nothing here floats over the board.
@@ -1438,6 +1494,96 @@ void SShiftHud::PaintScatter(FShiftPainter& P, const FPal& C, float X, float Y, 
 		Fit.R2 > 0.5f ? C.Red : C.Ink, EShiftAlign::Center, true);
 }
 
+void SShiftHud::PaintTimeline(FShiftPainter& P, const FPal& C, float X, float Y, float W, float H) const
+{
+	P.Rect(X, Y, W, H, WithAlpha(C.Track, 0.5f), 12.0f);
+	P.Text(TEXT("Share of the vote, day by day"), X + 12.0f, Y + 8.0f, 12.0f, C.Ink, EShiftAlign::Left, true);
+
+	const int32 E = Model.TimelineEntries;
+	const int32 N = Model.TimelineT.Num();
+	const float Px0 = X + 44.0f;
+	const float Py0 = Y + 34.0f;
+	const float Pw = W - 62.0f;
+	const float Ph = H - 84.0f;
+	if (E <= 0 || N < 2 || Model.TimelineShares.Num() < E * N)
+	{
+		P.Text(TEXT("No timeline for this run."), X + W * 0.5f, Y + H * 0.5f, 13.0f, C.InkDim, EShiftAlign::Center);
+		return;
+	}
+	float YMax = 0.10f;
+	for (const float V : Model.TimelineShares)
+	{
+		YMax = FMath::Max(YMax, V);
+	}
+	const float GridStep = YMax > 0.5f ? 0.2f : (YMax > 0.25f ? 0.1f : 0.05f);   // round percent steps: 5, 10 or 20
+	YMax = FMath::Min(1.0f, FMath::CeilToFloat(YMax * 1.05f / GridStep) * GridStep);
+	const int32 GridLines = FMath::RoundToInt(YMax / GridStep);
+	auto ToX = [&](float T) { return Px0 + Pw * T; };
+	auto ToY = [&](float V) { return Py0 + Ph * (1.0f - V / YMax); };
+
+	// the grid: a horizontal line every 5, 10 or 20 percent, day ticks along the bottom
+	for (int32 G = 0; G <= GridLines; ++G)
+	{
+		const float V = GridStep * static_cast<float>(G);
+		P.Line(FVector2f(Px0, ToY(V)), FVector2f(Px0 + Pw, ToY(V)), WithAlpha(C.Stroke, G == 0 ? 1.0f : 0.45f), G == 0 ? 1.2f : 1.0f);
+		P.Text(FString::Printf(TEXT("%.0f%%"), V * 100.0f), Px0 - 6.0f, ToY(V) - 7.0f, 10.0f, C.InkDim, EShiftAlign::Right);
+	}
+	const int32 Days = FMath::Max(1, Model.TimelineDays);
+	for (const int32 Day : { 1, 8, 15, 22, Days })
+	{
+		if (Day > Days)
+		{
+			continue;
+		}
+		const float Tx = ToX(static_cast<float>(Day - 1) / static_cast<float>(Days));
+		P.Line(FVector2f(Tx, Py0 + Ph), FVector2f(Tx, Py0 + Ph + 4.0f), C.Stroke, 1.2f);
+		P.Text(FString::Printf(TEXT("day %d"), Day), Tx, Py0 + Ph + 6.0f, 10.0f, C.InkDim, EShiftAlign::Center);
+	}
+
+	// the moments: a thin line from the axis, a dot on it (strike red, a celebrity won teal, the rival's final push amber)
+	for (const FShiftHudMark& Mark : Model.TimelineMarks)
+	{
+		const FLinearColor Col = Mark.Kind == 0 ? C.Red : (Mark.Kind == 1 ? C.Teal : C.Amber);
+		P.Line(FVector2f(ToX(Mark.T), Py0), FVector2f(ToX(Mark.T), Py0 + Ph), WithAlpha(Col, 0.30f), 1.2f);
+		P.Disc(ToX(Mark.T), Py0 + Ph, 3.6f, Col);
+	}
+
+	// the lines: the other entries first, the player's on top and thick
+	for (int32 Pass = 0; Pass < 2; ++Pass)
+	{
+		for (int32 Entry = 0; Entry < E; ++Entry)
+		{
+			const bool bPlayer = Entry == 0;
+			if ((Pass == 1) != bPlayer)
+			{
+				continue;
+			}
+			const FLinearColor Col = ShiftPalette::Entry(Entry);
+			for (int32 I = 1; I < N; ++I)
+			{
+				P.Line(FVector2f(ToX(Model.TimelineT[I - 1]), ToY(Model.TimelineShares[(I - 1) * E + Entry])), FVector2f(ToX(Model.TimelineT[I]), ToY(Model.TimelineShares[I * E + Entry])),
+					bPlayer ? Col : WithAlpha(Col, 0.85f), bPlayer ? 3.6f : 1.7f);
+			}
+			if (Model.bMarkers)
+			{
+				DrawMarker(P, Entry, ToX(Model.TimelineT[N - 1]) + 7.0f, ToY(Model.TimelineShares[(N - 1) * E + Entry]), 3.6f);
+			}
+		}
+	}
+
+	// the key
+	const float Ky = Y + H - 22.0f;
+	float Kx = X + 16.0f;
+	const TCHAR* const Names[3] = { TEXT("strike"), TEXT("celebrity won"), TEXT("rival's final push") };
+	const FLinearColor Cols[3] = { C.Red, C.Teal, C.Amber };
+	for (int32 K = 0; K < 3; ++K)
+	{
+		P.Disc(Kx + 4.0f, Ky + 7.0f, 3.6f, Cols[K]);
+		P.Text(Names[K], Kx + 14.0f, Ky, 11.0f, C.InkDim);
+		Kx += 24.0f + 6.2f * static_cast<float>(FCString::Strlen(Names[K]));
+	}
+}
+
 void SShiftHud::PaintResults(FShiftPainter& P, const FPal& C) const
 {
 	Hits.Reset();
@@ -1469,8 +1615,29 @@ void SShiftHud::PaintResults(FShiftPainter& P, const FPal& C) const
 		P.TextBlock(Model.PlaysLine, 116.0f, Ry + 6.0f, 470.0f, 12.0f, 16.0f, C.InkDim);
 	}
 
-	PaintScatter(P, C, 610.0f, ListY - 6.0f, 280.0f, 250.0f, TEXT("Quality vs votes"), Model.QualityDots, Model.QualityFit, TEXT("better game  ->"));
-	PaintScatter(P, C, 902.0f, ListY - 6.0f, 280.0f, 250.0f, TEXT("Starting fame vs votes"), Model.FameDots, Model.FameFit, TEXT("more followers at the start  ->"));
+	// the chart area has two tabs: the thesis plots (quality and fame against the votes), and the shares over the jam
+	{
+		const TCHAR* const Tabs[2] = { TEXT("Quality and fame"), TEXT("Over time") };
+		const float TabW[2] = { 134.0f, 92.0f };
+		float Tx = 610.0f;
+		for (int32 T = 0; T < 2; ++T)
+		{
+			const bool bOn = Model.ResultsTab == T;
+			const bool bHover = AddHit(Tx, 178.0f, TabW[T], 24.0f, EShiftUi::ResultsTab0 + T);
+			P.Rect(Tx, 178.0f, TabW[T], 24.0f, bOn ? C.Teal : (bHover ? WithAlpha(C.Teal, 0.30f) : WithAlpha(C.Track, 0.7f)), 12.0f);
+			P.Text(Tabs[T], Tx + TabW[T] * 0.5f, 183.0f, 12.0f, bOn ? FLinearColor::White : C.Ink, EShiftAlign::Center, bOn);
+			Tx += TabW[T] + 8.0f;
+		}
+	}
+	if (Model.ResultsTab == 1)
+	{
+		PaintTimeline(P, C, 610.0f, ListY - 6.0f, 572.0f, 250.0f);
+	}
+	else
+	{
+		PaintScatter(P, C, 610.0f, ListY - 6.0f, 280.0f, 250.0f, TEXT("Quality vs votes"), Model.QualityDots, Model.QualityFit, TEXT("better game  ->"));
+		PaintScatter(P, C, 902.0f, ListY - 6.0f, 280.0f, 250.0f, TEXT("Starting fame vs votes"), Model.FameDots, Model.FameFit, TEXT("more followers at the start  ->"));
+	}
 
 	P.Text(Model.OutcomeLine3, 640, 500, 13, C.InkDim, EShiftAlign::Center);
 	if (!Model.OutcomeNews.IsEmpty())
@@ -1513,8 +1680,9 @@ void SShiftHud::PaintResults(FShiftPainter& P, const FPal& C) const
 	const float Gap = 12.0f;
 	const float WNext = Model.bCanNextJam ? 190.0f : 0.0f;
 	const float WFiles = Model.RecordingPath.IsEmpty() ? 0.0f : 110.0f;
-	const int32 Buttons = 3 + (Model.bCanNextJam ? 1 : 0) + (WFiles > 0.0f ? 1 : 0);
-	float X = 640.0f - 0.5f * (170.0f + WNext + 150.0f + 140.0f + WFiles + Gap * static_cast<float>(Buttons - 1));
+	const float WWatch = Model.RecordingPath.IsEmpty() ? 0.0f : 150.0f;
+	const int32 Buttons = 3 + (Model.bCanNextJam ? 1 : 0) + (WFiles > 0.0f ? 1 : 0) + (WWatch > 0.0f ? 1 : 0);
+	float X = 640.0f - 0.5f * (170.0f + WNext + 150.0f + 140.0f + WFiles + WWatch + Gap * static_cast<float>(Buttons - 1));
 	Button(P, C, EShiftUi::Retry, X, By, 170.0f, 46.0f, TEXT("Try again  (R)"), true, 17.0f);
 	X += 170.0f + Gap;
 	if (Model.bCanNextJam)
@@ -1526,6 +1694,11 @@ void SShiftHud::PaintResults(FShiftPainter& P, const FPal& C) const
 	X += 150.0f + Gap;
 	Button(P, C, EShiftUi::Share, X, By, 140.0f, 46.0f, TEXT("Copy result"), false, 15.0f);
 	X += 140.0f + Gap;
+	if (WWatch > 0.0f)
+	{
+		Button(P, C, EShiftUi::WatchReplay, X, By, WWatch, 46.0f, TEXT("Watch replay"), false, 15.0f);
+		X += WWatch + Gap;
+	}
 	if (WFiles > 0.0f)
 	{
 		Button(P, C, EShiftUi::Recordings, X, By, WFiles, 46.0f, TEXT("Files  (O)"), false, 15.0f);
@@ -1703,6 +1876,37 @@ void SShiftHud::PaintExtras(FShiftPainter& P, const FPal& C) const
 	Dock(P, EShiftDock::C);
 	AddWindowHit(P, EShiftUi::ExtrasClose);   // a click anywhere closes the page
 	FillWindow(P, Hex(0x000000, 0.62f));
+	if (Model.ExtrasPage == 3)
+	{
+		// the replays: the newest recordings, each with a Watch button
+		const float W = 780.0f;
+		const float RowH = 54.0f;
+		const float Gap = 8.0f;
+		const int32 N = Model.Replays.Num();
+		const float ListH = N > 0 ? static_cast<float>(N) * (RowH + Gap) : 56.0f;
+		const float H = 24.0f + 40.0f + 30.0f + 14.0f + ListH + 30.0f + 18.0f;
+		const float X = (DesignW - W) * 0.5f;
+		const float Y = (DesignH - H) * 0.5f;
+		P.Rect(X, Y, W, H, C.PanelSolid, 18.0f);
+		P.Text(TEXT("REPLAYS"), X + W * 0.5f, Y + 20.0f, 30.0f, C.Ink, EShiftAlign::Center, true);
+		P.Text(TEXT("Your latest jams, played back exactly as you played them."), X + W * 0.5f, Y + 62.0f, 13.0f, C.InkDim, EShiftAlign::Center);
+		float Ry = Y + 94.0f;
+		if (N == 0)
+		{
+			P.Text(TEXT("Nothing recorded yet. Every jam you finish is saved here."), X + W * 0.5f, Ry + 18.0f, 15.0f, C.InkDim, EShiftAlign::Center);
+		}
+		for (int32 I = 0; I < N; ++I)
+		{
+			const FShiftHudReplayRow& Row = Model.Replays[I];
+			P.Rect(X + 24.0f, Ry, W - 48.0f, RowH, WithAlpha(C.Ink, 0.06f), 10.0f);
+			P.Text(P.Fit(Row.Title, W - 48.0f - 150.0f, 15.0f, true), X + 42.0f, Ry + 8.0f, 15.0f, C.Ink, EShiftAlign::Left, true);
+			P.Text(P.Fit(Row.Detail, W - 48.0f - 150.0f, 12.0f), X + 42.0f, Ry + 31.0f, 12.0f, Row.bStale ? C.Amber : C.InkDim);
+			Button(P, C, EShiftUi::ReplayWatch0 + I, X + W - 24.0f - 112.0f, Ry + 7.0f, 104.0f, 40.0f, TEXT("Watch"), false, 15.0f);
+			Ry += RowH + Gap;
+		}
+		P.Text(TEXT("Click anywhere to close"), X + W * 0.5f, Y + H - 30.0f, 11.0f, C.InkDim, EShiftAlign::Center);
+		return;
+	}
 	if (Model.ExtrasPage == 2)
 	{
 		// the credits are a small card, as tall as its lines
@@ -1733,9 +1937,9 @@ void SShiftHud::PaintExtras(FShiftPainter& P, const FPal& C) const
 		return;
 	}
 	const float X = 90.0f;
-	const float Y = 48.0f;
+	const float Y = 28.0f;
 	const float W = 1100.0f;
-	const float H = 624.0f;
+	const float H = 664.0f;   // room for 15 achievements in two columns (8 rows) under the career strip
 	P.Rect(X, Y, W, H, C.PanelSolid, 18.0f);
 	int32 Earned = 0;
 	for (const FShiftHudAchItem& Item : Model.Achievements)
@@ -1747,8 +1951,9 @@ void SShiftHud::PaintExtras(FShiftPainter& P, const FPal& C) const
 
 	// the career strip: one block per jam
 	const float StripY = Y + 90.0f;
-	const float BlockW = (W - 72.0f - 2.0f * 16.0f) / 3.0f;
-	for (int32 I = 0; I < Model.Career.Num() && I < 3; ++I)
+	const int32 Blocks = FMath::Max(1, Model.Career.Num());
+	const float BlockW = (W - 72.0f - static_cast<float>(Blocks - 1) * 16.0f) / static_cast<float>(Blocks);
+	for (int32 I = 0; I < Model.Career.Num(); ++I)
 	{
 		const FShiftHudCareerRow& R = Model.Career[I];
 		const float Bx = X + 36.0f + static_cast<float>(I) * (BlockW + 16.0f);
@@ -2168,6 +2373,16 @@ int32 SShiftHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeomet
 			DrawMarker(P, M.Owner, M.X, M.Y - 15.0f, 4.5f);
 		}
 		PaintPlay(P, C);
+		// the vote counts that rise from the voters just won or lost: they rise and fade, or only fade with Reduce motion
+		for (const FShiftHudFloat& F : Model.Floats)
+		{
+			const float T = FMath::Clamp(F.Age / FMath::Max(0.1f, F.Life), 0.0f, 1.0f);
+			const float Rise = Model.bReduceMotion ? 0.0f : 40.0f * (1.0f - (1.0f - T) * (1.0f - T));
+			const float Alpha = T < 0.12f ? T / 0.12f : 1.0f - (T - 0.12f) / 0.88f;
+			const float TextSize = F.bBig ? 22.0f : 16.0f;
+			P.Text(F.Text, F.X + 1.0f, F.Y - 26.0f - Rise + 1.5f, TextSize, Hex(0x000000, 0.45f * Alpha), EShiftAlign::Center, true);
+			P.Text(F.Text, F.X, F.Y - 26.0f - Rise, TextSize, WithAlpha(F.Color, Alpha), EShiftAlign::Center, true);
+		}
 		if (Model.bOver)
 		{
 			bModal = true;
@@ -2195,6 +2410,12 @@ int32 SShiftHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeomet
 	else if (Model.bSettingsOpen)
 	{
 		PaintSettings(P, C);
+	}
+	// the wash between two screens: the new screen comes up under paper that thins out; it covers everything but the cursor
+	if (Model.TransitionCover > 0.002f)
+	{
+		Dock(P, EShiftDock::C);
+		FillWindow(P, WithAlpha(Mix(Hex(0xF6F1E6), Hex(0x04060F), C.N), Model.TransitionCover * Model.BackgroundOpacity));
 	}
 #if !UE_BUILD_SHIPPING
 	if (Model.Trailer.bActive)

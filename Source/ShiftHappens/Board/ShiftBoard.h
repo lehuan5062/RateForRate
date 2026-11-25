@@ -24,6 +24,7 @@ struct FShiftBoardView
 	float Beat = 0.0f;                               // 0..1 pulse on the music beat
 	int32 EdgeMode = 0;                              // relation lines: 0 faint, 1 off, 2 full (the old look)
 	int32 RallyNode = -1;                            // a Rally just went off here: teal lines to the voters it shields (-1 none)
+	int32 Mood = -1;                                 // the jam's look: its background pattern and its ink and night colours (-1 none: the dots of the title; the day paper is the same in every jam)
 	float BackgroundOpacity = 1.0f;                  // the paper behind the board, 0..1; below 1 only in the see-through window (the desktop shows through the rest)
 };
 

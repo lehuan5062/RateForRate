@@ -27,7 +27,8 @@ void ShiftBuildRules::Apply(const FShiftBuild& Build, ShiftSim::Params& Params, 
 ShiftSim::BuildSummary ShiftBuildRules::Summary(int32 JamIndex, const FShiftBuild& Build)
 {
 	ShiftSim::Params Params;
-	ShiftSim::JamDef Jam = ShiftSim::DefaultJam(FMath::Clamp(JamIndex, 0, 2));
+	ShiftSim::JamDef Jam;
+	ShiftSim::SetupJam(FMath::Clamp(JamIndex, 0, ShiftSim::kJamCount - 1), Params, Jam);
 	ShiftBuildRules::Apply(Build, Params, Jam);
 	return ShiftSim::SummarizeBuild(Params, Jam);
 }

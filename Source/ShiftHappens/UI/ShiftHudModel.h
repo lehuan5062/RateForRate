@@ -24,7 +24,7 @@ namespace EShiftUi
 		None = -1,
 		TitleStart = 1,
 		Back = 2,
-		JamCard0 = 10,            // 10, 11, 12
+		JamCard0 = 10,            // 10, 11, 12, 13
 		SliderQuality = 20,       // 20, 21, 22 (value = 0..1 along the track)
 		SliderThumbnail = 21,
 		SliderNetwork = 22,
@@ -64,6 +64,13 @@ namespace EShiftUi
 		Quit = 73,                // title: leave the game (also Esc)
 		GlassToggle = 74,         // settings menu: the see-through window on / off (next launch)
 		GlassOpacity = 75,        // settings menu: slider, how opaque the paper behind the board is (value = 0..1 along the track)
+		ResultsTab0 = 80,         // results: the two tabs of the chart area (80 quality and fame, 81 over time)
+		Replays = 76,             // title: the replays page (also the key R)
+		ViewerPause = 77,         // the replay viewer: pause / play
+		ViewerSeek = 78,          // ... where in the jam (slider, value = 0..1 along the bar)
+		WatchReplay = 79,         // results: watch the jam that just ended again
+		ViewerSpeed0 = 100,       // 100, 101, 102, 103: 1x, 2x, 4x, 8x
+		ReplayWatch0 = 110,       // 110..116: the Watch button of each row of the replays page
 		ExtrasClose = 72,         // behind either page: a click anywhere closes it
 	};
 }
@@ -102,6 +109,33 @@ struct FShiftLessonView
 	bool bModEye = false;       // the Mod Eye countdown belongs on screen yet (it is the subject of the last steps of the night shift lesson)
 	EShiftLessonAnchor Anchor = EShiftLessonAnchor::None;
 	TArray<FShiftLessonSpot> Spots;
+};
+
+/** A vote count that rises from a voter for a moment ("+82" when the player wins one, "-31" when one is lost): design pixels, seconds. */
+struct FShiftHudFloat
+{
+	float X = 0.0f;
+	float Y = 0.0f;
+	float Age = 0.0f;
+	float Life = 1.3f;
+	FString Text;
+	FLinearColor Color = FLinearColor::White;
+	bool bBig = false;      // a hub or a celebrity: larger
+};
+
+/** A moment on the results timeline: T = 0..1 of the jam, Kind 0 strike, 1 celebrity won, 2 the rival's final push. */
+struct FShiftHudMark
+{
+	float T = 0.0f;
+	uint8 Kind = 0;
+};
+
+/** One row of the replays page. */
+struct FShiftHudReplayRow
+{
+	FString Title;
+	FString Detail;
+	bool bStale = false;      // recorded under other rules (the build tag differs): it may play out differently
 };
 
 /** One jam card on the select screen. */
@@ -405,6 +439,13 @@ struct FShiftHudModel
 	FString PlaysLine;
 	FString RecordingPath;                 // where the recording of this jam was saved ("" = none)
 	bool bReplay = false;                  // a recording is being replayed: your clicks do nothing
+	float TransitionCover = 0.0f;          // 0..1: how much of the window the paper wash between two screens still covers (0 = none)
+	TArray<FShiftHudFloat> Floats;         // the vote counts rising from voters that were just won or lost
+	bool bViewer = false;                  // ... from the replays page or the results card: the viewer bar is up
+	bool bViewerPaused = false;
+	int32 ViewerSpeed = 0;                 // 0..3: 1x, 2x, 4x, 8x
+	float ViewerProgress = 0.0f;           // 0..1 of the jam
+	TArray<FShiftHudReplayRow> Replays;    // the replays page (ExtrasPage 3)
 
 	// guided lessons and the reference page
 	FShiftLessonView Lesson;
@@ -434,6 +475,12 @@ struct FShiftHudModel
 	TArray<FShiftHudDot> FameDots;         // x = vote share at the start (fame), y = final vote share
 	FShiftHudFit QualityFit;
 	FShiftHudFit FameFit;
+	int32 ResultsTab = 0;                  // results: 0 the quality and fame plots, 1 the shares over time
+	int32 TimelineEntries = 0;             // results timeline: entries per sample
+	int32 TimelineDays = 31;
+	TArray<float> TimelineT;               // each sample's moment, 0..1 of the jam
+	TArray<float> TimelineShares;          // TimelineEntries shares per sample (0..1)
+	TArray<FShiftHudMark> TimelineMarks;
 
 #if !UE_BUILD_SHIPPING
 	FShiftHudTrailer Trailer;              // the scripted trailer run (not in Shipping builds)

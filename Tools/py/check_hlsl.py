@@ -26,7 +26,7 @@ SIGNATURES = {
     "glow": [("float2", "PW"), ("float2", "CW"), ("float", "Rad"), ("float3", "Fill"), ("float", "Flash"), ("float", "Hover"),
              ("float", "Night"), ("float", "Pow")],
     "bg": [("float2", "PW"), ("float3", "PaperA"), ("float3", "PaperB"), ("float3", "InkA"), ("float3", "InkB"),
-           ("float", "Night"), ("float", "Tm"), ("float", "Beat")],
+           ("float", "Night"), ("float", "Tm"), ("float", "Beat"), ("float", "Pat")],
 }
 
 # Custom nodes that return float3 instead of float4 (the wrapper's return type follows this).

@@ -7,9 +7,10 @@ BestGameWorstRank,"Best Game, Worst Rank",Finish with a top-three quality rank a
 ShiftedTheBlame,Shifted the Blame,Use Shift the Blame and hand the rival a strike. Classic.,false
 GateCrasher,Gate Crasher,Slip past a locked hub with SHIFT. Do not mention it to the mods.,false
 AudienceCapture,Audience Capture,Flip a celebrity because their own followers backed you first.,false
-GiantSlayer,Giant Slayer,Win the final jam against the biggest rival there is.,false
+GiantSlayer,Giant Slayer,Win the jam where the rival has 1.2M followers. The biggest there is.,false
 StreamersPet,Streamer's Pet,Get featured by a streamer. Be gracious. Be quick.,false
 EyeContact,Eye Contact,Get caught by the Mod Eye with your Heat in the red.,false
 StickySituation,Sticky Situation,Toggle night with the N key instead of holding SHIFT.,true
 Schadenfreude,Schadenfreude,Win after your rival collapses. Technically not your fault.,true
 NobodyPlayedIt,Nobody Played It,Win with a bottom-three quality rank. Nobody played it. Everybody voted.,true
+FairAndSquare,Fair and Square,Win Level Playing Field. Nobody famous to blame it on: it was just you.,false

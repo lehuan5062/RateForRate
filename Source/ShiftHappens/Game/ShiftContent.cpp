@@ -198,7 +198,8 @@ const TCHAR* FShiftContent::JamKey(int32 JamIndex)
 	{
 	case 0: return TEXT("TinyJam7");
 	case 1: return TEXT("Rumble48");
-	default: return TEXT("GameOff2026");
+	case 2: return TEXT("GameOff2026");
+	default: return TEXT("LevelField");
 	}
 }
 

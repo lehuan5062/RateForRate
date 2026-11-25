@@ -56,7 +56,7 @@ inline RunResult RunOne(const Config& Cfg, const RunSpec& Spec)
     }
     Sim S;
     RunResult Out;
-    if (!S.Init(Jam, Cfg.params, Spec.seed))
+    if (!S.Init(Jam, ParamsFor(Cfg, Spec.jam), Spec.seed))
     {
         return Out;
     }

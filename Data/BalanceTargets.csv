@@ -99,3 +99,38 @@ rival_keeps_1,1,reactor,,rival_end_pct,,,20,,The rival keeps a real share at the
 rival_keeps_2,2,reactor,,rival_end_pct,,,20,,The rival keeps a real share at the end of the jam (24 measured in round 11)
 other_wins_1,1,reactor,,other_leads_pct,,,5,,"Every colour has a chance to win: an other colour wins at least 5% of the runs (the playtester: ""all color have a chance to win"")"
 other_wins_2,2,reactor,,other_leads_pct,,,5,,"Every colour has a chance to win: an other colour wins at least 5% of the runs (the playtester: ""all color have a chance to win"")"
+idle_3,3,idle,,win_pct,,,,0,Control group: Doing nothing must never win
+random_3,3,random,,win_pct,,,,5,Control group: Random clicking must not win (noise allowance)
+greedy_3,3,greedy,,win_pct,,,30,65,Control group: Honest play that ignores attacks on the control group
+finisher_3,3,finisher,,win_pct,greedy,,,5,Control group: Honest play then a last-moment sockpuppet burst must not beat honest play
+late_3,3,late,,win_pct,,,,5,Control group: Doing nothing then flipping at the last moment must not win
+sock_3,3,sock,,win_pct,greedy,,,10,Control group: Reckless sockpuppets never beat honest play
+sock_dq_3,3,sock,,dq_pct,,,50,,Control group: Holding fake votes heats you up: reckless sockpuppets get caught
+reactor_3,3,reactor,,win_pct,greedy,,3,45,Control group: Answering announced attacks is not worse than ignoring them
+explorer_3,3,explorer,,best_response,greedy,,,30,Control group: No searched strategy beats honest play by more than 30 points on fresh seeds (greedy is weaker on them; needs -Explore)
+snowball_3,3,snowball,,win_pct,reactor,,,5,Control group: Sockpuppeting the biggest hubs and celebrities with no care for the share does not beat honest play that answers attacks
+steady_3,3,steady,,win_pct,reactor,,,10,Control group: Sockpuppets kept under the share Heat can hold do not beat honest play that answers attacks
+gambler_3,3,gambler,,win_pct,reactor,,,5,Control group: The search's sockpuppet gambler (hubs, a last-21-s burst, answers attacks) does not beat honest play that answers attacks
+castle_3,3,castle,,win_pct,greedy,,,5,Control group: Rally-spam on the biggest voter does not beat honest play
+rallyonly_3,3,rallyonly,,win_pct,greedy,,,25,Control group: Rally alone does not dominate
+parryonly_3,3,parry,,win_pct,greedy,,,20,Control group: Parrying alone does not dominate
+both_vs_rally_3,3,reactor,,win_pct,rallyonly,,-15,,Control group: Using both parry and Rally is about as good as Rally alone
+both_vs_parry_3,3,reactor,,win_pct,parry,,-5,,Control group: Using both parry and Rally is at least as good as parrying alone
+mega_greedy_3,3,greedy,,mega_swing,,,-7,,Control group: The rival final push takes at most 7 points of share from honest play (it took 8.2 on the control group before the player was answered)
+build_zero_3,3,greedy,0/0/0,win_pct,greedy,4/4/4,,-5,Control group: Spending nothing is clearly worse than an even split, so the room under it is smaller)
+build_q0_3,3,greedy,0/4/4,win_pct,greedy,4/4/4,,-4,Control group: Neglecting a lever costs real points
+build_t0_3,3,greedy,4/0/4,win_pct,greedy,4/4/4,,4,Control group: Neglecting the thumbnail never helps (its effect is small: a Plug costs 3% more Posts)
+build_n0_3,3,greedy,4/4/0,win_pct,greedy,4/4/4,,-2,Control group: Neglecting a lever costs points
+build_q8_3,3,greedy,8/4/4,win_pct,greedy,4/4/4,,20,Control group: A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
+build_t8_3,3,greedy,4/8/4,win_pct,greedy,4/4/4,,20,Control group: A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
+build_n8_3,3,greedy,4/4/8,win_pct,greedy,4/4/4,,20,Control group: A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
+build_s408_3,3,greedy,4/0/8,win_pct,greedy,4/4/4,-20,18,Control group: No legal split beats the even one by much
+build_s840_3,3,greedy,8/4/0,win_pct,greedy,4/4/4,-20,18,Control group: No legal split beats the even one by much
+focus_max_3,3,reactor,,focus_max,,,,9,Control group: The rival does not hammer one voter: the most attacks it puts on a single voter stay under 9 a run
+focus_voters_3,3,reactor,,focus_voters,,,8,,Control group: The rival attacks at least 10 different voters a run
+focus_top3_3,3,reactor,,focus_top3_pct,,,,60,Control group: The three most attacked voters take under 60% of the rival's attacks
+others_rival_3,3,reactor,,others_from_rival,,,4,,Control group: The other entries take at least 4 voters a run from the rival
+other_leads_3,3,reactor,,other_leads_pct,,,,50,"Control group: An other colour wins the control group now and then, not most of the time"
+runaway_3,3,reactor,,share_pct,,,,52,Control group: Nobody runs away with the jam: the player's mean final share stays under 52%
+rival_keeps_3,3,reactor,,rival_end_pct,,,8,,Control group: The rival keeps a real share at the end of the jam
+other_wins_3,3,reactor,,other_leads_pct,,,5,,Control group: Every colour has a chance to win: an other colour wins at least 5% of the runs

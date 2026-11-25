@@ -22,3 +22,10 @@ fc_neutral_1,1,neutral_share_mean,17,60,"same (24 measured in round 13 with the 
 fc_neutral_2,2,neutral_share_mean,14,42,"same (18.7 measured in round 13 with the reactor, 17.5 in round 12 with greedy)"
 fc_time,all,ms_per_world_max,,4000,a world's forecast (576 plays on the worker pool) is ready within a few seconds
 fc_repeat,all,deterministic,1,,the same world gives the same forecast to the last digit
+fc_monotone_3,3,monotone_drops,,0,same
+fc_rank_worse_3,3,rank_worse_pct,,3,same
+fc_quality_3,3,quality_effect_pct,2,,same, for the control group
+fc_network_3,3,network_effect_pct,40,,same, for the control group
+fc_thumb_3,3,thumbnail_effect_mean,2,,same
+fc_step_3,3,step_p99,,12,same
+fc_neutral_3,3,neutral_share_mean,14,45,the even split's forecast share is in a plausible band for the control group

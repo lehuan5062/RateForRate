@@ -319,7 +319,8 @@ TArray<float> ShiftForecastRun::WorldQualities(int32 JamIndex, uint32 Seed)
 {
 	TArray<float> Out;
 	ShiftSim::Params Params;
-	const ShiftSim::JamDef Jam = ShiftSim::DefaultJam(FMath::Clamp(JamIndex, 0, 2));
+	ShiftSim::JamDef Jam;
+	ShiftSim::SetupJam(FMath::Clamp(JamIndex, 0, ShiftSim::kJamCount - 1), Params, Jam);
 	ShiftSim::Sim Base;
 	if (Base.Init(Jam, Params, Seed))
 	{
@@ -357,11 +358,12 @@ TSharedPtr<const FShiftForecastModel> ShiftForecastRun::BuildModel(int32 JamInde
 	const int32 K = SamplesPerBuild;
 
 	TSharedRef<FShiftForecastModel> Model = MakeShared<FShiftForecastModel>();
-	Model->JamIndex = FMath::Clamp(JamIndex, 0, 2);
+	Model->JamIndex = FMath::Clamp(JamIndex, 0, ShiftSim::kJamCount - 1);
 	Model->Seed = Seed;
 	{
 		ShiftSim::Params Params;
-		const ShiftSim::JamDef Jam = ShiftSim::DefaultJam(Model->JamIndex);
+		ShiftSim::JamDef Jam;
+		ShiftSim::SetupJam(Model->JamIndex, Params, Jam);
 		ShiftSim::Sim Base;
 		if (!Base.Init(Jam, Params, Seed))
 		{

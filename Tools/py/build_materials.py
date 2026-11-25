@@ -124,7 +124,7 @@ def build_mpc():
     mpc = get_or_create("MPC_Theme", MAT_DIR, unreal.MaterialParameterCollection,
                         unreal.MaterialParameterCollectionFactoryNew())
     scalars = []
-    for name, default in (("Night", 0.0), ("Heat", 0.0), ("Beat", 0.0), ("Time", 0.0), ("WipeRadius", 0.0), ("BgOpacity", 1.0), ("Solid", 0.0)):
+    for name, default in (("Night", 0.0), ("Heat", 0.0), ("Beat", 0.0), ("Time", 0.0), ("WipeRadius", 0.0), ("BgOpacity", 1.0), ("Solid", 0.0), ("BgPattern", 0.0)):
         p = unreal.CollectionScalarParameter()
         p.set_editor_property("parameter_name", name)
         p.set_editor_property("default_value", default)
@@ -158,11 +158,12 @@ def bg_graph(mat, mpc):
     night = mpc_param(mat, mpc, "Night", -1500, 840)
     tm = mpc_param(mat, mpc, "Time", -1500, 960)
     beat = mpc_param(mat, mpc, "Beat", -1500, 1080)
+    pat = mpc_param(mat, mpc, "BgPattern", -1500, 1320)
     node = custom(mat, "background", read_hlsl("bg"),
-                  ["PW", "PaperA", "PaperB", "InkA", "InkB", "Night", "Tm", "Beat"],
+                  ["PW", "PaperA", "PaperB", "InkA", "InkB", "Night", "Tm", "Beat", "Pat"],
                   unreal.CustomMaterialOutputType.CMOT_FLOAT3, -600, 300)
     for src, pin in ((pw, "PW"), (paper_a, "PaperA"), (paper_b, "PaperB"), (ink_a, "InkA"), (ink_b, "InkB"),
-                     (night, "Night"), (tm, "Tm"), (beat, "Beat")):
+                     (night, "Night"), (tm, "Tm"), (beat, "Beat"), (pat, "Pat")):
         connect(src, node, [pin])
     return node
 

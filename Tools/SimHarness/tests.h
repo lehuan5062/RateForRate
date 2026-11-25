@@ -134,12 +134,13 @@ inline void TestGraph(const Config& Cfg)
     for (size_t J = 0; J < Cfg.jams.size(); ++J)
     {
         const JamDef& Jam = Cfg.jams[J];
+        const Params JamP = ParamsFor(Cfg, static_cast<int>(J));
         double RecipSum = 0.0;
         int RecipN = 0;
         for (int Seed = 1; Seed <= 20; ++Seed)
         {
             Graph G;
-            T_CHECK(BuildGraph(Jam, Cfg.params, static_cast<uint32_t>(Seed), &G));
+            T_CHECK(BuildGraph(Jam, JamP, static_cast<uint32_t>(Seed), &G));
             T_CHECK(G.NodeCount() == Jam.nodes);
             T_CHECK(static_cast<int>(G.hubOfCommunity.size()) == Jam.communities);
             T_CHECK(static_cast<int>(G.celebrities.size()) == Jam.celebs);
@@ -221,7 +222,7 @@ inline void TestGraph(const Config& Cfg)
             }
 
             Graph G2;
-            BuildGraph(Jam, Cfg.params, static_cast<uint32_t>(Seed), &G2);
+            BuildGraph(Jam, JamP, static_cast<uint32_t>(Seed), &G2);
             bool Same = (G2.NodeCount() == G.NodeCount());
             for (int I = 0; Same && I < G.NodeCount(); ++I)
             {
@@ -308,13 +309,14 @@ inline void TestDeterminism(const Config& Cfg)
     for (size_t J = 0; J < Cfg.jams.size(); ++J)
     {
         const JamDef& Jam = Cfg.jams[J];
+        const Params JamP = ParamsFor(Cfg, static_cast<int>(J));
         for (uint32_t Seed = 11; Seed <= 13; ++Seed)
         {
             const std::vector<LogAction> Log = MakeActionLog(Seed, Jam.nodes, Steps, Jam.entries);
-            const std::vector<uint64_t> H1 = ReplayLog(Jam, Cfg.params, Seed, Log, Steps);
-            const std::vector<uint64_t> H2 = ReplayLog(Jam, Cfg.params, Seed, Log, Steps);
+            const std::vector<uint64_t> H1 = ReplayLog(Jam, JamP, Seed, Log, Steps);
+            const std::vector<uint64_t> H2 = ReplayLog(Jam, JamP, Seed, Log, Steps);
             T_CHECK(H1 == H2);
-            const std::vector<uint64_t> H3 = ReplayLog(Jam, Cfg.params, Seed + 1000u, Log, Steps);
+            const std::vector<uint64_t> H3 = ReplayLog(Jam, JamP, Seed + 1000u, Log, Steps);
             T_CHECK(H1.back() != H3.back());
         }
     }
@@ -344,24 +346,25 @@ inline void TestDynSeed(const Config& Cfg)
     for (size_t J = 0; J < Cfg.jams.size(); ++J)
     {
         const JamDef& Jam = Cfg.jams[J];
+        const Params JamP = ParamsFor(Cfg, static_cast<int>(J));
         for (uint32_t Seed = 21; Seed <= 23; ++Seed)
         {
             const std::vector<LogAction> Log = MakeActionLog(Seed, Jam.nodes, Steps, Jam.entries);
             // The three-argument Init is the four-argument one with DynSeed = Seed: every hash along the run is the same, so no existing number moves.
-            const std::vector<uint64_t> Plain = ReplayLog(Jam, Cfg.params, Seed, Log, Steps);
-            const std::vector<uint64_t> Same = ReplayLog(Jam, Cfg.params, Seed, Log, Steps, static_cast<int64_t>(Seed));
+            const std::vector<uint64_t> Plain = ReplayLog(Jam, JamP, Seed, Log, Steps);
+            const std::vector<uint64_t> Same = ReplayLog(Jam, JamP, Seed, Log, Steps, static_cast<int64_t>(Seed));
             T_CHECK(Plain == Same);
             // Another DynSeed is the same world with other luck: identical at the start, apart after a few seconds, and reproducible.
             const uint32_t Other = Rng::Derive(Seed, 100u);
-            const std::vector<uint64_t> Luck = ReplayLog(Jam, Cfg.params, Seed, Log, Steps, static_cast<int64_t>(Other));
-            const std::vector<uint64_t> Again = ReplayLog(Jam, Cfg.params, Seed, Log, Steps, static_cast<int64_t>(Other));
+            const std::vector<uint64_t> Luck = ReplayLog(Jam, JamP, Seed, Log, Steps, static_cast<int64_t>(Other));
+            const std::vector<uint64_t> Again = ReplayLog(Jam, JamP, Seed, Log, Steps, static_cast<int64_t>(Other));
             T_CHECK(Luck == Again);
             bool Diverged = false;
             for (size_t H = 0; H < Luck.size() && !Diverged; ++H) { Diverged = Luck[H] != Plain[H]; }
             T_CHECK(Diverged);   // the luck shows in the state for a while (it washes out later: an undecided voter adopts whoever pushes it, the dice only decide when)
             Sim A, B;
-            A.Init(Jam, Cfg.params, Seed);
-            B.Init(Jam, Cfg.params, Seed, Other);
+            A.Init(Jam, JamP, Seed);
+            B.Init(Jam, JamP, Seed, Other);
             T_CHECK(A.StateHash() == B.StateHash());
             T_CHECK(A.Seed() == Seed && B.Seed() == Seed && A.DynSeed() == Seed && B.DynSeed() == Other);
             bool SameWorld = A.NodeCount() == B.NodeCount() && A.NumEntries() == B.NumEntries();
@@ -427,8 +430,9 @@ inline void TestInvariants(const Config& Cfg)
             for (uint32_t Seed = 5; Seed <= 6; ++Seed)
             {
                 const JamDef Jam = Cfg.jams[J];
+                const Params JamP = ParamsFor(Cfg, static_cast<int>(J));
                 Sim S;
-                S.Init(Jam, Cfg.params, Seed);
+                S.Init(Jam, JamP, Seed);
                 StandInRival Rival; StandInOthers Others; StandInModEye Mod; PlayerBot Bot;
                 Rival.Reset(S, Cfg.policy); Others.Reset(S, Cfg.policy); Mod.Reset(S, Seed, Cfg.policy); Bot.Reset(Bots[Bi], Seed);
                 bool Ok = CheckInvariants(S, "init", 0);
@@ -2081,6 +2085,71 @@ inline void TestQueries(const Config& Cfg)
     T_CHECK(Distinct == (P.CelebOwners > 0.5 ? static_cast<int>(S2.GetGraph().celebrities.size()) : 1));
 }
 
+// ------------------------------------------------------------------------------------------
+// One setup per jam (SetupJam / ApplyJamTuning): jams 0..2 play on the shared defaults, jam 3 (Level Playing Field) is the control group with nobody famous.
+inline void TestJamSetup(const Config& Cfg)
+{
+    std::printf("[jam setup]\n");
+    T_CHECK(kJamCount == 4);
+    T_CHECK(static_cast<int>(Cfg.jams.size()) == kJamCount);
+    const Params Defaults;
+    for (int J = 0; J < kJamCount; ++J)
+    {
+        Params P;
+        JamDef Jam;
+        SetupJam(J, P, Jam);
+        T_CHECK(Jam.name == DefaultJam(J).name && Jam.nodes == DefaultJam(J).nodes);
+        bool Same = true;
+        for (int I = 0; I < ParamCount(); ++I)
+        {
+            double A = 0.0;
+            double B = 0.0;
+            GetParam(P, ParamNameAt(I), &A);
+            GetParam(Defaults, ParamNameAt(I), &B);
+            if (A != B) { Same = false; }
+        }
+        T_CHECK(J < 3 ? Same : !Same);   // jams 0..2 exactly the shared defaults; jam 3 carries its tweaks
+    }
+    // The control group: nobody has a head start, and the rival is the others' kind of entry.
+    {
+        Params P;
+        JamDef Jam;
+        SetupJam(3, P, Jam);
+        T_CHECK(P.RivalClout <= P.OtherCloutMax);
+        T_CHECK(Near(Jam.rivalFollowerFraction, P.OtherCelebFollowerFraction));
+        T_CHECK(Jam.rivalInterval >= 8.0);
+        T_CHECK(Jam.entries == 9 && Jam.rivalId == 1 && Jam.days == 31);
+        double RivalShare = 0.0;
+        double OtherBest = 0.0;
+        const int Worlds = 20;
+        for (int Seed = 1; Seed <= Worlds; ++Seed)
+        {
+            Sim S;
+            T_CHECK(S.Init(Jam, P, static_cast<uint32_t>(Seed)));
+            RivalShare += S.Share(S.RivalId());
+            double Best = 0.0;
+            for (int E = 0; E < S.NumEntries(); ++E)
+            {
+                if (E != kPlayerId && E != S.RivalId() && S.Share(E) > Best) { Best = S.Share(E); }
+            }
+            OtherBest += Best;
+        }
+        // at the start the rival holds no more than the strongest other entry does on average, plus a little (in the other jams it holds several times as much)
+        T_CHECK(RivalShare / Worlds <= 1.5 * OtherBest / Worlds);
+    }
+    // ParamsFor: the harness gives a jam the same Params the game does, and an explicit value wins over a jam's tweak.
+    {
+        Params P;
+        JamDef Jam;
+        SetupJam(3, P, Jam);
+        T_CHECK(Near(ParamsFor(Cfg, 3).RivalClout, Cfg.params.RivalClout != Defaults.RivalClout ? Cfg.params.RivalClout : P.RivalClout));
+        T_CHECK(Near(ParamsFor(Cfg, 1).RivalClout, Cfg.params.RivalClout));
+        Config Forced = Cfg;
+        Forced.params.RivalClout = 1.7;
+        T_CHECK(Near(ParamsFor(Forced, 3).RivalClout, 1.7));
+    }
+}
+
 inline void RunAll(const Config& Cfg)
 {
     Count() = Counter();
@@ -2088,6 +2157,7 @@ inline void RunAll(const Config& Cfg)
     Config Legacy = Cfg;
     Legacy.params.AttackTelegraph = 0.0;
     TestRng();
+    TestJamSetup(Cfg);
     TestGraph(Cfg);
     TestPlugAndSock(Legacy);
     TestGates(Legacy);

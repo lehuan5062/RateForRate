@@ -230,7 +230,7 @@ for d in HL:
 summary.append(("Headlines.csv", len(HL)))
 
 # ----------------------------------------------------------------------------- Entries
-JAMS = ["TinyJam7", "Rumble48", "GameOff2026"]
+JAMS = ["TinyJam7", "Rumble48", "GameOff2026", "LevelField"]
 E = load("Entries.csv", ["Id", "Jam", "Role", "Name", "Author", "Blurb"])
 check_enum("Entries.csv", E, "Jam", set(JAMS) | {"All"})
 check_enum("Entries.csv", E, "Role", {"Other", "You", "Rival"})
@@ -253,7 +253,7 @@ yous = [d for d in E if d["Role"] == "You"]
 if len(yous) < 12:
     err(f"Entries.csv: {len(yous)} You rows (need >= 12)")
 RIVALS = {"TinyJam7": ("Prince of Pixels", "@pixel_prince"), "Rumble48": ("LEGEND OF DEV", "DevLegend"),
-          "GameOff2026": ("ULTRA GAME 9 (AAA)", "MEGA STUDIOS")}
+          "GameOff2026": ("ULTRA GAME 9 (AAA)", "MEGA STUDIOS"), "LevelField": ("Beginner's Luck", "just_started")}
 for d in E:
     if d["Role"] == "Rival" and d["Jam"] in RIVALS and (d["Name"], d["Author"]) != RIVALS[d["Jam"]]:
         err(f"Entries.csv:{d['_line']}: rival for {d['Jam']} should be {RIVALS[d['Jam']]}")
@@ -316,8 +316,8 @@ A = load("Achievements.csv", ["Id", "Name", "Description", "Hidden"])
 check_enum("Achievements.csv", A, "Hidden", {"true", "false"})
 check_len("Achievements.csv", A, "Name", 28)
 check_len("Achievements.csv", A, "Description", 90)
-if len(A) != 14:
-    err(f"Achievements.csv: {len(A)} rows (need exactly 14)")
+if len(A) != 15:
+    err(f"Achievements.csv: {len(A)} rows (need exactly 15)")
 if len({d["Name"].lower() for d in A}) != len(A):
     err("Achievements.csv: duplicate achievement names")
 check_placeholders("Achievements.csv", A, "Description", lambda d: set())

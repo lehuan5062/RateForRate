@@ -375,7 +375,7 @@ void CmdInit(const Config& Cfg, const Args& A)
         for (int I = 0; I < Seeds; ++I)
         {
             Sim S;
-            S.Init(Cfg.jams[J], Cfg.params, SeedFor(I));
+            S.Init(Cfg.jams[J], ParamsFor(Cfg, static_cast<int>(J)), SeedFor(I));
             Rv += S.Share(S.RivalId());
             Pl += S.Share(0);
             Un += S.UndecidedShare();
@@ -407,7 +407,7 @@ void CmdTrace(const Config& Cfg, const Args& A)
     else if (BotS == "sock") { Kind = BotKind::GreedySock; }
     JamDef J = Cfg.jams[static_cast<size_t>(Jam)];
     Sim S;
-    S.Init(J, Cfg.params, static_cast<uint32_t>(Seed));
+    S.Init(J, ParamsFor(Cfg, Jam), static_cast<uint32_t>(Seed));
     StandInRival Rival; StandInOthers Others; StandInModEye Mod; PlayerBot Bot;
     Rival.Reset(S, Cfg.policy); Others.Reset(S, Cfg.policy); Mod.Reset(S, static_cast<uint32_t>(Seed), Cfg.policy); Bot.Reset(Kind, static_cast<uint32_t>(Seed));
     std::printf("trace jam %d seed %d bot %s. entries: Q / clout / seedFollowers\n", Jam + 1, Seed, BotName(Kind));
@@ -560,6 +560,7 @@ void CmdSnow(const Config& Cfg, const Args& A)
             continue;
         }
         const JamDef& Jam = Cfg.jams[J];
+        const Params JamP = ParamsFor(Cfg, static_cast<int>(J));
         for (int H = 0; H < 3; ++H)
         {
             std::vector<double> Fs;
@@ -569,7 +570,7 @@ void CmdSnow(const Config& Cfg, const Args& A)
             {
                 const uint32_t Seed = SeedFor(I, 1000u);
                 Sim SimA, SimB;
-                if (!SimA.Init(Jam, Cfg.params, Seed) || !SimB.Init(Jam, Cfg.params, Seed))
+                if (!SimA.Init(Jam, JamP, Seed) || !SimB.Init(Jam, JamP, Seed))
                 {
                     continue;
                 }
@@ -635,7 +636,7 @@ void CmdSnow(const Config& Cfg, const Args& A)
         {
             const uint32_t Seed = SeedFor(I, 1000u);
             Sim SimA, SimB;
-            if (!SimA.Init(Jam, Cfg.params, Seed) || !SimB.Init(Jam, Cfg.params, Seed))
+            if (!SimA.Init(Jam, JamP, Seed) || !SimB.Init(Jam, JamP, Seed))
             {
                 continue;
             }

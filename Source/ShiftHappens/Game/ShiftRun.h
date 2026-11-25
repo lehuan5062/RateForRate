@@ -57,6 +57,13 @@ enum class EShiftEventType : uint8
 	SpotlightEnd,        // it ran out unanswered: Node
 };
 
+/** A moment on the timeline of the results screen (the chart of every entry's share over the jam). */
+struct FShiftTimelineMark
+{
+	int32 Step = 0;
+	uint8 Kind = 0;       // 0 a Mod Eye strike, 1 a celebrity went to the player, 2 the rival's final push began
+};
+
 struct FShiftEvent
 {
 	EShiftEventType Type = EShiftEventType::DayChanged;
@@ -241,6 +248,9 @@ public:
 	FString TuningHash() const;
 	const FShiftBuild& GetBuild() const { return RunBuild; }
 	const FShiftPushSnapshot& GetPushStart() const { return PushStart; }
+	/** Every entry's share every SampleEverySteps steps (5 s) from the first step to the last, for every run (a recording keeps its own copy), and the moments worth marking on it. */
+	const TArray<FShiftRecSample>& GetHistory() const { return History; }
+	const TArray<FShiftTimelineMark>& GetMarks() const { return Marks; }
 
 private:
 	void StepOnce();
@@ -249,7 +259,9 @@ private:
 	void TrackOwnership();
 	void ModUpdate();
 	void ApplyModStrike();
-	void Emit(const FShiftEvent& Event) { Events.Add(Event); }
+	void Emit(const FShiftEvent& Event) { Events.Add(Event); NoteMark(Event); }
+	void NoteMark(const FShiftEvent& Event);
+	void SampleHistory();
 
 	TUniquePtr<ShiftSim::Sim> Sim;
 	TSharedPtr<IShiftBehaviorDriver> Driver;
@@ -287,6 +299,8 @@ private:
 	};
 	TArray<FPendingAction> Pending;
 	TArray<FShiftEvent> Events;
+	TArray<FShiftRecSample> History;
+	TArray<FShiftTimelineMark> Marks;
 
 	TMap<FString, double> Overrides;
 

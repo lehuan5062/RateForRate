@@ -20,12 +20,14 @@ param(
 	[string[]]$Set = @(),
 	[switch]$Explore,
 	[int]$ExploreSamples = 30,
-	[int]$ExploreRuns = 40
+	[int]$ExploreRuns = 40,
+	[string]$Jam = ''           # only this jam's targets (and only this jam is played); empty = every jam
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $inv = [cultureinfo]::InvariantCulture
 $targets = Import-Csv (Join-Path $Root 'Data\BalanceTargets.csv')
+if ($Jam -ne '') { $targets = @($targets | Where-Object { $_.Jam -eq $Jam }) }
 function NormBuild([string]$b) { if ([string]::IsNullOrWhiteSpace($b)) { return '4/4/4' } return $b.Trim() }
 function Num([string]$s) { return [double]::Parse($s, $inv) }
 
@@ -104,7 +106,7 @@ else {
 		$q, $t, $n = $b -split '/'
 		$botArg = ($need[$b] | Sort-Object) -join ','
 		foreach ($seed in $Seeds) {
-			$lines = & (Join-Path $PSScriptRoot 'balance.ps1') -Runs $Runs -Bot $botArg -Build @($q, $t, $n) -Seed0 $seed -Tag gate -Set $Set
+			$lines = & (Join-Path $PSScriptRoot 'balance.ps1') -Runs $Runs -Bot $botArg -Build @($q, $t, $n) -Seed0 $seed -Tag gate -Set $Set -Jam $(if ($Jam -ne '') { $Jam } else { 'all' })
 			Parse-Lines $lines $b $acc
 		}
 	}

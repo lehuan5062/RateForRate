@@ -23,6 +23,14 @@ GO_Other05,GameOff2026,Other,Shapeshift Sam,doppel_deb,"Become a chair, a door, 
 GO_Other06,GameOff2026,Other,Left Shift Right Shift,capslock_cora,Both Shift keys. Nothing else. Caps Lock is jealous.
 GO_Other07,GameOff2026,Other,Cat Game: Definitive Edition,tabby_tess,"Same cat. Bigger cat. Fewer bugs. Okay, same bugs."
 GO_Other08,GameOff2026,Other,untitled_platformer_FINAL_v3.exe,hopper_hal,Now with double jump. The title is still pending.
+LF_Other01,LevelField,Other,Spirit Level,bubble_bart,Keep the bubble centred. A puzzle about being exactly average.
+LF_Other02,LevelField,Other,Shift Happens to Everyone,equal_edna,A cosy game where nothing is anyone's fault. Mostly.
+LF_Other03,LevelField,Other,Fair Shift Scheduler,rota_rhea,Build a rota where everybody gets the good shift. Impossible.
+LF_Other04,LevelField,Other,Level Up Slowly,grindless_gus,An RPG where every level takes exactly as long as the last.
+LF_Other05,LevelField,Other,Even Steven's Heist,steven_even,Split the loot equally. The vault door disagrees.
+LF_Other06,LevelField,Other,Gear Shift Goats,clutch_cleo,Goats take turns driving. Right of way is by lottery.
+LF_Other07,LevelField,Other,Tie Breaker,coinflip_cam,Every match ends in a draw. The sequel is a coin toss.
+LF_Other08,LevelField,Other,Unranked,nobody_nell,No leaderboard. No followers. Just the game and a very quiet chat.
 You01,All,You,Lantern Keeper,you,"Light the lanterns before the fog does. Cozy, with mild dread."
 You02,All,You,Sprocket and Spark,you,A tiny robot fixes a tiny town. Fixes some of it.
 You03,All,You,Moonlight Mechanic,you,Repair machines at night. They only break when you look away.
@@ -40,3 +48,4 @@ You14,All,You,Button Gardener,you,Grow tiny buttons into big buttons. Press resp
 Rival_TJ,TinyJam7,Rival,Prince of Pixels,@pixel_prince,3K followers and a pinned post that says 'play mine first'.
 Rival_RB,Rumble48,Rival,LEGEND OF DEV,DevLegend,"48K followers. Streams the devlog, not the game."
 Rival_GO,GameOff2026,Rival,ULTRA GAME 9 (AAA),MEGA STUDIOS,1.2M followers. The trailer is huge. The game is a folder somewhere.
+Rival_LF,LevelField,Rival,Beginner's Luck,just_started,41 followers. The same as you. A first jam and a fair fight.

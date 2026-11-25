@@ -9,7 +9,7 @@
 #   2. behaviour      the full run on the real StateTrees: 10 instances, every kind of action happens (rival, other entries, mods, ambient events),
 #                     and two identical runs give an identical balance table (determinism)
 #   3. game boot      the real game starts, loads 26 of 26 effects and the music, binds the Harmonix clock and receives beat events, activates the
-#                     three Game Feature jam packs
+#                     four Game Feature jam packs
 #   4. audio meters   every sound audible and below -1 dBFS, music day / night / tension as designed, Harmonix clock steady, every pattern lane and
 #                     voice firing (the game plays them inaudibly and reads the in-graph meters; see UShiftAudioMeter). The run starts with a warm-up that is
 #                     replayed until meter data really arrives, and a one-shot that loses its meter data to a busy game thread is retried before it fails
@@ -68,9 +68,9 @@ Check 'boot: 26 of 26 effects + music + Harmonix clock bound' (LogHas $runLog 'A
 $beats = Select-String -Path $runLog -Pattern 'Harmonix clock delivered (\d+) beat events' | Select-Object -First 1
 Check 'boot: the Harmonix clock delivers beat events' ($beats -and [int]$beats.Matches[0].Groups[1].Value -ge 4) ($beats.Matches[0].Value)
 Check 'boot: 10 StateTree instances run the behaviour' (LogHas $runLog 'Behaviour: 10 StateTree instances') ''
-Check 'boot: 14 achievements load from the data table' (LogHas $runLog 'achievements=14') ''
+Check 'boot: 15 achievements load from the data table' (LogHas $runLog 'achievements=15') ''
 $packs = @(Select-String -Path $runLog -Pattern 'Jam pack activated').Count
-Check 'boot: three Game Feature jam packs activated' ($packs -ge 3) "$packs activated"
+Check 'boot: four Game Feature jam packs activated' ($packs -ge 4) "$packs activated"
 Check 'boot: no StateTree fallback, no screenshot failure' (-not (LogHas $runLog 'StateTrees MISSING|not ready to run') -and (Test-Path $shot)) ''
 Check 'boot: the see-through window stays off in a headless run' ((LogHas $runLog 'Glass: off') -and -not (LogHas $runLog 'Glass: requested|composition swap chain')) ''
 

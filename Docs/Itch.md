@@ -15,7 +15,9 @@ Everything below is for **you** to do or paste: nothing has been uploaded to itc
 >
 > Click through the follower network to flip voters one by one: every hub you win drags its followers along. Or hold **SHIFT** and work the night shift: sockpuppets, bots, bribes. Powerful, fragile and risky. The Mod Eye is watching, three strikes and you are disqualified, and the last one can be **blamed on your rival**, once, if all your strikes together took only a few fake votes. A big pile of them, over several strikes, is too much to pin on anyone.
 >
-> Three jams, a build screen that asks how to spend your last 12 hours, and a results screen that computes, from your own run, how much of the vote was explained by quality and how much by fame.
+> Four jams (the last one a control group where nobody starts famous), a build screen that asks how to spend your last 12 hours, and a results screen that computes, from your own run, how much of the vote was explained by quality and how much by fame.
+>
+> **New in 0.2:** a fourth jam where nobody starts famous (the control group), a results chart of every entry's share day by day, replays of your own jams (pause, speed, jump), and a look of its own for each jam.
 >
 > **Controls:** mouse = Plug (hover a voter for its actions), click your own voter or a ring closing in on it to reinforce / parry, right-click your own voter = Rally · hold SHIFT (or N) = night shift · B = shift the blame (when offered) · Space/Esc = pause · H = how to play (or press *Learn to play* on the title screen) · M = mute · gear = settings · R = retry
 >
@@ -63,7 +65,7 @@ Before the first **public** publish (it fixes the page's place in "Most Recent")
 
 1. **GitHub**: the repository `lehuan5062/ShiftHappens` is pushed but currently **private**; the jam needs a public repository, so make it public (Settings, Danger zone) before you submit. No Git LFS is used: the largest tracked file is under 2 MB, and `Saved/`, `Intermediate/`, `Binaries/` are git-ignored.
 2. **License**: none chosen yet (the README says TBD). Pick one before you publish.
-3. **Package** a Windows build with `Tools\package.ps1 -Config Shipping` (cook, stage, pak, archive into `Saved\PackageShipping`; the first run compiles the shaders and takes a while). A Shipping package was staged and smoke-tested headless on 23 Nov, but before the latest feature work, so rebuild it before you upload. Zip the staged `Windows` folder and upload it as the Windows download. The packaged game needs the DX12 runtime that ships with Windows 10/11.
+3. **Package** a Windows build with `Tools\package.ps1 -Config Shipping` (cook, stage, pak, archive into `Saved\PackageShipping`; the first run compiles the shaders and takes a while). A Shipping package of version 0.2.0 was staged and smoke-tested headless on 25 Nov (see Known limits); rebuild it if the code changed since. Zip the staged `Windows` folder and upload it as the Windows download. The packaged game needs the DX12 runtime that ships with Windows 10/11.
 4. **itch.io**: create the project, upload the zip, add the page copy and screenshots above, then **submit it to the jam** (pushing code is not submitting) before **Dec 1 2026, 13:37 PST (21:37 UTC)**.
 5. **Listen to it**: the audio was verified with in-graph meters only (levels, spectra, clock, every lane firing), not by ear. All of it is MetaSound and Harmonix, so it is tweakable in the MetaSound editor, and the levels can be re-trimmed with `Tools\calibrate_audio.ps1`.
 
@@ -72,4 +74,4 @@ Before the first **public** publish (it fixes the page's place in "Most Recent")
 * DX12 / Shader Model 6 only (older GPUs will not run it).
 * Windows only (no browser export in Unreal Engine 5).
 * **See-through window** (Settings, Background) is experimental and on by default (switch it off in Settings if the window misbehaves): it shows the desktop through the paper behind the board with an opacity slider. Windows 10 / 11, needs a restart, works in Borderless or Windowed (Fullscreen becomes Borderless), and the window still catches mouse clicks over the see-through parts. It was tested on one machine only; if the system cannot make the window the game starts as normal. Turning it on writes four renderer settings into the player's own `Saved\Config\...\Engine.ini` (alpha propagation, transparent viewport clear, an 8-bit back buffer, no tearing) and turning it off removes them.
-* The Shipping package must be rebuilt after the last code change (see "What is left for you").
+* The Shipping package in `Saved\PackageShipping` is of version 0.2.0 and was smoke-tested headless; rebuild it with `Tools\package.ps1 -Config Shipping` after any later code change.

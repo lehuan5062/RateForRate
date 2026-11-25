@@ -22,7 +22,7 @@ namespace
 const TCHAR* ShiftAch::IdOf(int32 Index)
 {
 	static const TCHAR* const Ids[Num] = { TEXT("HonestRun"), TEXT("NightOwl"), TEXT("Snowball"), TEXT("BannedSpeedrun"), TEXT("BestGameWorstRank"), TEXT("ShiftedTheBlame"), TEXT("GateCrasher"),
-		TEXT("AudienceCapture"), TEXT("GiantSlayer"), TEXT("StreamersPet"), TEXT("EyeContact"), TEXT("StickySituation"), TEXT("Schadenfreude"), TEXT("NobodyPlayedIt") };
+		TEXT("AudienceCapture"), TEXT("GiantSlayer"), TEXT("StreamersPet"), TEXT("EyeContact"), TEXT("StickySituation"), TEXT("Schadenfreude"), TEXT("NobodyPlayedIt"), TEXT("FairAndSquare") };
 	return Index >= 0 && Index < Num ? Ids[Index] : TEXT("");
 }
 
@@ -131,6 +131,10 @@ void FShiftAchTracker::OnFinished(const FShiftResultFacts& Facts, const FShiftFl
 	if (JamIndex == 2)
 	{
 		Earn(EShiftAch::GiantSlayer);
+	}
+	if (JamIndex == 3)
+	{
+		Earn(EShiftAch::FairAndSquare);   // the control group: nobody famous to blame it on
 	}
 	if (Facts.bRivalCollapsed)
 	{

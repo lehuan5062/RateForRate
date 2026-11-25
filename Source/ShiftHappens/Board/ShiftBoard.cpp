@@ -239,6 +239,26 @@ void AShiftBoard::UseGlassBackground()
 	UE_LOG(LogShift, Display, TEXT("Glass: the background is translucent (%d plane)"), Swapped);
 }
 
+namespace
+{
+	/** The look of each jam: the pattern of the paper (0 dots, 1 pixel grid, 2 graph paper, 3 level rules) and its ink and night colours. The day paper is the same in every jam (the see-through
+	 *  window's paper table is measured for it); jam 1, Tiny Jam, keeps the title's own look. */
+	struct FMood
+	{
+		float Pattern;
+		FLinearColor InkDay;
+		FLinearColor InkNight;
+		FLinearColor PaperNight;
+	};
+	const FMood Moods[4] =
+	{
+		{ 0.0f, FLinearColor(0.10f, 0.09f, 0.17f, 1.0f), FLinearColor(0.85f, 0.84f, 1.00f, 1.0f), FLinearColor(0.0035f, 0.0050f, 0.0170f, 1.0f) },   // Tiny Jam: dots, midnight navy
+		{ 1.0f, FLinearColor(0.04f, 0.12f, 0.17f, 1.0f), FLinearColor(0.70f, 0.95f, 1.00f, 1.0f), FLinearColor(0.0020f, 0.0090f, 0.0140f, 1.0f) },   // 48h Pixel Rumble: a pixel grid, deep teal night
+		{ 2.0f, FLinearColor(0.14f, 0.07f, 0.17f, 1.0f), FLinearColor(0.96f, 0.82f, 1.00f, 1.0f), FLinearColor(0.0085f, 0.0035f, 0.0190f, 1.0f) },   // GAME OFF 2026: graph paper, violet night
+		{ 3.0f, FLinearColor(0.05f, 0.14f, 0.10f, 1.0f), FLinearColor(0.80f, 1.00f, 0.88f, 1.0f), FLinearColor(0.0020f, 0.0100f, 0.0085f, 1.0f) },   // Level Playing Field: level rules, evergreen night
+	};
+}
+
 void AShiftBoard::ApplyTheme(const FShiftBoardView& View) const
 {
 	if (!ThemeMPC || !GetWorld())
@@ -250,6 +270,11 @@ void AShiftBoard::ApplyTheme(const FShiftBoardView& View) const
 	{
 		return;
 	}
+	const FMood& Mood = Moods[View.Mood >= 0 && View.Mood < 4 ? View.Mood : 0];
+	Inst->SetScalarParameterValue(TEXT("BgPattern"), View.Mood >= 0 ? Mood.Pattern : 0.0f);
+	Inst->SetVectorParameterValue(TEXT("InkDay"), Mood.InkDay);
+	Inst->SetVectorParameterValue(TEXT("InkNight"), Mood.InkNight);
+	Inst->SetVectorParameterValue(TEXT("PaperNight"), Mood.PaperNight);
 	Inst->SetScalarParameterValue(TEXT("Night"), View.Night);
 	Inst->SetScalarParameterValue(TEXT("Heat"), View.Heat);
 	Inst->SetScalarParameterValue(TEXT("Beat"), View.Beat);

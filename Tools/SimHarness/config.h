@@ -170,7 +170,7 @@ inline bool LoadConfig(const std::string& DataDir, Config* Cfg, std::string* Err
     Cfg->dataDir = DataDir;
     Cfg->jams.clear();
     Cfg->jamRowNames.clear();
-    for (int I = 0; I < 3; ++I)
+    for (int I = 0; I < kJamCount; ++I)
     {
         Cfg->jams.push_back(DefaultJam(I));
         Cfg->jamRowNames.push_back("Jam" + std::to_string(I + 1));
@@ -236,6 +236,25 @@ inline bool LoadConfig(const std::string& DataDir, Config* Cfg, std::string* Err
         }
     }
     return true;
+}
+
+// The Params a jam is played with: the jam's own tweaks (ApplyJamTuning, none for jams 0..2) on the compile-time defaults, and on top of that whatever Tuning.csv or a
+// -Set changed in Cfg.params (an explicit value wins over a jam's tweak, as QA names do in the game).
+inline Params ParamsFor(const Config& Cfg, int Jam)
+{
+    const Params Defaults;
+    Params P = Defaults;
+    ApplyJamTuning(Jam, P);
+    for (int I = 0; I < ParamCount(); ++I)
+    {
+        double Have = 0.0;
+        double Base = 0.0;
+        if (GetParam(Cfg.params, ParamNameAt(I), &Have) && GetParam(Defaults, ParamNameAt(I), &Base) && Have != Base)
+        {
+            SetParam(P, ParamNameAt(I), Have);
+        }
+    }
+    return P;
 }
 
 inline std::string FmtNum(double V)

@@ -169,6 +169,7 @@ private:
 	void PaintExtras(FShiftPainter& P, const FPal& C) const;
 	void PaintScatter(FShiftPainter& P, const FPal& C, float X, float Y, float W, float H, const FString& Title, const TArray<FShiftHudDot>& Dots,
 		const FShiftHudFit& Fit, const FString& Caption) const;
+	void PaintTimeline(FShiftPainter& P, const FPal& C, float X, float Y, float W, float H) const;
 	void PaintKeycap(FShiftPainter& P, const FPal& C, float X, float Y, float S, bool bPressed) const;
 	void PaintLogo(FShiftPainter& P, const FPal& C, float X, float Y, float Px, bool bPressed) const;
 	void MenuRow(FShiftPainter& P, const FPal& C, int32 Id, int32 Rank, float Y, const FString& Label, const FString& KeyHint, int32 EntryColor, float Bar, bool bNudge) const;

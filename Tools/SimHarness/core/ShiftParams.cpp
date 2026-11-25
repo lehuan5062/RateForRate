@@ -137,7 +137,7 @@ namespace ShiftSim
 			J.celebExtraFollowers = 4.0;
 			J.modIntervalMin = 15.0; J.modIntervalMax = 25.0;
 		}
-		else
+		else if (Index == 2)
 		{
 			J.name = "GAME OFF 2026";
 			J.nodes = 72; J.communities = 9; J.bridges = 4; J.celebs = 3;
@@ -146,7 +146,38 @@ namespace ShiftSim
 			J.celebExtraFollowers = 4.0;
 			J.modIntervalMin = 12.0; J.modIntervalMax = 20.0;
 		}
+		else
+		{
+			// Level Playing Field: the control group. Nobody starts famous, the rival included (its clout, its celebrity followers and its pace are set to the others' level: see
+			// ApplyJamTuning for the Params part), so what decides the vote is what the game says it never is: the entries' quality and what the player does.
+			J.name = "Level Playing Field";
+			J.nodes = 60; J.communities = 8; J.bridges = 3; J.celebs = 3;
+			J.days = 31; J.secPerDay = 6.0; J.regen = 0.400;
+			J.localGate = 0.25; J.celebGate = 0.20;
+			J.celebExtraFollowers = 4.0;
+			J.rivalFollowerFraction = 0.25;   // the same as every other entry's celebrity (Params::OtherCelebFollowerFraction)
+			J.rivalInterval = 8.0;            // the pace of the other entries, not the rival's 3.3 s
+			J.modIntervalMin = 14.0; J.modIntervalMax = 22.0;
+		}
 		return J;
+	}
+
+	void ApplyJamTuning(int Index, Params& P)
+	{
+		if (Index < 3)
+		{
+			return;   // jams 0..2: the shared defaults, exactly as before
+		}
+		// Level Playing Field: the rival is one entry among nine. Its first look at the undecided is no more than another entry's (OtherCloutMax is 0.5; the shared default is 3.0),
+		// and the celebrity hubs are no firmer than the rest.
+		P.RivalClout = 0.4;
+		P.RivalConv = 0.8;
+	}
+
+	void SetupJam(int Index, Params& P, JamDef& J)
+	{
+		J = DefaultJam(Index);
+		ApplyJamTuning(Index, P);
 	}
 
 } // namespace ShiftSim

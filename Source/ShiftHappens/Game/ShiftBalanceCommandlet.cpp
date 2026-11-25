@@ -204,7 +204,7 @@ int32 UShiftBalanceCommandlet::Main(const FString& Params)
 	}
 
 	TArray<int32> Jams;
-	if (JamArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { Jams = { 0, 1, 2 }; }
+	if (JamArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { for (int32 J = 0; J < ShiftSim::kJamCount; ++J) { Jams.Add(J); } }
 	else { Jams.Add(FCString::Atoi(*JamArg)); }
 	TArray<FString> BotNames;
 	if (BotArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { BotNames = { TEXT("idle"), TEXT("random"), TEXT("greedy"), TEXT("sock"), TEXT("finisher"), TEXT("late"), TEXT("rally"), TEXT("reactor") }; }
