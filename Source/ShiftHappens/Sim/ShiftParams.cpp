@@ -151,12 +151,12 @@ namespace ShiftSim
 			// Level Playing Field: the control group. Nobody starts famous, the rival included (its clout, its celebrity followers and its pace are set to the others' level: see
 			// ApplyJamTuning for the Params part), so what decides the vote is what the game says it never is: the entries' quality and what the player does.
 			J.name = "Level Playing Field";
-			J.nodes = 60; J.communities = 8; J.bridges = 3; J.celebs = 3;
+			J.nodes = 60; J.communities = 8; J.bridges = 3; J.celebs = 0;   // no celebrity hubs: nobody is famous
 			J.days = 31; J.secPerDay = 6.0; J.regen = 0.400;
 			J.localGate = 0.25; J.celebGate = 0.20;
 			J.celebExtraFollowers = 4.0;
 			J.rivalFollowerFraction = 0.25;   // the same as every other entry's celebrity (Params::OtherCelebFollowerFraction)
-			J.rivalInterval = 8.0;            // the pace of the other entries, not the rival's 3.3 s
+			J.rivalInterval = 4.5;            // between the other entries' 8 s and the rival's usual 3.3 s: with nobody famous and most voters grey, a rival that acts every 8 s is no rival at all
 			J.modIntervalMin = 14.0; J.modIntervalMax = 22.0;
 		}
 		return J;
@@ -172,6 +172,10 @@ namespace ShiftSim
 		// and the celebrity hubs are no firmer than the rest.
 		P.RivalClout = 0.4;
 		P.RivalConv = 0.8;
+		// A level field looks level at the start: few voters have a side yet (a hub and a few of its members back their community's entry, instead of four in five), and the grey ones
+		// take their time to pick one (the shared rate is 1 a second, which colours a board in the first few seconds), so the first minute is a race for the grey.
+		P.ChampionFraction = 0.30;
+		P.AdoptRate = 0.03;
 	}
 
 	void SetupJam(int Index, Params& P, JamDef& J)

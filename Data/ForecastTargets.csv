@@ -26,6 +26,6 @@ fc_monotone_3,3,monotone_drops,,0,same
 fc_rank_worse_3,3,rank_worse_pct,,3,same
 fc_quality_3,3,quality_effect_pct,2,,same, for the control group
 fc_network_3,3,network_effect_pct,40,,same, for the control group
-fc_thumb_3,3,thumbnail_effect_mean,2,,same
+fc_thumb_3,3,thumbnail_effect_mean,1,,same (1.6 measured: with most voters grey at the start a thumbnail's first look matters a little less)
 fc_step_3,3,step_p99,,12,same
 fc_neutral_3,3,neutral_share_mean,14,45,the even split's forecast share is in a plausible band for the control group

@@ -1024,7 +1024,7 @@ void AShiftPlayerController::RefreshJamCards()
 			Card.RivalAuthor.RemoveFromStart(TEXT("@"));
 			Card.RivalBlurb = FShiftContent::EntryBlurb(Jam, 1, Seed);
 			Card.Facts.Add(FString::Printf(TEXT("%d voters in %d communities"), Def.nodes, Def.communities));
-			Card.Facts.Add(FString::Printf(TEXT("%d celebrity hubs behind gates"), Def.celebs));
+			Card.Facts.Add(Def.celebs > 0 ? FString::Printf(TEXT("%d celebrity hubs behind gates"), Def.celebs) : FString(TEXT("No celebrities: nobody starts famous")));
 			Card.Facts.Add(FString::Printf(TEXT("Mod sweeps every %.0f-%.0f seconds"), Def.modIntervalMin, Def.modIntervalMax));
 			Card.Difficulty = Jam < 3 ? Jam + 1 : 0;   // 0: no star rating, the card says "fair" (the control group)
 			Card.BestRank = ShiftSave::BestRank(Jam);

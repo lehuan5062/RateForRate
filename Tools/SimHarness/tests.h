@@ -589,6 +589,10 @@ inline void TestGates(const Config& Cfg)
     for (size_t J = 0; J < Cfg.jams.size(); ++J)
     {
         Sim S;
+        if (Cfg.jams[J].celebs == 0)
+        {
+            continue;   // the control group has no celebrity hubs: nothing to gate
+        }
         const JamDef& Jam = Cfg.jams[J];
         S.Init(Jam, P, 101u + static_cast<uint32_t>(J));
         // Local hub.
@@ -710,6 +714,10 @@ inline void TestCelebArmor(const Config& Cfg)
     On.CelebDrainMult = 0.5;
     for (size_t J = 0; J < Cfg.jams.size(); ++J)
     {
+        if (Cfg.jams[J].celebs == 0)
+        {
+            continue;   // no celebrity hubs, no armor to test
+        }
         Sim A;
         A.Init(Cfg.jams[J], Off, 91u + static_cast<uint32_t>(J));
         Sim B;
@@ -2117,7 +2125,8 @@ inline void TestJamSetup(const Config& Cfg)
         SetupJam(3, P, Jam);
         T_CHECK(P.RivalClout <= P.OtherCloutMax);
         T_CHECK(Near(Jam.rivalFollowerFraction, P.OtherCelebFollowerFraction));
-        T_CHECK(Jam.rivalInterval >= 8.0);
+        T_CHECK(Jam.rivalInterval > 3.3 && Jam.rivalInterval < 8.0);   // slower than the usual rival, quicker than the other entries
+        T_CHECK(Jam.celebs == 0);                                      // nobody is famous: no celebrity hubs
         T_CHECK(Jam.entries == 9 && Jam.rivalId == 1 && Jam.days == 31);
         double RivalShare = 0.0;
         double OtherBest = 0.0;
