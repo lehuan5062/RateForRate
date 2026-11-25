@@ -280,7 +280,9 @@ private:
 	bool bLargeText = false;
 	bool bReduceMotion = false;
 	bool bGlassSaved = false;                 // the saved see-through window switch (it changes at the next launch)
-	int32 GlassOpacityPct = 70;               // the paper behind the board in the see-through window, percent (saved; -ShiftGlass=<0..1> forces it)
+	int32 GlassOpacityPct = 85;               // the Paper opacity slider of the see-through window, percent (saved); the paper's real opacity is ShiftSave::GlassPaperAlpha of it (linear)
+	float GlassAlphaForced = -1.0f;           // -ShiftGlass=<0..1> (QA): the paper's real opacity for this session, until the slider is moved; negative = the slider rules
+	float PaperAlpha() const { return GlassAlphaForced >= 0.0f ? GlassAlphaForced : ShiftSave::GlassPaperAlpha(GlassOpacityPct); }
 	void FillAccessModel(FShiftHudModel& M) const;
 	void QuitGame();
 	bool AchEligible() const;                 // a real human run: not QA, a bot, the attract loop, a lesson, a replay, a forced night or a -ShiftSet world

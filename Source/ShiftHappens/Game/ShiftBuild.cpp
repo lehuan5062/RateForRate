@@ -267,7 +267,12 @@ void ShiftSave::SetFlag(const TCHAR* Key, bool bOn)
 
 bool ShiftSave::GlassWindow()
 {
-	return GetFlag(TEXT("GlassWindow"));
+	bool bValue = true;   // on by default (the same default as ShiftGlass::IsRequested)
+	if (GConfig)
+	{
+		GConfig->GetBool(SaveSection, TEXT("GlassWindow"), bValue, GGameUserSettingsIni);
+	}
+	return bValue;
 }
 
 void ShiftSave::SetGlassWindow(bool bOn)
@@ -297,19 +302,24 @@ void ShiftSave::SetGlassWindow(bool bOn)
 
 int32 ShiftSave::GlassOpacity()
 {
-	int32 Value = 70;
+	int32 Value = 85;
 	if (GConfig)
 	{
-		GConfig->GetInt(SaveSection, TEXT("GlassOpacity"), Value, GGameUserSettingsIni);
+		GConfig->GetInt(SaveSection, TEXT("GlassPaper"), Value, GGameUserSettingsIni);   // (the first version saved the real opacity under GlassOpacity: not read any more)
 	}
 	return FMath::Clamp(Value, 0, 100);
+}
+
+float ShiftSave::GlassPaperAlpha(int32 Percent)
+{
+	return static_cast<float>(FMath::Clamp(Percent, 0, 100)) / 100.0f;
 }
 
 void ShiftSave::SetGlassOpacity(int32 Percent)
 {
 	if (GConfig)
 	{
-		GConfig->SetInt(SaveSection, TEXT("GlassOpacity"), FMath::Clamp(Percent, 0, 100), GGameUserSettingsIni);
+		GConfig->SetInt(SaveSection, TEXT("GlassPaper"), FMath::Clamp(Percent, 0, 100), GGameUserSettingsIni);
 		GConfig->Flush(false, GGameUserSettingsIni);
 	}
 }

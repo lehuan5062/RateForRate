@@ -8,6 +8,7 @@
 //   Threat float 0..1 (an announced attack on this voter: 1 just announced .. 0 lands now; a ring closes in), PushCol float3 colour of the pusher / attacker
 //   Shield float 0..1 (a Rally shield: a teal dome and ring while it lasts)
 //   Night float 0..1   Tm float seconds   Heat float 0..1   Cur float2 cursor world XY
+//   Solid float 0..1 (1 in the see-through window: the desktop is behind the voter, so every part of it is made solid)
 // q-space: x right, y down, body radius = 1.
 
 float2 dW = PW - CW;
@@ -190,4 +191,7 @@ pm = (PushCol * 1.2 + 0.08) * a + pm * (1.0 - a);
 al = a + al * (1.0 - a);
 
 float3 outc = pm / max(al, 1e-4);
+// In the see-through window nothing of a voter may blend into the desktop behind it: the rings, outlines and tracks that are drawn at 0.8 to 0.95 become solid, and the soft dome a little
+// more. It is a rescale, not a threshold, so every edge keeps its soft ramp and the anti-aliasing is as it was.
+al = lerp(al, saturate(al / 0.86), Solid);
 return float4(outc * hdr, al);

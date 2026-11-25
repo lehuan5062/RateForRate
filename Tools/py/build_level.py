@@ -1,6 +1,7 @@
 """Builds L_Jam: the single level the game runs in.
 
-Orthographic top-down camera (1280 x 720 world units, MaintainXFOV, 16:9 letterboxed), an unbound post-process volume
+Orthographic top-down camera (1280 world units wide to start with, MaintainXFOV, NOT letterboxed: the game sets the width every frame so that the
+1280 x 720 board always fits and the window shows paper wherever it is wider or taller), an unbound post-process volume
 (unit exposure, bloom, light vignette) and the background plane with M_Bg. The board (nodes/edges) is spawned at runtime
 by AShiftBoard. Idempotent: reuses and clears the level.   Run: Tools\\run_py.ps1 -Script Tools\\py\\build_level.py
 """
@@ -36,12 +37,17 @@ def build_level():
     comp = cam.get_component_by_class(unreal.CameraComponent)
     comp.set_editor_property("projection_mode", unreal.CameraProjectionMode.ORTHOGRAPHIC)
     comp.set_editor_property("ortho_width", 1280.0)
-    comp.set_editor_property("constrain_aspect_ratio", True)
+    comp.set_editor_property("constrain_aspect_ratio", False)   # no black bars: the window shows what its own shape shows (AShiftPlayerController::UpdateView sets the width)
     comp.set_editor_property("aspect_ratio", 1280.0 / 720.0)
     axis = unreal.AspectRatioAxisConstraint
-    maintain_x = [getattr(axis, n) for n in dir(axis) if "X_FOV" in n.upper()]
+    maintain_x = [getattr(axis, n) for n in dir(axis) if "XFOV" in n.upper().replace("_", "")]
     if maintain_x:
         comp.set_editor_property("aspect_ratio_axis_constraint", maintain_x[0])
+        try:
+            # without the override the engine keeps the HEIGHT fixed when the aspect ratio is not constrained, and the board would grow with the window
+            comp.set_editor_property("override_aspect_ratio_axis_constraint", True)
+        except Exception as exc:  # noqa: BLE001
+            warn("override_aspect_ratio_axis_constraint failed (the game sets it at run time): {}".format(exc))
     else:
         warn("no MaintainXFOV member found in {}".format([n for n in dir(axis) if n.isupper()]))
     cam.set_editor_property("auto_activate_for_player", unreal.AutoReceiveInput.PLAYER0)
@@ -68,7 +74,7 @@ def build_level():
     bg_mat = unreal.load_asset(MAT_DIR + "/M_Bg")
     bg = eas.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(0, 0, -10), unreal.Rotator(0, 0, 0))
     bg.set_actor_label("Background")
-    bg.set_actor_scale3d(unreal.Vector(16.0, 24.0, 1.0))   # 1600 x 2400 units: covers any 16:9 view with room to spare
+    bg.set_actor_scale3d(unreal.Vector(60.0, 60.0, 1.0))   # 6000 x 6000 units: covers any window shape, from a tall phone-like one to an ultra-wide one
     smc = bg.get_component_by_class(unreal.StaticMeshComponent)
     smc.set_static_mesh(plane)
     if bg_mat is not None:

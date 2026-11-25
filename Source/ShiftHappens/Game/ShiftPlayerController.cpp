@@ -9,27 +9,27 @@
 #include "Behavior/StateTree/ShiftBehavior.h"
 #include "Board/ShiftBoard.h"
 #include "Board/ShiftPalette.h"
+#include "Camera/CameraComponent.h"
 #include "Camera/CameraTypes.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "Containers/StringConv.h"
 #include "Containers/UnrealString.h"
+#include "Delegates/IDelegateInstance.h"
 #include "Engine/Engine.h"
 #include "Engine/EngineBaseTypes.h"
 #include "Engine/EngineTypes.h"
 #include "Engine/GameViewportClient.h"
-#include "HAL/IConsoleManager.h"
-#include "Misc/FileHelper.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Game/ShiftContent.h"
 #include "Game/ShiftResults.h"
-#include "ShiftGlass.h"
 #include "GameFramework/GameUserSettings.h"
 #include "GameFramework/PlayerController.h"
 #include "GenericPlatform/GenericPlatformMisc.h"
 #include "GenericPlatform/GenericWindow.h"
 #include "HAL/FileManager.h"
+#include "HAL/IConsoleManager.h"
 #include "HAL/Platform.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "HAL/PlatformMisc.h"
@@ -45,11 +45,13 @@
 #include "Misc/CommandLine.h"
 #include "Misc/CString.h"
 #include "Misc/DateTime.h"
+#include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "ShiftAchievements.h"
 #include "ShiftBuild.h"
 #include "ShiftForecast.h"
+#include "ShiftGlass.h"
 #include "ShiftHappens.h"
 #include "ShiftLesson.h"
 #include "ShiftRecording.h"
@@ -70,6 +72,7 @@
 #include "UObject/UObjectGlobals.h"
 #include <vector>
 #include "Widgets/DeclarativeSyntaxSupport.h"
+#include "Widgets/SWindow.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -106,6 +109,32 @@ namespace
 	{
 		Text.ReplaceInline(Key, *FString::FromInt(Value));
 		return Text;
+	}
+
+	/**
+	 * QA, -ShiftGlassSim with -ShiftGlassDump=<prefix>: the picture as the desktop compositor would get it (colour premultiplied, alpha = opacity), with the HUD, laid over striped,
+	 * black and white desktops. A screenshot file forces the alpha to 255, so this takes its own Slate screenshot right after the engine has finished the one that was requested
+	 * (the same place the engine takes it from), where the window's pixels still have their alpha. Call it when the screenshot is requested.
+	 */
+	void DumpGlassScene(const FString& Prefix)
+	{
+		const TSharedRef<FDelegateHandle> Handle = MakeShared<FDelegateHandle>();
+		*Handle = FScreenshotRequest::OnScreenshotRequestProcessed().AddLambda([Prefix, Handle]()
+			{
+				const FString Path = Prefix;   // removing the binding destroys this lambda's captures: copy what is still needed first
+				FScreenshotRequest::OnScreenshotRequestProcessed().Remove(*Handle);
+				TSharedPtr<SWindow> Window = GEngine && GEngine->GameViewport ? GEngine->GameViewport->GetWindow() : nullptr;
+				TArray<FColor> Pixels;
+				FIntVector Size(0, 0, 0);
+				if (Window.IsValid() && FSlateApplication::IsInitialized() && FSlateApplication::Get().TakeScreenshot(Window.ToSharedRef(), Pixels, Size))
+				{
+					ShiftGlass::SavePictures(Pixels, Size.X, Size.Y, Path);
+				}
+				else
+				{
+					UE_LOG(LogShift, Warning, TEXT("Glass: the window could not be read back for -ShiftGlassDump"));
+				}
+			});
 	}
 
 	const TCHAR* JamSubtitle(int32 Jam)
@@ -216,9 +245,8 @@ void AShiftPlayerController::BeginPlay()
 			};
 		SetCvar(TEXT("r.PostProcessing.PropagateAlpha"), 1.0f);
 		SetCvar(TEXT("r.TransparentViewportClear"), 1.0f);
-		// The engine's last-pass alpha invert draws at the wrong place when the view is letterboxed (it ignores the output view rect); the upscale pass does the same invert
-		// correctly, and it runs when the scene is rendered a hair smaller than the window.
-		SetCvar(TEXT("r.ScreenPercentage"), 99.0f);
+		// (The engine's last-pass alpha invert draws at the wrong place when the view is letterboxed, because it ignores the output view rect; the first version rendered the scene
+		// at 99% so that the upscale pass did the invert instead. The view is not letterboxed any more, and Tools\glass_sim.ps1 shows the same alpha at 100%, sharper.)
 		UE_LOG(LogShift, Display, TEXT("Glass: the game inverts the scene alpha for the desktop compositor"));
 	}
 
@@ -400,7 +428,8 @@ void AShiftPlayerController::BeginPlay()
 	bLargeText = ShiftSave::GetFlag(TEXT("LargeText")) || FParse::Param(FCommandLine::Get(), TEXT("ShiftLargeText"));
 	bReduceMotion = ShiftSave::GetFlag(TEXT("ReduceMotion")) || FParse::Param(FCommandLine::Get(), TEXT("ShiftCalm"));
 	bGlassSaved = ShiftSave::GlassWindow();
-	GlassOpacityPct = ShiftGlass::CommandLineOpacity() >= 0.0f ? FMath::RoundToInt(ShiftGlass::CommandLineOpacity() * 100.0f) : ShiftSave::GlassOpacity();
+	GlassAlphaForced = ShiftGlass::CommandLineOpacity();   // -ShiftGlass=<opacity>: the real opacity of the paper; the slider then shows the position that gives it
+	GlassOpacityPct = GlassAlphaForced >= 0.0f ? FMath::Clamp(FMath::RoundToInt(GlassAlphaForced * 100.0f), 0, 100) : ShiftSave::GlassOpacity();
 	LeaderboardMode = ShiftSave::LeaderboardMode();
 	ApplySoundSettings();
 
@@ -1127,7 +1156,7 @@ void AShiftPlayerController::SetWindowMode(int32 Mode)
 	{
 		Desktop = FIntPoint(1920, 1080);
 	}
-	// Fullscreen and borderless fill the monitor. A window is the biggest 16:9 size that leaves a margin around it (the game letterboxes to 16:9).
+	// Fullscreen and borderless fill the monitor. A window starts as the biggest 16:9 size that leaves a margin around it (the player can resize it to any shape: nothing is letterboxed).
 	FIntPoint Size = Desktop;
 	if (NewMode == EWindowMode::Windowed)
 	{
@@ -1281,6 +1310,29 @@ void AShiftPlayerController::UpdateView(float DeltaTime)
 #if !UE_BUILD_SHIPPING
 	bTrailerOn = Trailer && Trailer->IsActive();   // the trailer moves the camera itself
 #endif
+	{
+		// The view is not letterboxed: the camera takes the window's own shape. Its width is chosen so that the 16:9 design rect (the board, in design pixels = world units) always fits
+		// inside it, with more paper at the sides of a wider window and above and below a taller one; the interface docks itself to the window's edges (SShiftHud).
+		// (The trailer zooms the width itself, so only the flags are held while it plays.)
+		UCameraComponent* Cam = ViewCamera->FindComponentByClass<UCameraComponent>();
+		if (Cam)
+		{
+			Cam->bConstrainAspectRatio = false;
+			Cam->bOverrideAspectRatioAxisConstraint = true;   // the width is what is fixed (without the override the engine keeps the height and the board grows with the window)
+			Cam->AspectRatioAxisConstraint = AspectRatio_MaintainXFOV;
+			int32 ViewportX = 0;
+			int32 ViewportY = 0;
+			GetViewportSize(ViewportX, ViewportY);
+			if (!bTrailerOn && ViewportX > 0 && ViewportY > 0)
+			{
+				const float Width = FMath::Max(1280.0f, 720.0f * static_cast<float>(ViewportX) / static_cast<float>(ViewportY));
+				if (!FMath::IsNearlyEqual(Cam->OrthoWidth, Width, 0.01f))
+				{
+					Cam->OrthoWidth = Width;
+				}
+			}
+		}
+	}
 	const bool bCentre = !bTrailerOn && (bAttract || !bQaRunFlag || bQaCentre);
 	const bool bPan = bCentre && !bAttract;
 	FVector2D Centre = FVector2D::ZeroVector;
@@ -1369,7 +1421,7 @@ void AShiftPlayerController::FillAccessModel(FShiftHudModel& M) const
 	M.bGlassActive = ShiftGlass::IsActive();
 	M.bGlassSaved = bGlassSaved;
 	M.GlassOpacity = GlassOpacityPct;
-	M.BackgroundOpacity = M.bGlassActive ? static_cast<float>(GlassOpacityPct) / 100.0f : 1.0f;
+	M.BackgroundOpacity = M.bGlassActive ? PaperAlpha() : 1.0f;
 }
 
 void AShiftPlayerController::FillExtrasModel(FShiftHudModel& M) const
@@ -1676,6 +1728,7 @@ void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 		if (Percent != GlassOpacityPct)
 		{
 			GlassOpacityPct = Percent;
+			GlassAlphaForced = -1.0f;   // the slider rules from now on
 			if (!bQaRunFlag) { ShiftSave::SetGlassOpacity(Percent); }
 		}
 		break;
@@ -3474,7 +3527,7 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 	View.Heat = static_cast<float>(S.Heat() / S.GetParams().HeatMax);
 	View.Beat = Audio ? Audio->BeatPulse() : 0.0f;
 	View.EdgeMode = EdgeMode;
-	View.BackgroundOpacity = static_cast<float>(GlassOpacityPct) / 100.0f;
+	View.BackgroundOpacity = PaperAlpha();
 	RallyFxAge = FMath::Min(RallyFxAge + DeltaTime, 99.0f);
 	View.RallyNode = RallyFxAge < 1.2f ? RallyFxNode : -1;
 	Board->Update(S, View, DeltaTime);
@@ -3684,9 +3737,18 @@ void AShiftPlayerController::ScheduleScreenshotFromCommandLine()
 			const float Time = FMath::Max(0.1f, FCString::Atof(*Parts[i]));
 			Last = FMath::Max(Last, Time);
 			const FString File = FPaths::GetPath(ShotPath) / FString::Printf(TEXT("%s_%04d.png"), *FPaths::GetBaseFilename(ShotPath), FMath::RoundToInt(Time * 100.0f));
-			GetWorldTimerManager().SetTimer(MultiShotTimers[i], FTimerDelegate::CreateWeakLambda(this, [File]()
+			GetWorldTimerManager().SetTimer(MultiShotTimers[i], FTimerDelegate::CreateWeakLambda(this, [File, Hundredths = FMath::RoundToInt(Time * 100.0f)]()
 				{
-					FScreenshotRequest::RequestScreenshot(File, /*bInShowUI*/ true, /*bAddFilenameSuffix*/ false);
+					FString GlassPrefix;
+					if (ShiftGlass::IsSimulated() && FParse::Value(FCommandLine::Get(), TEXT("ShiftGlassDump="), GlassPrefix, false))
+					{
+						FScreenshotRequest::RequestScreenshot(File, /*bInShowUI*/ false, /*bAddFilenameSuffix*/ false);   // the dump is the Slate screenshot (see TakeScreenshot)
+						DumpGlassScene(FString::Printf(TEXT("%s_%04d"), *FPaths::ConvertRelativePathToFull(GlassPrefix), Hundredths));
+					}
+					else
+					{
+						FScreenshotRequest::RequestScreenshot(File, /*bInShowUI*/ true, /*bAddFilenameSuffix*/ false);
+					}
 				}), Time, false);
 		}
 		if (bQuitAfterShot)
@@ -3728,7 +3790,18 @@ void AShiftPlayerController::LogWorldDiagnostics() const
 void AShiftPlayerController::TakeScreenshot()
 {
 	LogWorldDiagnostics();
-	FScreenshotRequest::RequestScreenshot(ShotPath, /*bInShowUI*/ true, /*bAddFilenameSuffix*/ false);
+	FString GlassPrefix;
+	if (ShiftGlass::IsSimulated() && FParse::Value(FCommandLine::Get(), TEXT("ShiftGlassDump="), GlassPrefix, false))
+	{
+		// the see-through window's picture (-ShiftGlassSim, see ShiftGlass.h); the dump is the only Slate screenshot of the frame (a second one draws the HUD twice into the pixels),
+		// so the engine's own request is for the bare viewport and its file is not worth keeping
+		FScreenshotRequest::RequestScreenshot(ShotPath, /*bInShowUI*/ false, /*bAddFilenameSuffix*/ false);
+		DumpGlassScene(FPaths::ConvertRelativePathToFull(GlassPrefix));
+	}
+	else
+	{
+		FScreenshotRequest::RequestScreenshot(ShotPath, /*bInShowUI*/ true, /*bAddFilenameSuffix*/ false);
+	}
 	UE_LOG(LogShift, Log, TEXT("Screenshot requested: %s"), *ShotPath);
 
 	if (bQuitAfterShot)

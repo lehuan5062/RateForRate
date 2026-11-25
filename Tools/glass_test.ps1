@@ -2,8 +2,10 @@
 # pass -Monitor primary only when the user is away), starts the game windowed on top of it with the see-through window on, takes a screenshot of the desktop and compares the game
 # window with the backdrop-only screenshot: a pixel that equals the backdrop is see-through. No sound, no keys, no mouse. About 30 seconds. The game and the backdrop are
 # closed at the end. It needs an unlocked screen with the display on (a locked session captures black).
-#   .\Tools\glass_test.ps1                         the letterboxed 1280 x 800 window (the engine's bars must show the desktop: about 10% of the client area equals the backdrop)
-#   .\Tools\glass_test.ps1 -Opacity 0.4 -Tag half  the paper at 40% (needs the glass background material: Tools\py\build_materials.py)
+#   .\Tools\glass_test.ps1                         the 1280 x 800 window at the default paper opacity (nothing is letterboxed any more: the paper fills the window, so what equals the backdrop is only what the paper leaves open)
+#   .\Tools\glass_test.ps1 -Opacity 0 -Tag clear   the paper fully transparent: almost the whole client area equals the backdrop (only the voters, the lines and the panels cover it)
+#   .\Tools\glass_test.ps1 -Opacity 0.4 -Tag half  the paper's real opacity 40% (needs the glass background material: Tools\py\build_materials.py)
+# (Tools\glass_sim.ps1 gives the picture the game hands to the compositor without any window: use it first, and this only for what needs the real desktop.)
 #   .\Tools\glass_test.ps1 -Backdrop black         the same window over black and over white (-Backdrop white): paper pixels that differ between the two are translucent
 # Output: Saved\Shots\glass_<tag>.png (the desktop with the game on it), glass_<tag>_later.png (6 s later), glass_<tag>_backdrop.png, glass_<tag>.log (the game log), a summary on
 # the console.
@@ -18,8 +20,9 @@ param(
 	[switch]$Stress,   # after the first picture: resize the window, minimise and restore it, and report the see-through share after each step
 	[switch]$Packaged,   # test Saved\PackageShipping\Windows\ShiftHappens.exe instead of the editor build (no log in Shipping: it waits a fixed time)
 	[switch]$NoGlass,
+	[switch]$AsEditorStandalone,   # launch it the way the editor's "Standalone Game" does (its command line, no -ini renderer settings: the game must set them itself)
 	[ValidateSet('primary', 'secondary')][string]$Monitor = 'secondary',   # which monitor the backdrop and the game window use
-	[ValidateSet('stripes', 'black', 'white')][string]$Backdrop = 'stripes',   # black and white: the same window over both tells transparent from opaque pixels
+	[ValidateSet('stripes', 'black', 'white', 'desktop')][string]$Backdrop = 'stripes',   # black and white: the same window over both tells transparent from opaque pixels; desktop: no backdrop window, the real desktop (wallpaper and windows) of that monitor
 	[string]$EngineRoot = $(if ($env:SHIFT_UE_ROOT) { $env:SHIFT_UE_ROOT } else { 'C:\Program Files\Epic Games\UE_5.8' })
 )
 $ErrorActionPreference = 'Stop'
@@ -138,8 +141,10 @@ $Colors = switch ($Backdrop) { 'black' { "'#000000'" } 'white' { "'#FFFFFF'" } d
 $game = $null
 $backdropProc = $null
 try {
-	$backdropProc = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-WindowStyle', 'Hidden', '-File', "`"$BackdropScript`"") -PassThru
-	Start-Sleep -Seconds 4
+	if ($Backdrop -ne 'desktop') {
+		$backdropProc = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-WindowStyle', 'Hidden', '-File', "`"$BackdropScript`"") -PassThru
+		Start-Sleep -Seconds 4
+	}
 	$baselinePath = Join-Path $Shots "glass_${Tag}_backdrop.png"
 	$baseline = Take-Screen $baselinePath
 
@@ -147,8 +152,11 @@ try {
 	Remove-Item $log -ErrorAction SilentlyContinue
 	$ini = '-ini:Engine:[SystemSettings]:r.PostProcessing.PropagateAlpha=1,[SystemSettings]:r.TransparentViewportClear=1,[SystemSettings]:r.DefaultBackBufferPixelFormat=0,[SystemSettings]:r.D3D12.UseAllowTearing=0'
 	$gameArgs = @("`"$Project`"", '-game', "-ResX=$Width", "-ResY=$Height", '-windowed', '-nosplash', '-nop4', '-unattended', '-NoSound', "-WinX=$($Screen.X + 60)", "-WinY=$($Screen.Y + 20)", "-abslog=`"$log`"", "-ShiftScreen=$StartScreen")
+	if ($AsEditorStandalone) {
+		$gameArgs = @("`"$Project`"", '/Game/Shift/Levels/L_Jam', '-game', '-PIEVIACONSOLE', '-Multiprocess', 'GameUserSettingsINI=PIEGameUserSettings0', '-MultiprocessSaveConfig', '-forcepassthrough', '-messaging', "-ResX=$Width", "-ResY=$Height", '-windowed', '-NoSound', "-WinX=$($Screen.X + 60)", "-WinY=$($Screen.Y + 20)", "-abslog=`"$log`"", "-ShiftScreen=$StartScreen")
+	}
 	if (-not $NoGlass) {
-		$gameArgs += $ini
+		if (-not $AsEditorStandalone) { $gameArgs += $ini }
 		$gameArgs += $(if ($Opacity -ge 0) { "-ShiftGlass=$Opacity" } else { '-ShiftGlass' })
 	}
 	$gameArgs += $Extra
@@ -179,8 +187,7 @@ try {
 
 	$shotPath = Join-Path $Shots "glass_$Tag.png"
 	$game.Refresh()
-	$backdropProc.Refresh()
-	Write-Host ("windows above the game: {0}, above the backdrop: {1}" -f [GlassWin]::ZIndex($game.MainWindowHandle), [GlassWin]::ZIndex($backdropProc.MainWindowHandle))
+	if ($backdropProc) { $backdropProc.Refresh(); Write-Host ("windows above the game: {0}, above the backdrop: {1}" -f [GlassWin]::ZIndex($game.MainWindowHandle), [GlassWin]::ZIndex($backdropProc.MainWindowHandle)) }
 	$fg = [GlassWin]::GetForegroundWindow()
 	Write-Host ("foreground: {0} (game window {1}), iconic {2}, visible {3}" -f $fg, $game.MainWindowHandle, [GlassWin]::IsIconic($game.MainWindowHandle), [GlassWin]::IsWindowVisible($game.MainWindowHandle))
 	$cloaked = 0

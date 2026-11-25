@@ -255,6 +255,7 @@ void AShiftBoard::ApplyTheme(const FShiftBoardView& View) const
 	Inst->SetScalarParameterValue(TEXT("Beat"), View.Beat);
 	Inst->SetScalarParameterValue(TEXT("Time"), View.Time);
 	Inst->SetScalarParameterValue(TEXT("BgOpacity"), ShiftGlass::IsActive() ? FMath::Clamp(View.BackgroundOpacity, 0.0f, 1.0f) : 1.0f);
+	Inst->SetScalarParameterValue(TEXT("Solid"), ShiftGlass::IsActive() ? 1.0f : 0.0f);   // the see-through window: the voters and the lines are made solid (node.hlsl, edge.hlsl)
 	Inst->SetVectorParameterValue(TEXT("Cursor"), FLinearColor(static_cast<float>(View.CursorWorld.X), static_cast<float>(View.CursorWorld.Y), 0.0f, 0.0f));
 }
 

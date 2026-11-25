@@ -3,37 +3,36 @@
 #include "ShiftGlass.h"
 
 #include "Containers/Ticker.h"
+#include "Containers/UnrealString.h"
 #include "CoreGlobals.h"
 #include "GenericPlatform/GenericPlatformCompilerPreSetup.h"
+#include "HAL/IConsoleManager.h"
 #include "ImageCore.h"
 #include "ImageUtils.h"
 #include "Logging/LogCategory.h"
 #include "Logging/LogMacros.h"
 #include "Math/Color.h"
 #include "Math/UnrealMathUtility.h"
-#include "Misc/CString.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreMisc.h"
+#include "Misc/CString.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 #include "RHIDefinitions.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogShiftGlass, All, All);
-
 #if PLATFORM_WINDOWS
 
 #include "Containers/Array.h"
 #include "Containers/ContainersFwd.h"
-#include "Containers/UnrealString.h"
 #include "Features/IModularFeatures.h"
 #include "GenericPlatform/ICursor.h"
 #include "HAL/Platform.h"
 #include "Templates/RefCounting.h"
 #include "Windows/IDXGISwapchainProvider.h"
-#include "Windows/WindowsHWrapper.h"
+#include "Windows/PreWindowsApi.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 #include "Unknwnbase.h"
 #include "Uxtheme.h"
@@ -56,6 +55,65 @@ THIRD_PARTY_INCLUDES_START
 #include <dwmapi.h>
 THIRD_PARTY_INCLUDES_END
 #include <atomic>
+
+#endif   // PLATFORM_WINDOWS
+
+DEFINE_LOG_CATEGORY_STATIC(LogShiftGlass, All, All);
+
+void ShiftGlass::SavePictures(const TArray<FColor>& Pixels, int32 Width, int32 Height, const FString& Prefix)
+{
+	if (Width <= 0 || Height <= 0 || Pixels.Num() < Width * Height)
+	{
+		return;
+	}
+	int64 AlphaSum = 0;
+	for (const FColor& Pixel : Pixels)
+	{
+		AlphaSum += Pixel.A;
+	}
+	UE_LOG(LogShiftGlass, Display, TEXT("Glass: pictures %dx%d, mean alpha %.1f -> %s_*.png"), Width, Height, static_cast<double>(AlphaSum) / FMath::Max(1, Width * Height), *Prefix);
+	const auto Save = [&](const TArray<FColor>& Out, const TCHAR* Name)
+		{
+			TArray64<uint8> Png;
+			const FImageView View(const_cast<FColor*>(Out.GetData()), Width, Height, ERawImageFormat::BGRA8);
+			FImageUtils::CompressImage(Png, TEXT("png"), View);
+			FFileHelper::SaveArrayToFile(Png, *FString::Printf(TEXT("%s_%s.png"), *Prefix, Name));
+		};
+	{
+		// the colour exactly as the compositor is given it (premultiplied by the alpha), and the alpha as grey
+		TArray<FColor> Colour, Alpha;
+		Colour.SetNumUninitialized(Pixels.Num());
+		Alpha.SetNumUninitialized(Pixels.Num());
+		for (int32 i = 0; i < Pixels.Num(); ++i)
+		{
+			Colour[i] = FColor(Pixels[i].R, Pixels[i].G, Pixels[i].B, 255);
+			Alpha[i] = FColor(Pixels[i].A, Pixels[i].A, Pixels[i].A, 255);
+		}
+		Save(Colour, TEXT("rgb"));
+		Save(Alpha, TEXT("alpha"));
+	}
+	static const FColor Bars[6] = { FColor(229, 57, 53), FColor(67, 160, 71), FColor(30, 136, 229), FColor(253, 216, 53), FColor(142, 36, 170), FColor(0, 172, 193) };
+	for (int32 Kind = 0; Kind < 3; ++Kind)
+	{
+		// what the desktop shows: the premultiplied colour plus what is left of the desktop behind it, over a striped, a black and a white desktop
+		TArray<FColor> Out;
+		Out.SetNumUninitialized(Pixels.Num());
+		for (int32 y = 0; y < Height; ++y)
+		{
+			for (int32 x = 0; x < Width; ++x)
+			{
+				const FColor S = Pixels[y * Width + x];
+				const FColor B = Kind == 0 ? Bars[FMath::Min(5, x * 6 / Width)] : (Kind == 1 ? FColor(0, 0, 0) : FColor(255, 255, 255));
+				const int32 Inv = 255 - S.A;
+				Out[y * Width + x] = FColor(static_cast<uint8>(FMath::Min(255, S.R + B.R * Inv / 255)), static_cast<uint8>(FMath::Min(255, S.G + B.G * Inv / 255)),
+					static_cast<uint8>(FMath::Min(255, S.B + B.B * Inv / 255)), 255);
+			}
+		}
+		Save(Out, Kind == 0 ? TEXT("stripes") : (Kind == 1 ? TEXT("black") : TEXT("white")));
+	}
+}
+
+#if PLATFORM_WINDOWS
 
 namespace
 {
@@ -132,7 +190,6 @@ namespace
 		const bool bBgra = Desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM || Desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
 		TArray<FColor> Pixels;
 		Pixels.SetNumUninitialized(Width * Height);
-		int64 AlphaSum = 0;
 		for (int32 y = 0; y < Height; ++y)
 		{
 			const uint8* Row = static_cast<const uint8*>(Mapped) + static_cast<size_t>(y) * Footprint.Footprint.RowPitch;
@@ -140,32 +197,11 @@ namespace
 			{
 				const uint8* P = Row + x * 4;
 				Pixels[y * Width + x] = bBgra ? FColor(P[2], P[1], P[0], P[3]) : FColor(P[0], P[1], P[2], P[3]);
-				AlphaSum += P[3];
 			}
 		}
 		Readback->Unmap(0, nullptr);
-		UE_LOG(LogShiftGlass, Display, TEXT("Glass: back buffer dump %dx%d format %d, mean alpha %.1f"), Width, Height, static_cast<int32>(Desc.Format), static_cast<double>(AlphaSum) / FMath::Max(1, Width * Height));
-		static const FColor Bars[6] = { FColor(229, 57, 53), FColor(67, 160, 71), FColor(30, 136, 229), FColor(253, 216, 53), FColor(142, 36, 170), FColor(0, 172, 193) };
-		for (int32 Kind = 0; Kind < 3; ++Kind)
-		{
-			TArray<FColor> Out;
-			Out.SetNumUninitialized(Pixels.Num());
-			for (int32 y = 0; y < Height; ++y)
-			{
-				for (int32 x = 0; x < Width; ++x)
-				{
-					const FColor S = Pixels[y * Width + x];
-					const FColor B = Kind == 0 ? Bars[FMath::Min(5, x * 6 / Width)] : (Kind == 1 ? FColor(0, 0, 0) : FColor(255, 255, 255));
-					const int32 Inv = 255 - S.A;
-					Out[y * Width + x] = FColor(static_cast<uint8>(FMath::Min(255, S.R + B.R * Inv / 255)), static_cast<uint8>(FMath::Min(255, S.G + B.G * Inv / 255)),
-						static_cast<uint8>(FMath::Min(255, S.B + B.B * Inv / 255)), 255);
-				}
-			}
-			TArray64<uint8> Png;
-			const FImageView View(Out.GetData(), Width, Height, ERawImageFormat::BGRA8);
-			FImageUtils::CompressImage(Png, TEXT("png"), View);
-			FFileHelper::SaveArrayToFile(Png, *FString::Printf(TEXT("%s_%s.png"), *Prefix, Kind == 0 ? TEXT("stripes") : (Kind == 1 ? TEXT("black") : TEXT("white"))));
-		}
+		UE_LOG(LogShiftGlass, Display, TEXT("Glass: back buffer dump %dx%d format %d"), Width, Height, static_cast<int32>(Desc.Format));
+		ShiftGlass::SavePictures(Pixels, Width, Height, Prefix);
 	}
 
 	/**
@@ -447,6 +483,10 @@ namespace
 				GOldWindowProc = reinterpret_cast<WNDPROC>(::SetWindowLongPtr(Window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&GlassWindowProc)));
 			}
 
+			if (Original.Format != DXGI_FORMAT_B8G8R8A8_UNORM && Original.Format != DXGI_FORMAT_R8G8B8A8_UNORM)
+			{
+				UE_LOG(LogShiftGlass, Warning, TEXT("Glass: the back buffer format is %d, not 8-bit RGBA: its alpha may be too coarse for the paper opacity (r.DefaultBackBufferPixelFormat should be 0)"), static_cast<int32>(Original.Format));
+			}
 			DXGI_SWAP_CHAIN_DESC1 Desc = Original;
 			Desc.Stereo = FALSE;
 			Desc.Scaling = DXGI_SCALING_STRETCH;
@@ -525,6 +565,7 @@ namespace
 	bool bGProviderRegistered = false;
 }
 
+#include "Windows/PostWindowsApi.h"   // last: it undefines the Windows macros (TRUE, FALSE, ...) that the code above uses
 
 #endif   // PLATFORM_WINDOWS
 
@@ -548,7 +589,7 @@ bool ShiftGlass::IsRequested()
 	{
 		return true;
 	}
-	bool bSaved = false;
+	bool bSaved = true;   // on by default; the Settings switch writes the choice (a normal window if the system cannot make the see-through one)
 	if (GConfig)
 	{
 		GConfig->GetBool(TEXT("ShiftHappens"), TEXT("GlassWindow"), bSaved, GGameUserSettingsIni);
@@ -559,19 +600,29 @@ bool ShiftGlass::IsRequested()
 #endif
 }
 
+bool ShiftGlass::IsSimulated()
+{
+	static const bool bSimulated = []()
+		{
+			FString Ignored;
+			return FParse::Param(FCommandLine::Get(), TEXT("ShiftGlassSim")) || FParse::Value(FCommandLine::Get(), TEXT("ShiftGlassSim="), Ignored);   // -ShiftGlassSim or -ShiftGlassSim=<opacity>
+		}();
+	return bSimulated;
+}
+
 bool ShiftGlass::IsActive()
 {
 #if PLATFORM_WINDOWS
-	return GGlassActive.load();
+	return GGlassActive.load() || IsSimulated();
 #else
-	return false;
+	return IsSimulated();
 #endif
 }
 
 float ShiftGlass::CommandLineOpacity()
 {
 	FString Value;
-	if (FParse::Value(FCommandLine::Get(), TEXT("ShiftGlass="), Value) && !Value.IsEmpty())
+	if ((FParse::Value(FCommandLine::Get(), TEXT("ShiftGlass="), Value) || FParse::Value(FCommandLine::Get(), TEXT("ShiftGlassSim="), Value)) && !Value.IsEmpty())
 	{
 		return FMath::Clamp(FCString::Atof(*Value), 0.0f, 1.0f);
 	}
@@ -585,6 +636,23 @@ static void RegisterGlassProvider()
 	{
 		UE_LOG(LogShiftGlass, Log, TEXT("Glass: off"));
 		return;
+	}
+	// The renderer settings the window needs, forced here for every launch (the Settings switch also writes them into the player's Engine.ini, but a Standalone or PIE session
+	// started from the editor reads another config, and without them the default back buffer is 10:10:10:2, whose 2-bit alpha has only 0, 1/3, 2/3 and 1: every paper opacity
+	// above about 83% rounded to solid). This module loads at PostConfigInit, before the renderer reads them: into the config the console variables are applied from, and into any
+	// console variable that already exists.
+	static const TCHAR* const Keys[] = { TEXT("r.PostProcessing.PropagateAlpha"), TEXT("r.TransparentViewportClear"), TEXT("r.DefaultBackBufferPixelFormat"), TEXT("r.D3D12.UseAllowTearing") };
+	static const TCHAR* const Values[] = { TEXT("1"), TEXT("1"), TEXT("0"), TEXT("0") };
+	for (int32 i = 0; i < 4; ++i)
+	{
+		if (GConfig)
+		{
+			GConfig->SetString(TEXT("SystemSettings"), Keys[i], Values[i], GEngineIni);
+		}
+		if (IConsoleVariable* Var = IConsoleManager::Get().FindConsoleVariable(Keys[i]))
+		{
+			Var->Set(Values[i], ECVF_SetByCode);
+		}
 	}
 	IModularFeatures::Get().RegisterModularFeature(IDXGISwapchainProvider::GetModularFeatureName(), &GProvider);
 	bGProviderRegistered = true;

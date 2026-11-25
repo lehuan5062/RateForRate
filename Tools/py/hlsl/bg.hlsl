@@ -8,7 +8,7 @@ float2 f = frac(g) - 0.5;
 float dotr = length(f) - (0.040 + 0.012 * Beat);
 float aa = max(fwidth(dotr), 1e-3);
 float dots = 1.0 - smoothstep(-aa, aa, dotr);
-float r = length(PW) / 1000.0;
+float r = min(length(PW) / 1000.0, 1.5);   // the window is not letterboxed any more: a wide or tall one shows paper far from the board, which must not go dark
 float3 c = Paper * (1.0 - 0.14 * r * r);
 c = lerp(c, Ink, dots * (0.10 + 0.10 * Night));
 // slow drifting band so the field is not dead flat at night

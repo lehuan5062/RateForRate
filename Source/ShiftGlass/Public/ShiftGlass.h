@@ -16,7 +16,7 @@
  * It lives in its own module that loads at PostConfigInit: the engine makes the game window (for the loading screen) before the game module is loaded, and the window's swap
  * chain is made then, so the provider must already be registered.
  *
- * Off by default. It is requested by the saved setting (GameUserSettings [ShiftHappens] GlassWindow) or by -ShiftGlass[=opacity]; it never applies to the editor,
+ * On by default (the Settings switch turns it off). It is requested by the saved setting (GameUserSettings [ShiftHappens] GlassWindow) or by -ShiftGlass[=opacity]; it never applies to the editor,
  * commandlets or headless (-RenderOffScreen) runs. If anything fails the normal swap chain is made instead and IsActive() stays false.
  */
 namespace ShiftGlass
@@ -24,8 +24,20 @@ namespace ShiftGlass
 	/** The window should be made see-through: the saved setting or -ShiftGlass, outside the editor, commandlets and off-screen runs. */
 	SHIFTGLASS_API bool IsRequested();
 
-	/** A composition swap chain was made for the game window: the desktop really shows through (alpha is meaningful). */
+	/** A composition swap chain was made for the game window: the desktop really shows through (alpha is meaningful). Also true under -ShiftGlassSim (QA, see below). */
 	SHIFTGLASS_API bool IsActive();
+
+	/**
+	 * QA, headless: -ShiftGlassSim[=opacity]. The game renders the see-through window's picture (the translucent paper, the scene alpha, the alpha-aware renderer settings)
+	 * without a window or a swap chain, so IsActive() is true; -ShiftGlassDump=<prefix> then saves what the desktop compositor would be given (see SavePictures).
+	 */
+	SHIFTGLASS_API bool IsSimulated();
+
+	/**
+	 * QA: pixels as the desktop compositor gets them (colour premultiplied by the alpha, B8G8R8A8 order) saved as <Prefix>_rgb.png (the colour as it is), _alpha.png (the
+	 * alpha as grey) and _stripes / _black / _white.png (the picture over a striped, a black and a white desktop).
+	 */
+	SHIFTGLASS_API void SavePictures(const TArray<FColor>& Pixels, int32 Width, int32 Height, const FString& Prefix);
 
 	/** The opacity from -ShiftGlass=<0..1> (QA), or a negative number when the command line does not give one. */
 	SHIFTGLASS_API float CommandLineOpacity();

@@ -213,26 +213,59 @@ void SShiftHud::PushRipple(const FVector2f& Design, int32 Kind)
 	PressUntil = AnimTime + 0.12f;
 }
 
+void SShiftHud::Dock(FShiftPainter& P, EShiftDock D) const
+{
+	const FFrame& F = Frames[static_cast<int32>(D)];
+	P.Origin = F.Origin;
+	P.Scale = F.Scale;
+	HitOrigin = F.Origin;
+	HitScale = F.Scale;
+}
+
+FVector4f SShiftHud::WindowRect(const FShiftPainter& P) const
+{
+	return FVector4f(-P.Origin.X / P.Scale, -P.Origin.Y / P.Scale, (WindowSize.X - P.Origin.X) / P.Scale, (WindowSize.Y - P.Origin.Y) / P.Scale);
+}
+
+void SShiftHud::FillWindow(FShiftPainter& P, const FLinearColor& Color) const
+{
+	const FVector4f R = WindowRect(P);
+	P.Rect(R.X, R.Y, R.Z - R.X, R.W - R.Y, Color);
+}
+
+void SShiftHud::AddWindowHit(const FShiftPainter& P, int32 Id) const
+{
+	const FVector4f R = WindowRect(P);
+	AddHit(R.X, R.Y, R.Z - R.X, R.W - R.Y, Id);
+}
+
+FVector2f SShiftHud::DockShift(EShiftDock D) const
+{
+	const FFrame& From = Frames[static_cast<int32>(D)];
+	const FFrame& Centre = Frames[static_cast<int32>(EShiftDock::C)];
+	return (From.Origin - Centre.Origin) / FMath::Max(0.01f, Centre.Scale);
+}
+
 bool SShiftHud::AddHit(float X, float Y, float W, float H, int32 Id, bool bSlider, float SliderX0, float SliderX1) const
 {
 	FHit Hit;
-	Hit.X = X;
-	Hit.Y = Y;
-	Hit.W = W;
-	Hit.H = H;
+	Hit.X = HitOrigin.X + X * HitScale;
+	Hit.Y = HitOrigin.Y + Y * HitScale;
+	Hit.W = W * HitScale;
+	Hit.H = H * HitScale;
 	Hit.Id = Id;
 	Hit.bSlider = bSlider;
-	Hit.SliderX0 = SliderX0;
-	Hit.SliderX1 = SliderX1;
+	Hit.SliderX0 = HitOrigin.X + SliderX0 * HitScale;
+	Hit.SliderX1 = HitOrigin.X + SliderX1 * HitScale;
 	Hits.Add(Hit);
-	return Hit.Contains(MouseDesign);
+	return Hit.Contains(MouseLocal);
 }
 
-const SShiftHud::FHit* SShiftHud::FindHit(const FVector2f& Design) const
+const SShiftHud::FHit* SShiftHud::FindHit(const FVector2f& Local) const
 {
 	for (int32 i = Hits.Num() - 1; i >= 0; --i)
 	{
-		if (Hits[i].Contains(Design))
+		if (Hits[i].Contains(Local))
 		{
 			return &Hits[i];
 		}
@@ -240,9 +273,9 @@ const SShiftHud::FHit* SShiftHud::FindHit(const FVector2f& Design) const
 	return nullptr;
 }
 
-float SShiftHud::SliderValue(const FHit& Hit, float DesignX)
+float SShiftHud::SliderValue(const FHit& Hit, float LocalX)
 {
-	return FMath::Clamp((DesignX - Hit.SliderX0) / FMath::Max(1.0f, Hit.SliderX1 - Hit.SliderX0), 0.0f, 1.0f);
+	return FMath::Clamp((LocalX - Hit.SliderX0) / FMath::Max(1.0f, Hit.SliderX1 - Hit.SliderX0), 0.0f, 1.0f);
 }
 
 FReply SShiftHud::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
@@ -265,8 +298,9 @@ FReply SShiftHud::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerE
 	const FVector2D Local = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
 	const FVector2f Design = LocalToDesign(MyGeometry, FVector2f(Local));
 	MouseDesign = Design;
+	MouseLocal = FVector2f(Local);
 	// the right button on empty space (no voter under the cursor, no button): a pan if it moves, a Rally click if it does not
-	const bool bEmptyRight = Button == EKeys::RightMouseButton && !bModal && !Model.Tooltip.bVisible && FindHit(Design) == nullptr;
+	const bool bEmptyRight = Button == EKeys::RightMouseButton && !bModal && !Model.Tooltip.bVisible && FindHit(MouseLocal) == nullptr;
 	if (!bQaInjecting)
 	{
 		bMouseInside = true;
@@ -286,13 +320,13 @@ FReply SShiftHud::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerE
 	FReply Reply = FReply::Handled().SetUserFocus(SharedThis(this), EFocusCause::Mouse);
 	if (Button == EKeys::LeftMouseButton)
 	{
-		if (const FHit* Hit = FindHit(Design))
+		if (const FHit* Hit = FindHit(MouseLocal))
 		{
 			if (Hit->bSlider)
 			{
 				DragId = Hit->Id;
 				DragHit = *Hit;
-				OnUi.ExecuteIfBound(Hit->Id, SliderValue(*Hit, Design.X));
+				OnUi.ExecuteIfBound(Hit->Id, SliderValue(*Hit, MouseLocal.X));
 				return Reply.CaptureMouse(SharedThis(this));
 			}
 			OnUi.ExecuteIfBound(Hit->Id, 0.0f);
@@ -341,6 +375,7 @@ FReply SShiftHud::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& 
 {
 	const FVector2D Local = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
 	MouseDesign = LocalToDesign(MyGeometry, FVector2f(Local));
+	MouseLocal = FVector2f(Local);
 	bMouseInside = bMouseInside || !bQaInjecting;
 	if (bQaDriven && !bQaInjecting)
 	{
@@ -358,7 +393,7 @@ FReply SShiftHud::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& 
 	}
 	if (DragId >= 0)
 	{
-		OnUi.ExecuteIfBound(DragHit.Id, SliderValue(DragHit, MouseDesign.X));
+		OnUi.ExecuteIfBound(DragHit.Id, SliderValue(DragHit, MouseLocal.X));
 		return FReply::Handled();
 	}
 	return FReply::Unhandled();
@@ -386,12 +421,12 @@ FCursorReply SShiftHud::OnCursorQuery(const FGeometry& MyGeometry, const FPointe
 		// The game draws its own cursor (PaintCursor); the operating system's arrow is hidden over the window. The query also tells us the mouse is here, even before it moves.
 		const FVector2D LocalPos = MyGeometry.AbsoluteToLocal(CursorEvent.GetScreenSpacePosition());
 		MouseDesign = LocalToDesign(MyGeometry, FVector2f(LocalPos));
+		MouseLocal = FVector2f(LocalPos);
 		bMouseInside = true;
 		return FCursorReply::Cursor(EMouseCursor::None);
 	}
 	const FVector2D Local = MyGeometry.AbsoluteToLocal(CursorEvent.GetScreenSpacePosition());
-	const FVector2f Design = LocalToDesign(MyGeometry, FVector2f(Local));
-	if (const FHit* Hit = FindHit(Design))
+	if (const FHit* Hit = FindHit(FVector2f(Local)))
 	{
 		if (Hit->Id != EShiftUi::SettingsClose && Hit->Id != EShiftUi::SettingsPanel)
 		{
@@ -514,6 +549,11 @@ void SShiftHud::SettingsButton(FShiftPainter& P, const FPal& C, float Cx, float 
 	}
 }
 
+float SShiftHud::Solid(float Alpha) const
+{
+	return Model.bGlassActive ? 1.0f - FMath::Square(1.0f - Alpha) : Alpha;
+}
+
 FLinearColor SShiftHud::Scaled(FLinearColor Wash) const
 {
 	Wash.A *= Model.BackgroundOpacity;   // in the see-through window the washes fade with the paper, so the desktop shows through the menus too
@@ -525,12 +565,14 @@ void SShiftHud::PaintSettings(FShiftPainter& P, const FPal& C) const
 	// The menu dropped from the gear button. Everything behind it stops listening: a click outside it closes it.
 	Hits.Reset();
 	bModal = true;
-	AddHit(0.0f, 0.0f, DesignW, DesignH, EShiftUi::SettingsClose);
+	Dock(P, EShiftDock::C);
+	AddWindowHit(P, EShiftUi::SettingsClose);
 
 	const float W = 380.0f;
 	const float H = 482.0f;
 	const float Pad = 28.0f;
 	const bool bTitle = Model.Screen == EShiftScreen::Title;   // on the title it opens beside the menu, inside the safe zone
+	Dock(P, bTitle ? EShiftDock::C : EShiftDock::TR);          // elsewhere it hangs from the gear button, in the top right corner of the window
 	const float X = bTitle ? 1216.0f - W : DesignW - W - 24.0f;
 	const float Y = bTitle ? 656.0f - H : 56.0f;
 	P.Rect(X + 2.0f, Y + 8.0f, W, H, Hex(0x000000, 0.22f), 18.0f);
@@ -686,8 +728,9 @@ void SShiftHud::PaintLogo(FShiftPainter& P, const FPal& C, float X, float Y, flo
 
 void SShiftHud::PaintTitle(FShiftPainter& P, const FPal& C) const
 {
-	// the game is letterboxed to 16:9 like every other screen: the bars are the engine's, and this paints only inside the design rect
-	P.Rect(0, 0, DesignW, DesignH, Scaled(Mix(Hex(0xF6F1E6, 0.58f), Hex(0x04060F, 0.66f), C.N)));
+	// the wash covers the whole window; the logo and the menu are centred on it
+	Dock(P, EShiftDock::C);
+	FillWindow(P, Scaled(Mix(Hex(0xF6F1E6, 0.58f), Hex(0x04060F, 0.66f), C.N)));
 
 	// the name, as it always was
 	const float Bob = FMath::Sin(PulseTime * 1.1f) * 3.0f;
@@ -723,7 +766,8 @@ void SShiftHud::PaintTitle(FShiftPainter& P, const FPal& C) const
 
 void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 {
-	P.Rect(0, 0, DesignW, DesignH, Scaled(Mix(Hex(0xF6F1E6, 0.80f), Hex(0x04060F, 0.80f), C.N)));
+	Dock(P, EShiftDock::C);
+	FillWindow(P, Scaled(Mix(Hex(0xF6F1E6, 0.80f), Hex(0x04060F, 0.80f), C.N)));
 	P.Text(TEXT("Pick a jam"), 640.0f, 34.0f, 36.0f, C.Ink, EShiftAlign::Center, true);
 	P.Text(TEXT("Each jam has its own rival, its own network and its own mood."), 640.0f, 84.0f, 15.0f, C.InkDim, EShiftAlign::Center);
 
@@ -771,8 +815,11 @@ void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 		P.Text(TEXT("Build your entry"), X + CardW * 0.5f, Y + CardH - 52.0f, 16.0f, bHover ? FLinearColor::White : C.Teal, EShiftAlign::Center, true);
 	}
 
+	Dock(P, EShiftDock::TL);   // Back and the gear hold their corners
 	Button(P, C, EShiftUi::Back, 24.0f, 22.0f, 104.0f, 36.0f, TEXT("< Back"), false, 14.0f);
+	Dock(P, EShiftDock::TR);
 	SettingsButton(P, C, 1246.0f, 24.0f);
+	Dock(P, EShiftDock::C);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -780,7 +827,8 @@ void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 
 void SShiftHud::PaintBuild(FShiftPainter& P, const FPal& C) const
 {
-	P.Rect(0, 0, DesignW, DesignH, Scaled(Mix(Hex(0xF6F1E6, 0.84f), Hex(0x04060F, 0.84f), C.N)));
+	Dock(P, EShiftDock::C);
+	FillWindow(P, Scaled(Mix(Hex(0xF6F1E6, 0.84f), Hex(0x04060F, 0.84f), C.N)));
 	const FShiftHudBuild& B = Model.Build;
 	int32 Spent = 0;
 	for (int32 i = 0; i < 3; ++i)
@@ -889,8 +937,11 @@ void SShiftHud::PaintBuild(FShiftPainter& P, const FPal& C) const
 	Button(P, C, EShiftUi::Upload, 840.0f, 610.0f, 380.0f, 58.0f, TEXT("UPLOAD AND START VOTING"), true, 20.0f);
 	P.Text(TEXT("ENTER"), 820.0f, 631.0f, 12.0f, C.InkDim, EShiftAlign::Right);
 
+	Dock(P, EShiftDock::TL);   // Back and the gear hold their corners
 	Button(P, C, EShiftUi::Back, 24.0f, 22.0f, 104.0f, 36.0f, TEXT("< Back"), false, 14.0f);
+	Dock(P, EShiftDock::TR);
 	SettingsButton(P, C, 1246.0f, 24.0f);
+	Dock(P, EShiftDock::C);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -944,18 +995,24 @@ void SShiftHud::PaintTooltip(FShiftPainter& P, const FPal& C) const
 
 void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 {
-	// ------------------------------------------------------------------ top bar
-	P.Rect(0, 0, DesignW, 40, C.Panel);
-	P.Rect(0, 40, DesignW, 1, C.Stroke);
+	// ------------------------------------------------------------------ top bar: it spans the window, and its left, middle and right parts each hold their own edge
+	Dock(P, EShiftDock::TL);
+	{
+		const FVector4f Win = WindowRect(P);
+		P.Rect(Win.X, 0, Win.Z - Win.X, 40, C.Panel);
+		P.Rect(Win.X, 40, Win.Z - Win.X, 1, C.Stroke);
+	}
 	P.Text(TEXT("SHIFT HAPPENS"), 18, 10, 15, C.Ink, EShiftAlign::Left, true);
 	P.Text(P.Fit(Model.JamName, 230.0f, 13), 160, 12, 13, C.InkDim);
 	if (Model.bReplay)
 	{
 		P.Text(TEXT("REPLAY"), 400, 11, 14, C.Amber, EShiftAlign::Left, true);   // a recording is playing: clicks and keys do nothing
 	}
+	Dock(P, EShiftDock::T);
 	P.Text(FString::Printf(TEXT("%s  -  Day %d / %d"), *Model.DateLabel, Model.Day, Model.Days), 640, 9, 16, C.Ink, EShiftAlign::Center, true);
 	P.Rect(510, 33, 260, 3, C.Track, 1.5f);
 	P.Rect(510, 33, 260.0f * FMath::Clamp(Model.RunProgress, 0.0f, 1.0f), 3, C.Teal, 1.5f);
+	Dock(P, EShiftDock::TR);
 	P.Text(Model.DeadlineLabel, 1224, 12, 13, C.InkDim, EShiftAlign::Right);
 	SettingsButton(P, C, 1250.0f, 20.0f);
 	if (Model.bModsEnabled && Model.NextSweepIn >= 0.0f)
@@ -974,6 +1031,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	}
 
 	// ------------------------------------------------------------------ leaderboard
+	Dock(P, EShiftDock::TR);   // the right strip (leaderboard, states, feed) holds the right edge
 	const int32 LeaderRows = FMath::Max(1, Model.Rows.Num());
 	const float LeaderBottom = Model.LeaderboardMode == 1 ? 52.0f + 38.0f + RowHeight * static_cast<float>(LeaderRows)
 		: (Model.LeaderboardMode == 0 ? 48.0f + 20.0f + CompactRowH * static_cast<float>(LeaderRows) + 4.0f : 48.0f + 22.0f);
@@ -982,7 +1040,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	{
 		const float PanelX = 996.0f;
 		const float PanelY = 52.0f;
-		P.Rect(PanelX, PanelY, 274, 38.0f + RowHeight * static_cast<float>(FMath::Max(1, Model.Rows.Num())), WithAlpha(C.Panel, 0.86f), 10);
+		P.Rect(PanelX, PanelY, 274, 38.0f + RowHeight * static_cast<float>(FMath::Max(1, Model.Rows.Num())), WithAlpha(C.Panel, Solid(0.86f)), 10);
 		P.Text(TEXT("LEADERBOARD  (L: smaller)"), PanelX + 14, PanelY + 10, 11, C.InkDim, EShiftAlign::Left, true);
 		float MaxShare = 0.001f;
 		for (const FShiftHudRow& Row : Model.Rows)
@@ -1014,7 +1072,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		const float PanelX = DesignW - 10.0f - PanelW;
 		const float PanelY = 48.0f;
 		const int32 RowCount = FMath::Max(1, Model.Rows.Num());
-		P.Rect(PanelX, PanelY, PanelW, 20.0f + CompactRowH * static_cast<float>(RowCount) + 4.0f, WithAlpha(C.Panel, 0.58f), 8);
+		P.Rect(PanelX, PanelY, PanelW, 20.0f + CompactRowH * static_cast<float>(RowCount) + 4.0f, WithAlpha(C.Panel, Solid(0.58f)), 8);
 		P.Text(TEXT("LEADERBOARD  (L)"), PanelX + 10, PanelY + 4, 10, C.InkDim, EShiftAlign::Left, true);
 		for (const FShiftHudRow& Row : Model.Rows)
 		{
@@ -1045,15 +1103,19 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		{
 			if (Row.bPlayer)
 			{
-				P.Rect(DesignW - 124.0f, 48.0f, 114.0f, 22.0f, WithAlpha(C.Panel, 0.62f), 11);
+				P.Rect(DesignW - 124.0f, 48.0f, 114.0f, 22.0f, WithAlpha(C.Panel, Solid(0.62f)), 11);
 				P.Text(FString::Printf(TEXT("YOU #%d  %.0f%%  (L)"), Row.Rank + 1, Row.Share * 100.0f), DesignW - 67.0f, 53.0f, 11, C.Teal, EShiftAlign::Center, true);
 			}
 		}
 	}
 
-	// ------------------------------------------------------------------ bottom bar
-	P.Rect(0, 676, DesignW, 44, C.Panel);
-	P.Rect(0, 676, DesignW, 1, C.Stroke);
+	// ------------------------------------------------------------------ bottom bar: it spans the window; POSTS, Rally, the night chip and the alerts hold the left edge, Heat and strikes the right one
+	Dock(P, EShiftDock::BL);
+	{
+		const FVector4f Win = WindowRect(P);
+		P.Rect(Win.X, 676, Win.Z - Win.X, 44, C.Panel);
+		P.Rect(Win.X, 676, Win.Z - Win.X, 1, C.Stroke);
+	}
 	P.Text(TEXT("POSTS"), 20, 690, 11, C.InkDim, EShiftAlign::Left, true);
 	const int32 PipCount = FMath::Max(1, FMath::RoundToInt(Model.PostsMax));
 	const float PipStep = PipCount >= 6 ? 20.0f : 26.0f;
@@ -1090,6 +1152,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		P.Text(P.Fit(Hint, 130.0f, 11.0f, bFree), 664, 691, 11, bFree ? Hex(0x7B5CF0) : (Model.NightHint.IsEmpty() ? C.InkDim : C.Ink), EShiftAlign::Left, bFree);
 	}
 
+	Dock(P, EShiftDock::BR);
 	if (Model.bShowHeat)
 	{
 		// Always on, so the risk is known before the first sockpuppet; dimmed until night shift is in use.
@@ -1118,6 +1181,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 
 	// ------------------------------------------------------------------ the alert: urgent events take over the middle of the bottom bar, where the eyes already are for Posts, Heat and strikes
 	// (x 280..792: the POSTS pips and counter at the left, the HEAT bar and the strike pips at the right stay in view; the edge frame's bottom strip, y 712 and below, stays clear)
+	Dock(P, EShiftDock::BL);   // it covers what is hidden meanwhile: the Rally and night chips
 	if (bAlertUp)
 	{
 		const FShiftHudAlert& A = Model.Alert;
@@ -1160,7 +1224,8 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		const float GW = CompactLeaderboardW;
 		float BottomY = 668.0f;
 
-		// the bottom stack: the coach card (the Blame prompt is in the bottom bar, where the eyes already are)
+		// the bottom stack: the coach card (the Blame prompt is in the bottom bar, where the eyes already are); it sits above the bottom bar, wherever that is
+		Dock(P, EShiftDock::BR);
 		if (Model.CoachAlpha > 0.01f && !Model.CoachText.IsEmpty())
 		{
 			const TArray<FString> Lines = P.Wrap(Model.CoachText, GW - 36.0f, 12.0f, false);
@@ -1178,6 +1243,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 			P.Text(bHover ? TEXT("click to dismiss") : TEXT("tip"), GX + GW - 10.0f, Y + 5.0f, 9.0f, WithAlpha(C.InkDim, Model.CoachAlpha), EShiftAlign::Right, true);
 			BottomY = Y - 8.0f;
 		}
+		Dock(P, EShiftDock::TR);
 
 		// the states you are in, pinned under the leaderboard: one chip each, a title and a line of detail
 		float Y = LeaderBottom + 8.0f;
@@ -1284,7 +1350,8 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		}
 	}
 
-	// ------------------------------------------------------------------ tooltip
+	// ------------------------------------------------------------------ tooltip (it belongs to the board: the centre dock)
+	Dock(P, EShiftDock::C);
 	if (Model.Tooltip.bVisible && !Model.bOver && !Model.bPaused)
 	{
 		PaintTooltip(P, C);
@@ -1295,9 +1362,12 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 	if (Model.EdgeFlash > 0.01f)
 	{
 		const FLinearColor Edge = WithAlpha(Model.EdgeColor, 0.80f * FMath::Clamp(Model.EdgeFlash, 0.0f, 1.0f));
-		P.Rect(0.0f, 41.0f, 14.0f, DesignH - 41.0f, Edge);
-		P.Rect(DesignW - 9.0f, 41.0f, 9.0f, DesignH - 41.0f, Edge);
-		P.Rect(14.0f, DesignH - 8.0f, DesignW - 23.0f, 8.0f, Edge);
+		Dock(P, EShiftDock::TL);
+		const FVector4f Win = WindowRect(P);   // the strips hug the window's own edges
+		P.Rect(Win.X, 41.0f, 14.0f, Win.W - 41.0f, Edge);
+		P.Rect(Win.Z - 9.0f, 41.0f, 9.0f, Win.W - 41.0f, Edge);
+		P.Rect(Win.X + 14.0f, Win.W - 8.0f, Win.Z - Win.X - 23.0f, 8.0f, Edge);
+		Dock(P, EShiftDock::C);
 	}
 }
 
@@ -1371,7 +1441,8 @@ void SShiftHud::PaintScatter(FShiftPainter& P, const FPal& C, float X, float Y, 
 void SShiftHud::PaintResults(FShiftPainter& P, const FPal& C) const
 {
 	Hits.Reset();
-	P.Rect(0, 0, DesignW, DesignH, Hex(0x000000, 0.58f));
+	Dock(P, EShiftDock::C);
+	FillWindow(P, Hex(0x000000, 0.58f));
 	P.Rect(90, 44, 1100, 632, Mix(Hex(0xFFFFFF, 0.98f), Hex(0x0A0D1C, 0.98f), C.N), 20);
 
 	P.Text(Model.OutcomeTitle, 640, 58, 40, Model.OutcomeColor, EShiftAlign::Center, true);
@@ -1459,13 +1530,20 @@ void SShiftHud::PaintResults(FShiftPainter& P, const FPal& C) const
 	{
 		Button(P, C, EShiftUi::Recordings, X, By, WFiles, 46.0f, TEXT("Files  (O)"), false, 15.0f);
 	}
+	Dock(P, EShiftDock::TR);
 	SettingsButton(P, C, 1250.0f, 20.0f);
+	Dock(P, EShiftDock::C);
 }
 
 void SShiftHud::PaintPause(FShiftPainter& P, const FPal& C) const
 {
 	Hits.Reset();
-	P.Rect(0, 41, DesignW, 635, Hex(0x000000, 0.45f));
+	Dock(P, EShiftDock::TL);
+	{
+		const FVector4f Win = WindowRect(P);
+		P.Rect(Win.X, 41, Win.Z - Win.X, Win.W - 41 - 44, Hex(0x000000, 0.45f));   // between the two bars, edge to edge
+	}
+	Dock(P, EShiftDock::C);
 	P.Text(TEXT("PAUSED"), 640, Model.bInLesson ? 270.0f : 210.0f, 52, FLinearColor::White, EShiftAlign::Center, true);
 	float By = Model.bInLesson ? 350.0f : 290.0f;
 	Button(P, C, EShiftUi::Resume, 520.0f, By, 240.0f, 50.0f, TEXT("Resume  (SPACE)"), true, 18.0f);
@@ -1477,7 +1555,9 @@ void SShiftHud::PaintPause(FShiftPainter& P, const FPal& C) const
 	Button(P, C, EShiftUi::Menu, 520.0f, By, 240.0f, 46.0f, Model.bInLesson ? TEXT("Leave lesson") : TEXT("Quit to menu"), false, 17.0f);
 	if (Model.bInLesson)
 	{
+		Dock(P, EShiftDock::TR);
 		SettingsButton(P, C, 1250.0f, 20.0f);
+		Dock(P, EShiftDock::C);
 		return;
 	}
 
@@ -1491,7 +1571,9 @@ void SShiftHud::PaintPause(FShiftPainter& P, const FPal& C) const
 		P.Text(FString::Printf(TEXT("%s %d h"), Labels[i], Model.Build.Hours[i]), 420.0f, Ly, 13.0f, C.Ink, EShiftAlign::Left, true);
 		P.Text(P.Fit(Model.Build.Effects[i], 300.0f, 12.0f), 560.0f, Ly + 1.0f, 12.0f, C.InkDim);
 	}
+	Dock(P, EShiftDock::TR);
 	SettingsButton(P, C, 1250.0f, 20.0f);
+	Dock(P, EShiftDock::C);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -1504,15 +1586,20 @@ void SShiftHud::PaintLesson(FShiftPainter& P, const FPal& C) const
 	const FLinearColor Glow = Hex(0xFFB020);
 
 	// the part of the HUD the step points at (the rectangles are where PaintPlay draws them)
+	Dock(P, EShiftDock::C);
 	float Ax = 0.0f, Ay = 0.0f, Aw = 0.0f, Ah = 0.0f;
+	EShiftDock AnchorDock = EShiftDock::C;
 	switch (L.Anchor)
 	{
-	case EShiftLessonAnchor::Leaderboard: Ax = 1080.0f; Ay = 44.0f; Aw = 194.0f; Ah = 110.0f; break;
-	case EShiftLessonAnchor::Posts: Ax = 12.0f; Ay = 680.0f; Aw = 240.0f; Ah = 38.0f; break;
-	case EShiftLessonAnchor::NightChip: Ax = 494.0f; Ay = 680.0f; Aw = 164.0f; Ah = 36.0f; break;
-	case EShiftLessonAnchor::Heat: Ax = 794.0f; Ay = 680.0f; Aw = 270.0f; Ah = 38.0f; break;
+	case EShiftLessonAnchor::Leaderboard: Ax = 1080.0f; Ay = 44.0f; Aw = 194.0f; Ah = 110.0f; AnchorDock = EShiftDock::TR; break;
+	case EShiftLessonAnchor::Posts: Ax = 12.0f; Ay = 680.0f; Aw = 240.0f; Ah = 38.0f; AnchorDock = EShiftDock::BL; break;
+	case EShiftLessonAnchor::NightChip: Ax = 494.0f; Ay = 680.0f; Aw = 164.0f; Ah = 36.0f; AnchorDock = EShiftDock::BL; break;
+	case EShiftLessonAnchor::Heat: Ax = 794.0f; Ay = 680.0f; Aw = 270.0f; Ah = 38.0f; AnchorDock = EShiftDock::BR; break;
 	default: break;
 	}
+	const FVector2f AnchorShift = DockShift(AnchorDock);   // those rectangles are where PaintPlay draws them in their dock: moved into the centre dock the card is placed in
+	Ax += AnchorShift.X;
+	Ay += AnchorShift.Y;
 	if (Aw > 0.0f)
 	{
 		P.Rect(Ax - 4.0f, Ay - 4.0f, Aw + 8.0f, Ah + 8.0f, WithAlpha(Glow, 0.16f + 0.22f * Pulse), 12.0f);
@@ -1613,8 +1700,9 @@ void SShiftHud::PaintExtras(FShiftPainter& P, const FPal& C) const
 {
 	Hits.Reset();
 	bModal = true;
-	AddHit(0.0f, 0.0f, DesignW, DesignH, EShiftUi::ExtrasClose);   // a click anywhere closes the page
-	P.Rect(0.0f, 0.0f, DesignW, DesignH, Hex(0x000000, 0.62f));
+	Dock(P, EShiftDock::C);
+	AddWindowHit(P, EShiftUi::ExtrasClose);   // a click anywhere closes the page
+	FillWindow(P, Hex(0x000000, 0.62f));
 	if (Model.ExtrasPage == 2)
 	{
 		// the credits are a small card, as tall as its lines
@@ -1693,8 +1781,9 @@ void SShiftHud::PaintHowTo(FShiftPainter& P, const FPal& C) const
 {
 	Hits.Reset();
 	bModal = true;
-	AddHit(0.0f, 0.0f, DesignW, DesignH, EShiftUi::HowTo);   // a click anywhere closes it; the button sits on top
-	P.Rect(0.0f, 0.0f, DesignW, DesignH, Hex(0x000000, 0.62f));
+	Dock(P, EShiftDock::C);
+	AddWindowHit(P, EShiftUi::HowTo);   // a click anywhere closes it; the button sits on top
+	FillWindow(P, Hex(0x000000, 0.62f));
 
 	// the page is as tall as its text: every gap (under the title, between the rows, above the button, under the closing line) is the same
 	const float W = 1020.0f;
@@ -1928,7 +2017,8 @@ void SShiftHud::PaintCursor(FShiftPainter& P, const FPal& C) const
 	const FVector2f Pos = bPseudo ? Model.PseudoCursor : MouseDesign;
 
 	EShiftCursor Shape = Model.Tooltip.bVisible ? Model.Tooltip.Cursor : EShiftCursor::Arrow;
-	if (const FHit* Hit = FindHit(Pos))
+	const FFrame& Centre = Frames[static_cast<int32>(EShiftDock::C)];
+	if (const FHit* Hit = FindHit(Centre.Origin + Pos * Centre.Scale))
 	{
 		if (Hit->Id != EShiftUi::SettingsClose && Hit->Id != EShiftUi::SettingsPanel)
 		{
@@ -2009,7 +2099,16 @@ int32 SShiftHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeomet
 {
 	const FVector2f Size = FVector2f(AllottedGeometry.GetLocalSize());
 	const float Scale = FMath::Max(0.01f, FMath::Min(Size.X / DesignW, Size.Y / DesignH));
-	const FVector2f Origin = (Size - FVector2f(DesignW, DesignH) * Scale) * 0.5f;
+	WindowSize = Size;
+	// The docks: the design rect is placed once for each of the nine anchors of the window (corners, edge middles, centre), so that the design point at the anchor lands on the same
+	// point of the window. A part painted in a dock keeps its distance from that edge at any window shape; the centre dock is the classic centred 16:9 rect (the board's frame).
+	for (int32 i = 0; i < 9; ++i)
+	{
+		const FVector2f Anchor(0.5f * static_cast<float>(i % 3), 0.5f * static_cast<float>(i / 3));
+		Frames[i].Origin = Anchor * Size - Anchor * FVector2f(DesignW, DesignH) * Scale;
+		Frames[i].Scale = Scale;
+	}
+	const FVector2f Origin = Frames[static_cast<int32>(EShiftDock::C)].Origin;
 	FShiftPainter::MinPx = Model.bLargeText ? 14.0f : 0.0f;
 	FShiftPainter P(OutDrawElements, AllottedGeometry, LayerId, Origin, Scale);
 
@@ -2020,18 +2119,23 @@ int32 SShiftHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeomet
 	if (Model.Trailer.bActive && Model.Trailer.Zoom > 1.0001f)
 	{
 		const FVector2f FocusLocal = Origin + Model.Trailer.ZoomFocus * Scale;
-		ZoomedOrigin = FocusLocal + (Origin - FocusLocal) * Model.Trailer.Zoom;
+		for (FFrame& Frame : Frames)
+		{
+			Frame.Origin = FocusLocal + (Frame.Origin - FocusLocal) * Model.Trailer.Zoom;
+			Frame.Scale = Scale * Model.Trailer.Zoom;
+		}
+		ZoomedOrigin = Frames[static_cast<int32>(EShiftDock::C)].Origin;
 		ZoomedScale = Scale * Model.Trailer.Zoom;
-		P.Origin = ZoomedOrigin;
-		P.Scale = ZoomedScale;
 	}
 #endif
+	Dock(P, EShiftDock::C);
 
 	FPal C;
 	C.N = Model.Night;
 	C.Ink = Mix(Hex(0x1B1930), Hex(0xEDEDFF), C.N);
 	C.InkDim = WithAlpha(C.Ink, 0.62f);
 	C.Panel = Mix(Hex(0xFFFFFF, 0.84f), Hex(0x0A0D1C, 0.86f), C.N);
+	C.Panel.A = Solid(C.Panel.A);
 	C.PanelSolid = Mix(Hex(0xFFFFFF, 0.97f), Hex(0x0E1226, 0.97f), C.N);
 	C.Stroke = Mix(Hex(0x1B1930, 0.16f), Hex(0xFFFFFF, 0.16f), C.N);
 	C.Track = Mix(Hex(0x1B1930, 0.10f), Hex(0xFFFFFF, 0.12f), C.N);
@@ -2098,10 +2202,11 @@ int32 SShiftHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeomet
 		P.Origin = Origin;
 		P.Scale = Scale;
 		PaintTrailer(P, C);   // above the whole HUD, below the scripted cursor; never zoomed
-		P.Origin = ZoomedOrigin;
-		P.Scale = ZoomedScale;
 	}
 #endif
+	P.Origin = ZoomedOrigin;
+	P.Scale = ZoomedScale;
+	Dock(P, EShiftDock::C);
 	PaintCursor(P, C);
 
 	return P.Layer + 1;

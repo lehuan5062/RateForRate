@@ -124,7 +124,7 @@ def build_mpc():
     mpc = get_or_create("MPC_Theme", MAT_DIR, unreal.MaterialParameterCollection,
                         unreal.MaterialParameterCollectionFactoryNew())
     scalars = []
-    for name, default in (("Night", 0.0), ("Heat", 0.0), ("Beat", 0.0), ("Time", 0.0), ("WipeRadius", 0.0), ("BgOpacity", 1.0)):
+    for name, default in (("Night", 0.0), ("Heat", 0.0), ("Beat", 0.0), ("Time", 0.0), ("WipeRadius", 0.0), ("BgOpacity", 1.0), ("Solid", 0.0)):
         p = unreal.CollectionScalarParameter()
         p.set_editor_property("parameter_name", name)
         p.set_editor_property("default_value", default)
@@ -181,32 +181,15 @@ def build_bg_glass(mpc):
     mat = fresh_material("M_BgGlass", MAT_DIR)
     base_flags(mat, translucent=True, instanced=False)
     opacity = mpc_param(mat, mpc, "BgOpacity", -1500, 1200)
-    # The desktop compositor wants colour premultiplied in DISPLAY space (encoded colour x opacity), but the engine premultiplies in linear light before it tonemaps and
-    # gamma-encodes, which makes a translucent paper far too bright. The Substrate weight multiplies the colour by the opacity once; this pre-scales it by
-    # B = opacity x (0.6 + 0.4 x opacity^6), a curve fitted to the game's tonemapper (measured: the display colour comes out at paper x opacity + backdrop x (1 - opacity)
-    # at 30% and 70%; a plain gamma 2.2 is about 12% too bright at 70% and 50 levels too dark with a steeper one at 30%).
-    def const(value, x, y):
-        c = add(mat, unreal.MaterialExpressionConstant, x, y)
-        c.set_editor_property("r", value)
-        return c
-
-    def power(base, exponent, x, y):
-        n = add(mat, unreal.MaterialExpressionPower, x, y)
-        connect(base, n, ["Base"])
-        connect(const(exponent, x - 160, y + 100), n, ["Exp", "Exponent"])
-        return n
-
-    def mul(left, right, x, y):
-        n = add(mat, unreal.MaterialExpressionMultiply, x, y)
-        connect(left, n, ["A"])
-        connect(right, n, ["B"])
-        return n
-
-    knee = add(mat, unreal.MaterialExpressionAdd, 100, 1500)
-    connect(mul(power(opacity, 6.0, -300, 1500), const(0.4, -300, 1650), -100, 1550), knee, ["A"])
-    connect(const(0.6, -100, 1700), knee, ["B"])
-    boost = mul(power(opacity, 1.0, -300, 1250), knee, 300, 1400)
-    scaled = mul(bg_graph(mat, mpc), boost, 500, 700)
+    # The desktop compositor wants colour premultiplied in DISPLAY space (encoded colour x opacity, the normal blend of an image editor), but the engine premultiplies in linear light
+    # before it tonemaps and gamma-encodes. The paper is pre-scaled per channel by a table measured on the game's own tonemapper (hlsl/paperboost.hlsl) so that the display colour is
+    # opacity x the opaque paper; the Substrate weight multiplies the colour by the opacity once more.
+    boost = custom(mat, "paper boost", read_hlsl("paperboost"), ["Op"], unreal.CustomMaterialOutputType.CMOT_FLOAT3, 300, 1400)
+    connect(opacity, boost, ["Op"])
+    n = add(mat, unreal.MaterialExpressionMultiply, 500, 700)
+    connect(bg_graph(mat, mpc), n, ["A"])
+    connect(boost, n, ["B"])
+    scaled = n
     finish_substrate(mat, scaled, alpha=opacity, over=True)
 
 
@@ -223,15 +206,16 @@ def build_node(mpc):
     tm = mpc_param(mat, mpc, "Time", -1500, 0)
     heat = mpc_param(mat, mpc, "Heat", -1500, 100)
     cur = mask(mat, mpc_param(mat, mpc, "Cursor", -1500, 200), True, True, False, False, -1340, 200)
+    solid = mpc_param(mat, mpc, "Solid", -1500, 300)
     node = custom(mat, "voter node", read_hlsl("node"),
                   ["PW", "CW", "Rad", "Fill", "Conv", "Lock", "Gate", "Hover", "Flash", "Role", "Expr", "Sock", "Pressure",
-                   "Threat", "PushCol", "Shield", "Night", "Tm", "Heat", "Cur"],
+                   "Threat", "PushCol", "Shield", "Night", "Tm", "Heat", "Cur", "Solid"],
                   unreal.CustomMaterialOutputType.CMOT_FLOAT4, -400, 300)
     wiring = (
         (pw, "PW"), (cw, "CW"), (d[14], "Rad"), (fill, "Fill"), (d[3], "Conv"), (d[4], "Lock"), (d[5], "Gate"),
         (d[6], "Hover"), (d[7], "Flash"), (d[8], "Role"), (d[9], "Expr"), (d[10], "Sock"), (d[11], "Pressure"),
         (d[15], "Threat"), (push, "PushCol"), (d[19], "Shield"),
-        (night, "Night"), (tm, "Tm"), (heat, "Heat"), (cur, "Cur"),
+        (night, "Night"), (tm, "Tm"), (heat, "Heat"), (cur, "Cur"), (solid, "Solid"),
     )
     for src, pin in wiring:
         connect(src, node, [pin])
@@ -269,11 +253,12 @@ def build_edge(mpc):
     p1 = vec2(mat, d[10], d[11], -1400, 1100)
     night = mpc_param(mat, mpc, "Night", -1500, -100)
     tm = mpc_param(mat, mpc, "Time", -1500, 0)
+    solid = mpc_param(mat, mpc, "Solid", -1500, 100)
     node = custom(mat, "influence edge", read_hlsl("edge"),
-                  ["PW", "P0", "P1", "Bulge", "Col", "Base", "Pulse", "Seed", "Speed", "Wid", "Night", "Tm"],
+                  ["PW", "P0", "P1", "Bulge", "Col", "Base", "Pulse", "Seed", "Speed", "Wid", "Night", "Tm", "Solid"],
                   unreal.CustomMaterialOutputType.CMOT_FLOAT4, -400, 300)
     for src, pin in ((pw, "PW"), (p0, "P0"), (p1, "P1"), (d[12], "Bulge"), (col, "Col"), (d[3], "Base"), (d[4], "Pulse"),
-                     (d[5], "Seed"), (d[6], "Speed"), (d[7], "Wid"), (night, "Night"), (tm, "Tm")):
+                     (d[5], "Seed"), (d[6], "Speed"), (d[7], "Wid"), (night, "Night"), (tm, "Tm"), (solid, "Solid")):
         connect(src, node, [pin])
     rgb = mask(mat, node, True, True, True, False, 0, 0)
     alpha = mask(mat, node, False, False, False, True, 0, 160)
