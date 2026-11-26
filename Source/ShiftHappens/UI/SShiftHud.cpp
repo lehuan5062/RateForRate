@@ -1,4 +1,4 @@
-// Shift Happens - Game Off 2026
+// Rate for Rate - Game Off 2026
 
 #include "UI/SShiftHud.h"
 
@@ -637,7 +637,7 @@ void SShiftHud::PaintSettings(FShiftPainter& P, const FPal& C) const
 	Button(P, C, EShiftUi::ReduceMotion, X + Pad + Half + Gap, Y + 428.0f, Half, BtnH, Model.bReduceMotion ? TEXT("Calm: on") : TEXT("Calm: off"), Model.bReduceMotion, 13.0f);
 }
 
-void SShiftHud::PaintKeycap(FShiftPainter& P, const FPal& C, float X, float Y, float S, bool bPressed) const
+void SShiftHud::PaintKeycap(FShiftPainter& P, const FPal& C, float X, float Y, float S, bool bPressed, const TCHAR* Label) const
 {
 	// the logo's key (keycap() in Tools/itch/make_images.py) with the title key's effects: the pulsing glow, the press, the night colours, the violet arrow
 	const float Cx = X + S * 0.5f;
@@ -666,14 +666,19 @@ void SShiftHud::PaintKeycap(FShiftPainter& P, const FPal& C, float X, float Y, f
 	Box(CapTop, CapBottom, Cap);
 
 	static const FVector2f ArrowShape[7] = { FVector2f(0.50f, 0.04f), FVector2f(0.94f, 0.52f), FVector2f(0.69f, 0.52f), FVector2f(0.69f, 0.96f), FVector2f(0.31f, 0.96f), FVector2f(0.31f, 0.52f), FVector2f(0.06f, 0.52f) };
-	const float ArrowSize = S * 0.46f;
-	const float ArrowY = (CapTop + CapBottom) * 0.5f;
+	const bool bLabelled = Label != nullptr;   // a keycap with a word on it (the trailer's SHIFT key) keeps the arrow, smaller and higher, with the word under it
+	const float ArrowSize = S * (bLabelled ? 0.30f : 0.46f);
+	const float ArrowY = bLabelled ? CapTop + S * 0.27f : (CapTop + CapBottom) * 0.5f;
 	TArray<FVector2f> Arrow;
 	for (const FVector2f& Point : ArrowShape)
 	{
 		Arrow.Add(FVector2f(Cx + (Point.X - 0.5f) * ArrowSize, ArrowY + (Point.Y - 0.5f) * ArrowSize));
 	}
-	P.Polygon(Arrow, Glyph, S * 0.045f);
+	if (bLabelled)
+	{
+		P.Text(Label, Cx, CapTop + S * 0.52f, S * 0.22f, Glyph, EShiftAlign::Center, true);
+	}
+	P.Polygon(Arrow, Glyph, S * (bLabelled ? 0.035f : 0.045f));
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -704,7 +709,7 @@ void SShiftHud::MenuRow(FShiftPainter& P, const FPal& C, int32 Id, int32 Rank, f
 
 void SShiftHud::PaintLogo(FShiftPainter& P, const FPal& C, float X, float Y, float Px, bool bPressed) const
 {
-	// the logo of Tools/itch/make_images.py: the key, then Roboto Black, SHIFT in teal and HAPPENS in white, a thick ink outline, drawn letter by letter so each outline laps the letter before it
+	// the logo of Tools/itch/make_images.py: the key, then Roboto Black, RATE, FOR and RATE in teal, white and teal, a thick ink outline, drawn letter by letter so each outline laps the letter before it
 	const float Mark = Px * 1.05f;
 	PaintKeycap(P, C, X - Mark * 0.04f, Y + Px * 0.65f - Mark * 0.5f, Mark, bPressed);
 
@@ -722,8 +727,9 @@ void SShiftHud::PaintLogo(FShiftPainter& P, const FPal& C, float X, float Y, flo
 			return At;
 		};
 	const float WordX = X - Mark * 0.04f + Mark + Px * 0.28f - Px * 0.085f;   // Slate draws an outlined glyph inset
-	const float AfterShift = Word(TEXT("SHIFT"), WordX, Hex(0x1FB6A6));
-	Word(TEXT("HAPPENS"), AfterShift + Px * 0.30f, FLinearColor::White);
+	const float AfterRate = Word(TEXT("RATE"), WordX, Hex(0x1FB6A6));
+	const float AfterFor = Word(TEXT("FOR"), AfterRate + Px * 0.30f, FLinearColor::White);
+	Word(TEXT("RATE"), AfterFor + Px * 0.30f, Hex(0x1FB6A6));
 }
 
 void SShiftHud::PaintTitle(FShiftPainter& P, const FPal& C) const
@@ -734,7 +740,7 @@ void SShiftHud::PaintTitle(FShiftPainter& P, const FPal& C) const
 
 	// the name, as it always was
 	const float Bob = FMath::Sin(PulseTime * 1.1f) * 3.0f;
-	const float LogoX = 243.0f;   // the logo (about 794 wide at this size) centred on the screen
+	const float LogoX = 243.0f;   // the logo (about 772 wide at this size) nearly centred on the screen
 	PaintLogo(P, C, LogoX, 76.0f + Bob, 88.0f, Model.bShiftDown);
 	const FString Hint = Model.bShiftDown ? FString(TEXT("NIGHT SHIFT: sockpuppets, bots, bribes. Powerful, fragile, risky."))
 		: FString(TEXT("Try it: hold SHIFT to work the night shift."));
@@ -1016,7 +1022,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		P.Rect(Win.X, 0, Win.Z - Win.X, 40, C.Panel);
 		P.Rect(Win.X, 40, Win.Z - Win.X, 1, C.Stroke);
 	}
-	P.Text(TEXT("SHIFT HAPPENS"), 18, 10, 15, C.Ink, EShiftAlign::Left, true);
+	P.Text(TEXT("RATE FOR RATE"), 18, 10, 15, C.Ink, EShiftAlign::Left, true);
 	P.Text(P.Fit(Model.JamName, 230.0f, 13), 160, 12, 13, C.InkDim);
 	if (Model.bReplay)
 	{
@@ -1238,8 +1244,10 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		const float W = 512.0f;
 		const float Y0 = 678.0f;
 		const float H = 32.0f;
+		FLinearColor BarFill = C.PanelSolid;
+		BarFill.A = 1.0f;   // fully opaque: the Rally and night chips behind it must not show through the track
 		P.Rect(X0, Y0 + 2.0f, W, H, Hex(0x000000, 0.22f), 9.0f);
-		P.Rect(X0, Y0, W, H, C.PanelSolid, 9.0f);
+		P.Rect(X0, Y0, W, H, BarFill, 9.0f);
 		float X = X0 + 8.0f;
 		{
 			const bool bHover = AddHit(X, Y0 + 4.0f, 50.0f, 24.0f, EShiftUi::ViewerPause);
@@ -2098,6 +2106,18 @@ void SShiftHud::PaintTrailer(FShiftPainter& P, const FPal& C) const
 		P.Rect(X0, Y0, W, H, WithAlpha(FLinearColor::Black, T.Black));
 	}
 
+	// "OR HOLD" and a SHIFT keycap under it, straight over the game: the keycap is the title logo's (it presses and turns violet while the night is held)
+	if (T.KeyAlpha > 0.001f)
+	{
+		const float A = T.KeyAlpha;
+		const float CardW = 380.0f;
+		const float CardH = 300.0f;
+		const float CardX = 640.0f - CardW * 0.5f;
+		const float CardY = 200.0f;
+		P.TextFx(TEXT("OR HOLD"), 640.0f, CardY + 22.0f, 62.0f, WithAlpha(FLinearColor::White, A), EShiftAlign::Center, EShiftTrailerFont::Black, 90, 5.0f, WithAlpha(Ink, 0.9f * A));   // no box: the words carry their own outline, like a slam without one
+		PaintKeycap(P, C, 640.0f - 70.0f, CardY + 110.0f, 140.0f, Model.bNightActive || Model.bShiftDown, TEXT("SHIFT"));
+	}
+
 	const bool bOnCard = T.Black > 0.9f;
 	for (const FShiftTrailerText& Tx : T.Texts)
 	{
@@ -2122,6 +2142,7 @@ void SShiftHud::PaintTrailer(FShiftPainter& P, const FPal& C) const
 			}
 			const float Split = 26.0f * (1.0f - Ease) + 22.0f * Out;
 			const float Scale = 1.0f + 0.10f * (1.0f - Ease);
+			const float Cx = Tx.X >= 0.0f ? Tx.X : 640.0f;   // x= puts the words off the middle (the title screen's menu sits on the left)
 			float Px = Tx.Px > 0.0f ? Tx.Px : 84.0f;
 			float Widest = 1.0f;
 			for (const FString& Line : Lines)
@@ -2138,16 +2159,16 @@ void SShiftHud::PaintTrailer(FShiftPainter& P, const FPal& C) const
 				const float BoxW = (FMath::Min(Widest, 1100.0f) + 110.0f) * Scale;
 				const float BoxH = (BlockH + 56.0f) * Scale;
 				const float BoxY = Top + BlockH * 0.5f - BoxH * 0.5f;
-				P.Rect(640.0f - BoxW * 0.5f - 1.5f, BoxY - 1.5f, BoxW + 3.0f, BoxH + 3.0f, WithAlpha(C.Teal, 0.55f * Alpha), 20.0f);
-				P.Rect(640.0f - BoxW * 0.5f, BoxY, BoxW, BoxH, WithAlpha(Ink, 0.88f * Alpha), 18.0f);
+				P.Rect(Cx - BoxW * 0.5f - 1.5f, BoxY - 1.5f, BoxW + 3.0f, BoxH + 3.0f, WithAlpha(C.Teal, 0.55f * Alpha), 20.0f);
+				P.Rect(Cx - BoxW * 0.5f, BoxY, BoxW, BoxH, WithAlpha(Ink, 0.88f * Alpha), 18.0f);
 			}
 			const float GhostAlpha = Alpha * (0.22f + 0.78f * FMath::Max(1.0f - Ease, Out));
 			for (int32 i = 0; i < Lines.Num(); ++i)
 			{
 				const float Y = Top + LineH * static_cast<float>(i);
-				P.TextFx(Lines[i], 640.0f - Split, Y + 4.0f * (1.0f - Ease), Px, WithAlpha(C.Teal, GhostAlpha), EShiftAlign::Center, EShiftTrailerFont::Black, 90, 0.0f, FLinearColor::Black, Scale);
-				P.TextFx(Lines[i], 640.0f + Split, Y - 4.0f * (1.0f - Ease), Px, WithAlpha(C.Red, GhostAlpha), EShiftAlign::Center, EShiftTrailerFont::Black, 90, 0.0f, FLinearColor::Black, Scale);
-				P.TextFx(Lines[i], 640.0f, Y, Px, WithAlpha(FLinearColor::White, Alpha), EShiftAlign::Center, EShiftTrailerFont::Black, 90, bOnCard ? 0.0f : (Tx.bBox ? 3.0f : 5.0f), WithAlpha(Ink, (Tx.bBox ? 0.6f : 0.9f) * Alpha), Scale);
+				P.TextFx(Lines[i], Cx - Split, Y + 4.0f * (1.0f - Ease), Px, WithAlpha(C.Teal, GhostAlpha), EShiftAlign::Center, EShiftTrailerFont::Black, 90, 0.0f, FLinearColor::Black, Scale);
+				P.TextFx(Lines[i], Cx + Split, Y - 4.0f * (1.0f - Ease), Px, WithAlpha(C.Red, GhostAlpha), EShiftAlign::Center, EShiftTrailerFont::Black, 90, 0.0f, FLinearColor::Black, Scale);
+				P.TextFx(Lines[i], Cx, Y, Px, WithAlpha(FLinearColor::White, Alpha), EShiftAlign::Center, EShiftTrailerFont::Black, 90, bOnCard ? 0.0f : (Tx.bBox ? 3.0f : 5.0f), WithAlpha(Ink, (Tx.bBox ? 0.6f : 0.9f) * Alpha), Scale);
 			}
 		}
 		else
@@ -2348,6 +2369,12 @@ int32 SShiftHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeomet
 	C.Red = Hex(0xFF4D5A);
 	C.Amber = Hex(0xF2B134);
 	C.Violet = Hex(0x8B6CFF);
+
+	// the scripted cursor of the trailer is the mouse: it hovers the buttons and cards it rests on (the real mouse never reaches a window that sits behind the others)
+	if (Model.bPseudoCursor)
+	{
+		MouseLocal = Frames[static_cast<int32>(EShiftDock::C)].Origin + Model.PseudoCursor * Frames[static_cast<int32>(EShiftDock::C)].Scale;
+	}
 
 	Hits.Reset();
 	bModal = false;

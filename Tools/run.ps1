@@ -1,4 +1,4 @@
-# Runs Shift Happens as a game from the UE 5.8 editor binary (no packaging needed). HEADLESS by default: no window, no console window, no sound.
+# Runs Rate for Rate as a game from the UE 5.8 editor binary (no packaging needed). HEADLESS by default: no window, no console window, no sound.
 #   Tools\run.ps1 -Shot D:\GameOff111609\Saved\Shots\s0.png -ShotDelay 6 -Quit      headless screenshot run (log: Saved\run_<name>.log)
 #   Tools\run.ps1 -Visible -Sound                                                    a normal windowed run for playing it yourself
 # Headless means -RenderOffScreen: on Windows that replaces the OS application with the null application (no window is ever created) while D3D12
@@ -21,7 +21,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$Project = Join-Path $Root 'ShiftHappens.uproject'
+$Project = Join-Path $Root 'RateForRate.uproject'
 $Exe = Join-Path $EngineRoot $(if ($Visible) { 'Engine\Binaries\Win64\UnrealEditor.exe' } else { 'Engine\Binaries\Win64\UnrealEditor-Cmd.exe' })
 if (-not (Test-Path $Exe)) { throw "$Exe not found (set SHIFT_UE_ROOT)" }
 

@@ -12,7 +12,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$Project = Join-Path $Root 'ShiftHappens.uproject'
+$Project = Join-Path $Root 'RateForRate.uproject'
 $PidFile = Join-Path $Root 'Saved\mcp_editor.pid'
 $LogFile = Join-Path $Root 'Saved\mcp_editor.log'
 

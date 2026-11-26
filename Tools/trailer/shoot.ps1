@@ -26,7 +26,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $Work = Join-Path $Root 'Saved\Trailer'
-if (-not $Exe) { $Exe = Join-Path $Root 'Saved\PackageDev\Windows\ShiftHappens\Binaries\Win64\ShiftHappens.exe' }
+if (-not $Exe) { $Exe = Join-Path $Root 'Saved\PackageDev\Windows\RateForRate\Binaries\Win64\RateForRate.exe' }
 $ObsExe = 'C:\Program Files\obs-studio\bin\64bit\obs64.exe'
 $RecDir = Join-Path $Work 'obs'
 $RawDir = Join-Path $Work 'raw'
@@ -35,10 +35,11 @@ $Stop = Join-Path $Work 'STOP'
 foreach ($d in $RecDir, $RawDir, $LogDir) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
 if (Test-Path $Stop) { Remove-Item $Stop -Force }
 if (-not (Test-Path $Exe)) { throw "$Exe not found: run Tools\package.ps1 first (the Development package)" }
+$RecordingsDir = & (Join-Path $PSScriptRoot 'stage_recordings.ps1')   # the Replays page of the trailer lists this folder, not your own recordings
 $TakeCues = if ($Cues) { (Resolve-Path $Cues).Path } else { Join-Path $Root 'Data\Trailer.csv' }
 $CalibCues = Join-Path $PSScriptRoot 'calibrate.csv'
 if (Get-Process obs64 -ErrorAction SilentlyContinue) { throw 'OBS is already running: close it first (this script starts its own)' }
-if (Get-Process ShiftHappens -ErrorAction SilentlyContinue) { throw 'a ShiftHappens game is already running: close it first (OBS would match its window too)' }
+if (Get-Process RateForRate -ErrorAction SilentlyContinue) { throw 'a Rate for Rate game is already running: close it first (OBS would match its window too)' }
 
 if (-not ('Trailer.Win' -as [type])) {
 	Add-Type -AssemblyName System.Windows.Forms
@@ -237,7 +238,7 @@ function Record-Run([string]$Name, [string]$CueFile, [double]$Lat, [int]$LimitSe
 	Start-Sleep -Milliseconds 600
 
 	$a = @('-windowed', '-ResX=1920', '-ResY=1080', '-WinX=0', '-WinY=0', '-ForceRes', '-nosplash', '-unattended',
-		"-abslog=`"$log`"", "-ShiftTrailer=`"$CueFile`"", "-ShiftTrailerLatency=$(Fmt $Lat)", '-ExecCmds="r.SetRes 1920x1080wf,t.MaxFPS 60"', '-ShiftSfxOff=Blame,ModSweep,NightOff,NightOn', "-ShiftMasterVolume=$(Fmt $Volume)") + $GameArgs
+		"-abslog=`"$log`"", "-ShiftTrailer=`"$CueFile`"", "-ShiftRecordingsDir=`"$RecordingsDir`"", "-ShiftTrailerLatency=$(Fmt $Lat)", '-ExecCmds="r.SetRes 1920x1080wf,t.MaxFPS 60"', '-ShiftSfxOff=Blame,ModSweep,NightOff,NightOn,Transition', '-ShiftNoGlass', "-ShiftMasterVolume=$(Fmt $Volume)") + $GameArgs
 	$launched = Get-Date
 	$p = Start-Process -FilePath $Exe -ArgumentList $a -PassThru -WorkingDirectory (Split-Path $Exe)
 	try { $p.PriorityClass = 'High' } catch { }

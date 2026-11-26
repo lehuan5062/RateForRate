@@ -1,4 +1,4 @@
-// Shift Happens - Game Off 2026
+// Rate for Rate - Game Off 2026
 
 #pragma once
 
@@ -28,9 +28,14 @@ class AShiftPlayerController;   // a real circular dependency: the controller ow
  *   black <alpha> <seconds>          fade the cover to alpha 0..1
  *   flash <seconds>                  a white flash that fades out
  *   title                            the title screen with its attract run
+ *   seed <n>                         fix the seed the next jam started from the interface uses (a card click then plays that world)
+ *   jams                             the jam list (four cards) over the attract board
+ *   press <UiId> [value]             the controller's button action by id (EShiftUi; value 0..1 for a slider such as the viewer's seek bar 78); glide the cursor there first with hover
+ *   replay <file> [speed 0..3]       the replay viewer on a recording (a path next to the cue file, e.g. Trailer/replay_levelfield.shiftrec.txt); speed 0..3 = 1x, 2x, 4x, 8x
  *   run <jam> <seed> <bot|-> <warpSimSeconds> [speed]   a fresh run (bot as -ShiftBot, warp as -ShiftWarp)
  *   warp <simSeconds>                skip sim time in the current run
  *   bot <name> | speed <x>           change the bot / the sim speed
+ *   holdshift <seconds>              the "OR HOLD" card with a SHIFT keycap below it (the title logo's keycap: it presses and turns violet while the night is held), over the game
  *   night <0|1> [now]                the real SHIFT flip (and the music crossfade); 1 holds night, 0 releases it; "now" skips the fade (under a cover)
  *   tension <0..1|-1>                pin the music's tension layer (-1 gives it back to the game)
  *   click <x> <y> [n]                a click of the scripted cursor at the bar (design pixels; n = sockpuppet); the cursor glides there first
@@ -39,7 +44,7 @@ class AShiftPlayerController;   // a real circular dependency: the controller ow
  *   spot mods <seconds>              the same on the MODS countdown of the top bar (the HUD fits the rectangle to its icon and text)
  *   zoom <in> <hold> <out> <scale> <x> <y>   a zoom-in toward the design point x y: eased in over <in> seconds up to <scale>, held, eased out;
  *                                    the board camera and the HUD zoom together (the trailer's own text does not)
- *   slam <seconds> <TEXT|NEXT LINE>  a full-screen statement (SHIFT split)
+ *   slam <seconds> [x=<design x>] [y=<design y>] [px=<size>] [box=<0|1>] <TEXT|NEXT LINE>   a full-screen statement (SHIFT split)
  *   caption <seconds> <TEXT>         a caption, lower left
  *   end                              fade to black and quit (the end of Play In Editor, or the process)
  */
@@ -77,6 +82,7 @@ private:
 
 	AShiftPlayerController& Owner;
 	TArray<FCue> Cues;
+	FString CueDir;               // the folder of the cue file: a replay recording is found next to it
 	int32 NextCue = 0;
 
 	bool bActive = false;
@@ -99,6 +105,8 @@ private:
 	float White = 0.0f;
 	float WhiteSeconds = 0.2f;
 	float SpotAlpha = 0.0f;
+	float KeyAlpha = 0.0f;
+	double KeyUntil = -1.0;
 	double SpotUntil = -1.0;
 	FVector4f SpotRect = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
 	bool bSpotMods = false;

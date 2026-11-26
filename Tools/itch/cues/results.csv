@@ -3,3 +3,5 @@ Id,Bar,Cmd,Args
 R000,0,tension,0
 R001,0,black,0 0
 R002,0,run,2 7 rally 231.77 2
+# the scripted cursor rests off the card (it would sit on the text where the bot last acted)
+R003,3.9,hover,1245 420 0.4

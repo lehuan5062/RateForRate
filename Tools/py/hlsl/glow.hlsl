@@ -1,4 +1,4 @@
-// Shift Happens: soft halo behind a node. Body of a Custom node; returns premultiplied emissive float3 for an additive material.
+// Rate for Rate: soft halo behind a node. Body of a Custom node; returns premultiplied emissive float3 for an additive material.
 // Inputs: PW float2 pixel world XY, CW float2 node centre world XY, Rad float body radius (world units), Fill float3,
 //         Flash float 0..1, Hover float 0..1, Night float 0..1, Pow float overall strength.
 float dist = length(PW - CW) / max(Rad, 1.0);          // 1.0 at the body edge

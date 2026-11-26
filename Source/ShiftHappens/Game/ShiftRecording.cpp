@@ -1,4 +1,4 @@
-// Shift Happens - Game Off 2026
+// Rate for Rate - Game Off 2026
 
 #include "Game/ShiftRecording.h"
 
@@ -54,7 +54,7 @@ bool FShiftRecording::FromText(const FString& Text, FShiftRecording& Out, FStrin
 	Text.ParseIntoArrayLines(Lines);
 	if (Lines.Num() == 0 || !Lines[0].StartsWith(TEXT("SHIFTREC")))
 	{
-		Error = TEXT("not a Shift Happens recording (the first line is not SHIFTREC)");
+		Error = TEXT("not a Rate for Rate recording (the first line is not SHIFTREC)");
 		return false;
 	}
 	for (const FString& Line : Lines)

@@ -1,4 +1,4 @@
-// Shift Happens - Game Off 2026
+// Rate for Rate - Game Off 2026
 
 #include "Game/ShiftPlayerController.h"
 
@@ -1620,6 +1620,11 @@ void AShiftPlayerController::TickChatter(float DeltaTime)
 
 FString AShiftPlayerController::RecordingsDir() const
 {
+	FString Custom;
+	if (FParse::Value(FCommandLine::Get(), TEXT("ShiftRecordingsDir="), Custom, false) && !Custom.IsEmpty())
+	{
+		return FPaths::ConvertRelativePathToFull(Custom);   // QA and the trailer: the recordings (and the replays page) live in this folder instead
+	}
 	return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Recordings")));
 }
 
@@ -1679,6 +1684,17 @@ void AShiftPlayerController::SpawnFloat(int32 Node, const FString& Text, const F
 	FloatTexts.Add(Float);
 }
 
+namespace
+{
+	/** When a recording was made, for the Replays page: the file time (UTC) in the player's own time, "25 Nov, 20:41". */
+	FString PlayedLabel(const FDateTime& FileTimeUtc)
+	{
+		static const TCHAR* const Months[12] = { TEXT("Jan"), TEXT("Feb"), TEXT("Mar"), TEXT("Apr"), TEXT("May"), TEXT("Jun"), TEXT("Jul"), TEXT("Aug"), TEXT("Sep"), TEXT("Oct"), TEXT("Nov"), TEXT("Dec") };
+		const FDateTime Local = FileTimeUtc + (FDateTime::Now() - FDateTime::UtcNow());
+		return FString::Printf(TEXT("%d %s, %02d:%02d"), Local.GetDay(), Months[FMath::Clamp(Local.GetMonth() - 1, 0, 11)], Local.GetHour(), Local.GetMinute());
+	}
+}
+
 void AShiftPlayerController::RefreshReplays()
 {
 	ReplayFiles.Reset();
@@ -1711,7 +1727,7 @@ void AShiftPlayerController::RefreshReplays()
 			continue;
 		}
 		FShiftHudReplayRow Row;
-		Row.Title = FString::Printf(TEXT("%s  -  %s"), UTF8_TO_TCHAR(ShiftSim::DefaultJam(R.Jam).name.c_str()), *One.Time.ToString(TEXT("%d %b, %H:%M")));
+		Row.Title = FString::Printf(TEXT("%s  -  %s"), UTF8_TO_TCHAR(ShiftSim::DefaultJam(R.Jam).name.c_str()), *PlayedLabel(One.Time));
 		const float Share = R.FinalShares.IsValidIndex(0) ? R.FinalShares[0] * 100.0f : 0.0f;
 		Row.bStale = R.Tag != ShiftRecordingInfo::BuildTag;
 		if (R.Result == TEXT("disqualified"))
@@ -3129,7 +3145,7 @@ FString AShiftPlayerController::BuildShareText() const
 	const double Votes = S.Tally(ShiftSim::kPlayerId);
 	const double SockVotes = S.SockpuppetWeight();
 	const FShiftFlipStats& Flips = Run->GetFlipStats();
-	return FString::Printf(TEXT("SHIFT HAPPENS - %s\n%s\n%s place of %d. Honest votes %.1f%%, sockpuppet votes %.1f%%, strikes %d. Won %d voters, %d drifted away, %d snatched.\n#GameOff2026"),
+	return FString::Printf(TEXT("RATE FOR RATE - %s\n%s\n%s place of %d. Honest votes %.1f%%, sockpuppet votes %.1f%%, strikes %d. Won %d voters, %d drifted away, %d snatched.\n#GameOff2026"),
 		UTF8_TO_TCHAR(S.Jam().name.c_str()), *ResultsModel.OutcomeTitle, *Ordinal(Rank), S.NumEntries(), (Votes - SockVotes) / Total * 100.0,
 		SockVotes / Total * 100.0, S.Strikes(), Flips.Gains, Flips.LossHerd, Flips.LossRival + Flips.LossOthers);
 }

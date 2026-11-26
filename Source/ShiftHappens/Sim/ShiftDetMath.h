@@ -1,4 +1,4 @@
-// Shift Happens - engine-independent numeric core.
+// Rate for Rate - engine-independent numeric core.
 // Platform-independent log/exp/pow built only from IEEE basic operations (+,-,*,/),
 // frexp and ldexp (both exact). std::pow may differ in the last ulp between C runtimes,
 // which could flip a rounding in the vote-weight formula; these helpers cannot.

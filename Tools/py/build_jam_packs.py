@@ -81,13 +81,13 @@ def ensure_plugin(plugin, title):
     else:
         template = next(t for t in tool("GetPluginTemplateDescriptions") if t["name"] == GF_TEMPLATE)
         path = tool("CreatePlugin", pluginName=plugin, relativePluginLocation="", bPlaceInEngine=False, templateInfo=template,
-                    description="Game Feature plugin: the {} jam of Shift Happens (card text, rival and other entries).".format(title))
+                    description="Game Feature plugin: the {} jam of Rate for Rate (card text, rival and other entries).".format(title))
         log("{}: created {}".format(plugin, path))
         for dependency in ("GameFeatures", "ModularGameplay"):
             tool("AddPluginDependency", pluginName=plugin, dependencyName=dependency, bOptional=False, bEnabled=True)
         descriptor = tool("GetPluginDescriptor", pluginName=plugin)
         descriptor["friendlyName"] = "Shift Jam Pack: " + title
-        descriptor["createdBy"] = "Shift Happens"
+        descriptor["createdBy"] = "Rate for Rate"
         tool("UpdatePluginDescriptor", pluginName=plugin, newDescriptor=descriptor)
     changed = enable_by_default(plugin)
     mounted = EAL.does_directory_exist("/" + plugin)

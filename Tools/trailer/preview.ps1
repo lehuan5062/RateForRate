@@ -23,10 +23,11 @@ $times = @($times | Sort-Object)
 $prefix = Join-Path $Out $Name
 Get-ChildItem $Out -Filter "${Name}_*.png" -ErrorAction SilentlyContinue | ForEach-Object { Remove-Item $_.FullName -Force }
 $list = ($times | ForEach-Object { [Math]::Max(0.1, $_).ToString('0.###', $inv) }) -join ','
+$recDir = & (Join-Path $PSScriptRoot 'stage_recordings.ps1')   # the Replays page lists this folder
 $trailerFlag = if ($Cues) { "-ShiftTrailer=$Cues" } else { '-ShiftTrailer' }
 $sw = [Diagnostics.Stopwatch]::StartNew()
 & (Join-Path $Root 'Tools\run.ps1') -Shot "$prefix.png" -Quit -ResX 1920 -ResY 1080 -LogFile (Join-Path $Out "$Name.log") -TimeoutSec 600 `
-	-Extra @($trailerFlag, '-UseFixedTimeStep', '-FPS=60', "-ShiftShotTimes=$list") | Out-Null
+	-Extra @($trailerFlag, "-ShiftRecordingsDir=$recDir", '-UseFixedTimeStep', '-FPS=60', "-ShiftShotTimes=$list") | Out-Null
 "run took $([int]$sw.Elapsed.TotalSeconds)s (exit $LASTEXITCODE)"
 
 # the contact sheet (a font copy sits next to the pictures so ffmpeg can use a relative path)

@@ -1,5 +1,5 @@
 
-// Shift Happens - Game Off 2026
+// Rate for Rate - Game Off 2026
 
 #if !UE_BUILD_SHIPPING
 
@@ -93,6 +93,7 @@ bool FShiftTrailer::Load(const FString& Path)
 		return false;
 	}
 	Cues.Reset();
+	CueDir = FPaths::GetPath(Path);
 	TArray<FString> Lines;
 	Text.ParseIntoArrayLines(Lines, true);
 	for (int32 i = 0; i < Lines.Num(); ++i)
@@ -134,6 +135,8 @@ void FShiftTrailer::Start()
 	White = 0.0f;
 	SpotAlpha = 0.0f;
 	SpotUntil = -1.0;
+	KeyAlpha = 0.0f;
+	KeyUntil = -1.0;
 	QuitAt = -1.0;
 	Texts.Reset();
 	ZoomT0 = -1.0;
@@ -246,6 +249,7 @@ void FShiftTrailer::Tick(float DeltaTime)
 	White = FMath::Max(0.0f, White - DeltaTime / FMath::Max(0.02f, WhiteSeconds));
 	const float SpotTarget = Clock < SpotUntil ? 1.0f : 0.0f;
 	SpotAlpha = FMath::FInterpConstantTo(SpotAlpha, SpotTarget, DeltaTime, 6.0f);
+	KeyAlpha = FMath::FInterpConstantTo(KeyAlpha, Clock < KeyUntil ? 1.0f : 0.0f, DeltaTime, 5.0f);
 	for (FShiftTrailerText& T : Texts)
 	{
 		T.Age += DeltaTime;
@@ -359,6 +363,35 @@ void FShiftTrailer::Execute(const FCue& Cue)
 	{
 		Owner.EnterScreen(EShiftScreen::Title);
 	}
+	else if (Cmd == TEXT("seed"))
+	{
+		Owner.Seed = static_cast<uint32>(FMath::Max(0.0f, Num(T, 0, 7.0f)));   // the world the jam list's next card starts (a card click draws NewSeed, which a fixed seed returns as it is)
+		Owner.bFixedSeed = true;
+	}
+	else if (Cmd == TEXT("jams"))
+	{
+		Owner.EnterScreen(EShiftScreen::JamSelect);
+	}
+	else if (Cmd == TEXT("press"))
+	{
+		if (Owner.bPseudoShown)
+		{
+			Owner.PseudoClick(Owner.PseudoPos, 0);   // the cursor's click ring where it rests: the press looks like a click
+		}
+		Owner.HandleUi(FMath::RoundToInt(Num(T, 0, -1.0f)), Num(T, 1));
+	}
+	else if (Cmd == TEXT("replay"))
+	{
+		if (T.IsValidIndex(0))
+		{
+			Owner.StartReplayFile(FPaths::IsRelative(T[0]) ? FPaths::Combine(CueDir, T[0]) : T[0]);
+			Owner.ViewerSpeed = FMath::Clamp(FMath::RoundToInt(Num(T, 1)), 0, 3);
+			if (Owner.Run.IsValid())
+			{
+				Owner.Run->SetTimeScale(static_cast<double>(1 << Owner.ViewerSpeed));
+			}
+		}
+	}
 	else if (Cmd == TEXT("run"))
 	{
 		const int32 Jam = FMath::RoundToInt(Num(T, 0, 2.0f));
@@ -436,6 +469,10 @@ void FShiftTrailer::Execute(const FCue& Cue)
 			SpotUntil = Clock + Num(T, 4, 2.0f);
 		}
 	}
+	else if (Cmd == TEXT("holdshift"))
+	{
+		KeyUntil = Clock + Num(T, 0, 3.0f);
+	}
 	else if (Cmd == TEXT("zoom"))
 	{
 		ZoomIn = Num(T, 0, 0.6f);
@@ -458,6 +495,10 @@ void FShiftTrailer::Execute(const FCue& Cue)
 			if (Head.StartsWith(TEXT("y=")))
 			{
 				Text.Y = FCString::Atof(*Head.Mid(2));
+			}
+			else if (Head.StartsWith(TEXT("x=")))
+			{
+				Text.X = FCString::Atof(*Head.Mid(2));
 			}
 			else if (Head.StartsWith(TEXT("px=")))
 			{
@@ -497,6 +538,7 @@ void FShiftTrailer::FillModel(FShiftHudTrailer& Out) const
 	Out.SpotAlpha = SpotAlpha;
 	Out.SpotRect = SpotRect;
 	Out.bSpotMods = bSpotMods;
+	Out.KeyAlpha = KeyAlpha;
 	Out.bHideCursor = Black > 0.5f;
 	Out.Zoom = Zoom;
 	Out.ZoomFocus = ZoomFocus;
@@ -527,6 +569,13 @@ void AShiftPlayerController::StartTrailer()
 
 void AShiftPlayerController::TrailerBeginRun(int32 Jam, uint32 InSeed, const FString& Bot, float Speed, float Warp)
 {
+	if (bViewer)
+	{
+		bViewer = false;   // a replay scene is over: the next run is a run, not the recording again
+		bReplayMode = false;
+		bViewerPaused = false;
+		Build = ViewerSavedBuild;
+	}
 	bRunOverride = true;
 	RunOverrideBot = Bot;
 	RunOverrideSpeed = 1.0f;   // the warp counts real seconds times the speed: warp at 1x, then the run takes its speed

@@ -1,4 +1,4 @@
-# Shift Happens: text Data Tables
+# Rate for Rate: text Data Tables
 
 All player-facing text lives here as CSV and is imported into Unreal Data Tables (`DT_*`) by the build scripts.
 The CSVs are the source of truth: edit them, run the validator, re-import. This README covers the **text** tables.

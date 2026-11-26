@@ -1,4 +1,4 @@
-// Shift Happens - Game Off 2026
+// Rate for Rate - Game Off 2026
 //
 // What a split of the last 12 hours ("Build your entry") does in play. Engine independent and header only, so the standalone harness tests the very same code the game runs
 // (Tools\sync_sim_core.ps1 copies it). Every slope is a Params field (Build*), so -Set can tune it without a rebuild.

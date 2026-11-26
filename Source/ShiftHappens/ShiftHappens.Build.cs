@@ -1,4 +1,4 @@
-// Shift Happens - Game Off 2026
+// Rate for Rate - Game Off 2026
 
 using UnrealBuildTool;
 
@@ -27,7 +27,7 @@ public class ShiftHappens : ModuleRules
 			"AudioMixer", "SlateCore", "ApplicationCore", "Projects",
 			// The see-through window: a swap chain provider for the D3D12 RHI, in a module of its own that loads early (Source/ShiftGlass).
 			"ShiftGlass",
-			// All sound is MetaSound; the music clock is Harmonix (experimental plugins, enabled in ShiftHappens.uproject).
+			// All sound is MetaSound; the music clock is Harmonix (experimental plugins, enabled in RateForRate.uproject).
 			"MetasoundEngine", "MetasoundFrontend", "MetasoundGraphCore", "MetasoundGenerator", "AudioExtensions",
 			"HarmonixMetasound", "HarmonixMidi", "Harmonix", "MusicEnvironment",
 			// The module's own MetaSound nodes (Audio/Nodes/) use the DSP library.

@@ -1,4 +1,4 @@
-// Shift Happens - Game Off 2026
+// Rate for Rate - Game Off 2026
 //
 // The rival's Post bank: like the player, the rival pays one Post for every action (a plug on a voter, or a re-plug of a weak hub of its own) from a bank that refills over time, so
 // its final push is not unlimited. Engine independent and header only, so the standalone harness tests the very same arithmetic the behaviour layer uses (Tools\sync_sim_core.ps1

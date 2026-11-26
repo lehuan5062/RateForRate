@@ -18,7 +18,7 @@ param(
 	[string[]]$Extra = @(),
 	[string]$StartScreen = 'title',   # -ShiftScreen value: title, play, ...
 	[switch]$Stress,   # after the first picture: resize the window, minimise and restore it, and report the see-through share after each step
-	[switch]$Packaged,   # test Saved\PackageShipping\Windows\ShiftHappens.exe instead of the editor build (no log in Shipping: it waits a fixed time)
+	[switch]$Packaged,   # test Saved\PackageShipping\Windows\RateForRate.exe instead of the editor build (no log in Shipping: it waits a fixed time)
 	[switch]$NoGlass,
 	[switch]$AsEditorStandalone,   # launch it the way the editor's "Standalone Game" does (its command line, no -ini renderer settings: the game must set them itself)
 	[ValidateSet('primary', 'secondary')][string]$Monitor = 'secondary',   # which monitor the backdrop and the game window use
@@ -27,7 +27,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$Project = Join-Path $Root 'ShiftHappens.uproject'
+$Project = Join-Path $Root 'RateForRate.uproject'
 $Ue = Join-Path $EngineRoot 'Engine\Binaries\Win64\UnrealEditor.exe'
 $Shots = Join-Path $Root 'Saved\Shots'
 New-Item -ItemType Directory -Force -Path $Shots | Out-Null
@@ -161,7 +161,7 @@ try {
 	}
 	$gameArgs += $Extra
 	if ($Packaged) {
-		$Ue = Join-Path $Root 'Saved\PackageShipping\Windows\ShiftHappens.exe'
+		$Ue = Join-Path $Root 'Saved\PackageShipping\Windows\RateForRate.exe'
 		$gameArgs = @($gameArgs | Where-Object { $_ -ne '-game' -and $_ -ne "`"$Project`"" -and $_ -notlike '-abslog=*' })
 	}
 	Write-Host "$Ue $($gameArgs -join ' ')"
@@ -176,7 +176,7 @@ try {
 		Start-Sleep -Milliseconds 500
 	}
 	if ($Packaged) {   # the launcher exe hands over to the real process, which owns the window
-		$real = Get-Process -Name 'ShiftHappens-Win64-Shipping' -ErrorAction SilentlyContinue | Select-Object -First 1
+		$real = Get-Process -Name 'RateForRate-Win64-Shipping' -ErrorAction SilentlyContinue | Select-Object -First 1
 		if (-not $real) { throw 'the packaged game is not running' }
 		$game = $real
 	}
@@ -250,6 +250,6 @@ try {
 }
 finally {
 	if ($game -and -not $game.HasExited) { Stop-Process -Id $game.Id -Force -ErrorAction SilentlyContinue }
-	if ($Packaged) { Stop-Process -Name 'ShiftHappens-Win64-Shipping' -Force -ErrorAction SilentlyContinue }   # the launcher exe starts the real process
+	if ($Packaged) { Stop-Process -Name 'RateForRate-Win64-Shipping' -Force -ErrorAction SilentlyContinue }   # the launcher exe starts the real process
 	if ($backdropProc -and -not $backdropProc.HasExited) { Stop-Process -Id $backdropProc.Id -Force -ErrorAction SilentlyContinue }
 }

@@ -1,4 +1,4 @@
-"""Makes the itch.io images of Shift Happens from the game's own frames (Saved/Itch/frames, shot by Tools/itch/shoot.ps1) and from typography drawn here.
+"""Makes the itch.io images of Rate for Rate from the game's own frames (Saved/Itch/frames, shot by Tools/itch/shoot.ps1) and from typography drawn here.
 
 Nothing in these pictures comes from a generative image model: the board frames are the game's rendering, the wordmark is Roboto (the HUD font, Apache 2.0)
 drawn with Pillow, the keycap and the arrow are polygons. Output goes to Saved/Itch/upload (git-ignored); each file is named after its itch.io slot.
@@ -50,6 +50,10 @@ WHITE = (255, 255, 255)
 SS = 3   # supersampling for everything drawn here
 
 TAGLINE = 'A game about winning a game jam by shifting the votes.'
+# The wordmark of Rate for Rate: (word, colour) in order, after the keycap. On the two-line cover the keycap and the first line, then the second line.
+WORDMARK = (('RATE', TEAL), ('FOR', WHITE), ('RATE', TEAL))
+STACK_TOP = (('RATE', TEAL),)
+STACK_BOTTOM = (('FOR', WHITE), ('RATE', TEAL))
 
 
 def font(name, size):
@@ -99,16 +103,15 @@ def keycap(size, pressed=False, ink=INK, heavy=1.0):
 
 
 def logo(width=1600, pad=44, pressed=False, tracking=0.018):
-    """Transparent horizontal wordmark: the keycap, `SHIFT` in teal and `HAPPENS` in white, every letter outlined in the game's ink, so it reads on white
+    """Transparent horizontal wordmark: the keycap, `RATE` and `RATE` in teal around `FOR` in white, every letter outlined in the game's ink, so it reads on white
     (the outline) and on black (the fill)."""
     gap_word = 0.30
     stroke_frac = 0.075
     size = 400
     while True:
         f = font('Roboto-Black.ttf', size * SS)
-        wa = sum(f.getlength(c) for c in 'SHIFT') / SS + tracking * size * 5
-        wb = sum(f.getlength(c) for c in 'HAPPENS') / SS + tracking * size * 7
-        total = size * 1.05 + 0.28 * size + wa + gap_word * size + wb + 2 * stroke_frac * size
+        ww = [sum(f.getlength(c) for c in text) / SS + tracking * size * len(text) for text, _ in WORDMARK]
+        total = size * 1.05 + 0.28 * size + sum(ww) + gap_word * size * (len(WORDMARK) - 1) + 2 * stroke_frac * size
         if total <= width - 2 * pad:
             break
         size -= 4
@@ -132,21 +135,24 @@ def logo(width=1600, pad=44, pressed=False, tracking=0.018):
             x += f.getlength(c) + tracking * size * SS
         return x
 
-    x = word('SHIFT', x, TEAL) + gap_word * size * SS
-    word('HAPPENS', x, WHITE)
+    for text, fill in WORDMARK:
+        x = word(text, x, fill) + gap_word * size * SS
     return img.resize((width, height), Image.LANCZOS)
 
 
 def logo_stacked(width=1600, pad=44, pressed=False, tracking=0.018):
-    """The wordmark on two lines for the near-square page cover: the keycap and `SHIFT` on line 1, `HAPPENS` on line 2, both centred, same letters and outline as
+    """The wordmark on two lines for the near-square page cover: the keycap and `RATE` on line 1, `FOR RATE` on line 2, both centred, same letters and outline as
     the horizontal logo."""
     gap_mark = 0.28
+    gap_word = 0.30
     stroke_frac = 0.075
     size = 400
     while True:
         f = font('Roboto-Black.ttf', size * SS)
-        wa = sum(f.getlength(c) for c in 'SHIFT') / SS + tracking * size * 5
-        wb = sum(f.getlength(c) for c in 'HAPPENS') / SS + tracking * size * 7
+        def line_width(words):
+            return sum(sum(f.getlength(c) for c in text) / SS + tracking * size * len(text) for text, _ in words) + gap_word * size * (len(words) - 1)
+        wa = line_width(STACK_TOP)
+        wb = line_width(STACK_BOTTOM)
         w1 = size * 1.05 + gap_mark * size + wa
         if max(w1, wb) + 2 * stroke_frac * size <= width - 2 * pad:
             break
@@ -164,12 +170,17 @@ def logo_stacked(width=1600, pad=44, pressed=False, tracking=0.018):
         for c in text:
             d.text((x, base), c, font=f, fill=fill + (255,), stroke_width=stroke, stroke_fill=INK + (255,), anchor='ls')
             x += f.getlength(c) + tracking * size * SS
+        return x
 
     top = pad
     x = (width - w1) / 2 * SS
     img.alpha_composite(keycap(mark_px, pressed).resize((mark_px * SS, mark_px * SS), Image.LANCZOS), (int(x), int(top * SS)))
-    word('SHIFT', x + (mark_px + gap_mark * size) * SS, (top + mark_px / 2 + cap_h / 2) * SS, TEAL)
-    word('HAPPENS', (width - wb) / 2 * SS, (top + mark_px + line_gap + cap_h) * SS, WHITE)
+    wx = x + (mark_px + gap_mark * size) * SS
+    for text, fill in STACK_TOP:
+        wx = word(text, wx, (top + mark_px / 2 + cap_h / 2) * SS, fill) + gap_word * size * SS
+    wx = (width - wb) / 2 * SS
+    for text, fill in STACK_BOTTOM:
+        wx = word(text, wx, (top + mark_px + line_gap + cap_h) * SS, fill) + gap_word * size * SS
     return img.resize((width, height), Image.LANCZOS)
 
 

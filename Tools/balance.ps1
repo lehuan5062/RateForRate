@@ -21,7 +21,7 @@ $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Exe = Join-Path $EngineRoot 'Engine\Binaries\Win64\UnrealEditor-Cmd.exe'
 $botArg = ($Bot | ForEach-Object { $_ -split ',' } | Where-Object { $_ }) -join ','
-$args = @("`"$(Join-Path $Root 'ShiftHappens.uproject')`"", '-run=ShiftBalance', "-Runs=$Runs", "-Jam=$Jam", "-Bot=$botArg", "-Seed0=$Seed0", '-unattended', '-nosplash', '-nop4', '-NoSound', '-stdout', '-FullStdOutLogOutput', '-nullrhi')
+$args = @("`"$(Join-Path $Root 'RateForRate.uproject')`"", '-run=ShiftBalance', "-Runs=$Runs", "-Jam=$Jam", "-Bot=$botArg", "-Seed0=$Seed0", '-unattended', '-nosplash', '-nop4', '-NoSound', '-stdout', '-FullStdOutLogOutput', '-nullrhi')
 $buildArg = ($Build | ForEach-Object { $_ -split ',' } | Where-Object { $_ }) -join ','
 if ($buildArg) { $args += "-Build=$buildArg" }
 $setArg = ($Set | ForEach-Object { $_ -split ',' } | Where-Object { $_ }) -join ','

@@ -3,10 +3,10 @@
 # OBS global config (where the WebSocket server lives) is never read or written here.
 #   Tools\trailer\setup_obs.ps1            create them (refuses to overwrite)
 #   Tools\trailer\setup_obs.ps1 -Force     rewrite the two ShiftTrailer files (e.g. after changing -RecordDir or the bitrate)
-# The window is matched as "title:class:program" like OBS does; the title is tried first and the program (ShiftHappens.exe, the Development package) is the
+# The window is matched as "title:class:program" like OBS does; the title is tried first and the program (RateForRate.exe, the Development package) is the
 # fallback. The Unreal Editor is another program, so it can be open meanwhile. No hotkeys are set: shoot.ps1 drives OBS through its WebSocket server.
 param(
-	[string]$Window = 'ShiftHappens (64-bit Development PCD3D_SM6) :UnrealWindow:ShiftHappens.exe',
+	[string]$Window = 'Rate for Rate (64-bit Development PCD3D_SM6) :UnrealWindow:RateForRate.exe',
 	[string]$RecordDir = '',
 	[int]$BitrateKbps = 12000,
 	[int]$RecordSeconds = 120,

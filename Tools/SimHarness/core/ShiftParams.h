@@ -1,4 +1,4 @@
-// Shift Happens - engine-independent numeric core.
+// Rate for Rate - engine-independent numeric core.
 // All tunables live here as plain data. Defaults are the balanced values; Data/Tuning.csv
 // (Name,Value) and Data/Jams.csv override them through SetParam / SetJamField.
 // Every Params field is a double (counts are rounded where used) so one name->field table

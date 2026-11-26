@@ -10,7 +10,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$Project = Join-Path $Root 'ShiftHappens.uproject'
+$Project = Join-Path $Root 'RateForRate.uproject'
 $ScriptPath = (Resolve-Path $Script).Path
 $Exe = Join-Path $EngineRoot 'Engine\Binaries\Win64\UnrealEditor-Cmd.exe'
 if (-not (Test-Path $Exe)) { throw "UnrealEditor-Cmd.exe not found at $Exe" }

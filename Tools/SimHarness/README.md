@@ -1,4 +1,4 @@
-# Shift Happens - sim harness
+# Rate for Rate - sim harness
 
 Standalone test and balance harness for the engine-independent numeric core in `core/`
 (copied unchanged into `Source/ShiftHappens/Sim/` for the Unreal module).

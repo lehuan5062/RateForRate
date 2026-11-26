@@ -1,4 +1,4 @@
-// Shift Happens - engine-independent numeric core.
+// Rate for Rate - engine-independent numeric core.
 //
 // Sim owns one jam run: graph, entries, per-node opinion state, the 20 Hz opinion dynamics,
 // the player's Posts/Heat bookkeeping and the action API (Plug, Sock, ApplyStrike).

@@ -1,4 +1,4 @@
-# SHIFT HAPPENS
+# RATE FOR RATE
 
 *A game about winning a game jam by shifting the votes.*
 
@@ -64,7 +64,7 @@ Flow: **Title** → **Pick a jam** (Tiny Jam #7, 48h Pixel Rumble, GAME OFF 2026
 
 ## Technology
 
-* **Unreal Engine 5.8.4**, C++ module `ShiftHappens`, DirectX 12 / SM6 only, Substrate materials.
+* **Unreal Engine 5.8.4**, C++ module `ShiftHappens` (the project's internal code name; the game is Rate for Rate), DirectX 12 / SM6 only, Substrate materials.
 * **Simulation**: an engine-independent, deterministic C++17 core (`Source/ShiftHappens/Sim`, 20 Hz fixed step, own PRNG). The thesis emerges from social-proof dynamics on a follower graph; nothing is scripted.
 * **Behaviour**: the rival, the other entries, the Mod Eye and the ambient events (algorithm boosts, streamers, drama) are **StateTree** assets run through a custom schema and ticked by hand from the fixed step, with seeded randomness, so runs reproduce exactly. The rival's gates read **Gameplay Tags** (stock `Has Tags` condition fed by a small evaluator).
 * **Rendering**: the board is world-space 2D in a real level (orthographic camera): instanced quads with SDF materials (HLSL custom nodes into Substrate unlit BSDFs), bloom, one `MaterialParameterCollection` for the day/night look.

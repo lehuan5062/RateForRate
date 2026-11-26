@@ -1,4 +1,4 @@
-// Shift Happens - Game Off 2026
+// Rate for Rate - Game Off 2026
 
 #include "ShiftHappens.h"
 
@@ -25,4 +25,4 @@ public:
 	}
 };
 
-IMPLEMENT_PRIMARY_GAME_MODULE(FShiftHappensModule, ShiftHappens, "ShiftHappens");
+IMPLEMENT_PRIMARY_GAME_MODULE(FShiftHappensModule, ShiftHappens, "RateForRate");   // the module keeps its code name; the third argument is the game (project) name

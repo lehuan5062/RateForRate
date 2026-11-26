@@ -1,4 +1,4 @@
-// Shift Happens - Game Off 2026
+// Rate for Rate - Game Off 2026
 
 // "Shift Sfx": the 26 one-shot sound effects as composite nodes (the C++ counterpart of the recipes in Tools/py/ms_sfx.py). Each MS_Sfx_<Name> asset
 // holds ONE node of this class, with the effect's id and its level trim as the node's default values. The inner graph is the same engine nodes

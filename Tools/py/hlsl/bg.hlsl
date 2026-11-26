@@ -1,4 +1,4 @@
-// Shift Happens: background. Body of a Custom node; returns the opaque emissive colour float3.
+// Rate for Rate: background. Body of a Custom node; returns the opaque emissive colour float3.
 // Inputs: PW float2 pixel world XY, PaperA/PaperB float3 (day/night base colours), InkA/InkB float3 (day/night dot colours),
 //         Night float 0..1, Tm float seconds, Beat float 0..1, Pat float (the jam's pattern: 0 dots, 1 pixel grid, 2 graph paper, 3 level rules).
 float3 Paper = lerp(PaperA, PaperB, Night);

@@ -1,4 +1,4 @@
-// Shift Happens - engine-independent numeric core.
+// Rate for Rate - engine-independent numeric core.
 // Seeded PRNG (xoshiro128**) and helpers. No <random>, no globals, no exceptions.
 // Results are bit-reproducible on every platform (only +,-,*,/ and integer ops are used).
 #pragma once

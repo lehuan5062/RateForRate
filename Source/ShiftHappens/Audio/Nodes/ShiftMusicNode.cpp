@@ -1,4 +1,4 @@
-// Shift Happens - Game Off 2026
+// Rate for Rate - Game Off 2026
 
 // "Shift Music": the looping game music as ONE composite node (the C++ counterpart of Tools/py/ms_music.py). Inside: the Harmonix clock (Trigger To
 // Transport -> Metronome 112.5 BPM, 4/4, 8-bar loop -> 16th-note subdivision), the pattern lanes (Array Get + Trigger Compare, two voices through a

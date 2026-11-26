@@ -1,4 +1,4 @@
-// Shift Happens: the see-through paper's colour scale per channel. Body of a Custom node; returns float3.
+// Rate for Rate: the see-through paper's colour scale per channel. Body of a Custom node; returns float3.
 // Input: Op float, the paper's opacity 0..1.
 // The desktop compositor wants the colour premultiplied in DISPLAY space (encoded colour x opacity, the normal blend of an image editor), but the engine premultiplies in linear light
 // before the tonemapper and the gamma encode, so the paper must be pre-scaled by a curve that makes the DISPLAY colour come out at opacity x the opaque paper. This table was measured

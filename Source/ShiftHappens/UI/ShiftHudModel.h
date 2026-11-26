@@ -1,4 +1,4 @@
-// Shift Happens - Game Off 2026
+// Rate for Rate - Game Off 2026
 
 #pragma once
 
@@ -333,6 +333,7 @@ struct FShiftTrailerText
 	float Age = 0.0f;             // seconds since it appeared
 	float Life = 2.0f;            // seconds it stays on screen, fade-out included
 	float Y = -1.0f;              // slam: design y of the middle of the text (negative: the middle of the screen)
+	float X = -1.0f;              // slam: design x of the middle of the text (negative: the middle of the screen, 640)
 	float Px = 0.0f;              // slam: text size in design pixels (0: the big default)
 	bool bBox = true;             // slam over the game: a dark box behind the words (off for a few words that must not hide what is behind them)
 };
@@ -347,6 +348,7 @@ struct FShiftHudTrailer
 	FVector4f SpotRect = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);   // x, y, width, height in design pixels
 	bool bSpotMods = false;       // the spotlight is on the top bar's MODS countdown: the HUD fits SpotRect to it (its text changes width)
 	bool bHideCursor = false;     // the scripted cursor is hidden (a card covers the screen)
+	float KeyAlpha = 0.0f;        // the "OR HOLD" card with the SHIFT keycap (0..1): the keycap presses by itself when the night is held
 	float Zoom = 1.0f;            // the zoom-in of the run (the board camera zooms the same way): everything but the trailer's own overlay is scaled by this about ZoomFocus
 	FVector2f ZoomFocus = FVector2f(640.0f, 360.0f);   // design pixels; this point stays where it is
 	TArray<FShiftTrailerText> Texts;

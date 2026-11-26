@@ -1,4 +1,4 @@
-// Shift Happens - engine-independent numeric core.
+// Rate for Rate - engine-independent numeric core.
 // Follower graph: communities with a local hub, celebrity hubs, bridges, positions.
 #pragma once
 

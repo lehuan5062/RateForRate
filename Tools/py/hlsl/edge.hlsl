@@ -1,4 +1,4 @@
-// Shift Happens: curved influence edge with travelling pulses. Body of a Custom material node; returns float4(color, coverage).
+// Rate for Rate: curved influence edge with travelling pulses. Body of a Custom material node; returns float4(color, coverage).
 // One quad per directed follow edge. The curve is a quadratic Bezier from P0 (influencer) to P1 (follower) whose control point is
 // offset perpendicular to the chord by Bulge world units. Distance is taken to a 10-segment polyline, so there are no seams.
 // Inputs: PW float2 pixel world XY, P0 float2, P1 float2, Bulge float, Col float3, Base float (line alpha), Pulse float (0..1),

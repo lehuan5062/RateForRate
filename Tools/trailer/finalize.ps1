@@ -1,5 +1,5 @@
 # Makes the final trailer files from a recording of the scripted run (Tools\trailer\shoot.ps1): cuts it on the first beat of the music, brings the sound to
-# -14 LUFS with one static gain and a limiter, encodes 1080p60 H.264 + AAC, and writes a poster frame. Everything goes to Saved\Trailer\Dist (git-ignored).
+# -14 LUFS with one static gain and a limiter, encodes 1080p60 H.264 + AAC. Everything goes to Saved\Trailer\Dist (git-ignored).
 #   Tools\trailer\finalize.ps1                  the newest Saved\Trailer\raw\take_*.mkv
 #   Tools\trailer\finalize.ps1 -Take <mkv>      another recording
 # The cut is 23 bars (49.1 s) of the music plus the 0.4 s fade to black of the end cue; the sound fades out over the last 0.6 s. The picture and the sound
@@ -11,7 +11,6 @@ param(
 	[double]$Tail = 0.4,
 	[double]$TargetLufs = -14,
 	[double]$LimitDb = -2,
-	[double]$PosterBar = 22.6,
 	[int]$Crf = 20,   # 19 gave 30 MiB for 25 bars; the file has to stay under about 30 MiB
 	[string]$Name = 'trailer45'
 )
@@ -72,9 +71,7 @@ $mp4 = Join-Path $Dist "$Name.mp4"
 	-c:a aac -b:a 256k -ar 48000 -movflags +faststart $mp4
 if ($LASTEXITCODE -ne 0) { throw 'the encode failed' }
 
-# --- the poster frame (a picture of the settled end card), and the GIF of the old footage if it is still in the old place
-$poster = Join-Path $Dist "${Name}_poster.png"
-& ffmpeg -hide_banner -nostats -loglevel warning -y -ss (F ($PosterBar * $bar)) -i $mp4 -frames:v 1 -update 1 $poster
+# --- the GIF of the old footage, if it is still in the old place
 $oldGif = Join-Path $Root 'Dist\Trailer\shift_flip.gif'
 $gif = Join-Path $Dist 'shift_flip.gif'
 if ((Test-Path $oldGif) -and -not (Test-Path $gif)) { Move-Item $oldGif $gif; "moved the GIF to $gif" }

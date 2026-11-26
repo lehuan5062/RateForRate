@@ -22,7 +22,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Exe = Join-Path $EngineRoot 'Engine\Binaries\Win64\UnrealEditor-Cmd.exe'
-$args = @("`"$(Join-Path $Root 'ShiftHappens.uproject')`"", '-run=ShiftExplore', "-Samples=$Samples", "-Climb=$Climb", "-Runs=$Runs", "-Jam=$Jam", "-Seed0=$Seed0", "-Seed=$Seed", '-unattended', '-nosplash', '-nop4', '-NoSound', '-stdout', '-FullStdOutLogOutput', '-nullrhi')
+$args = @("`"$(Join-Path $Root 'RateForRate.uproject')`"", '-run=ShiftExplore', "-Samples=$Samples", "-Climb=$Climb", "-Runs=$Runs", "-Jam=$Jam", "-Seed0=$Seed0", "-Seed=$Seed", '-unattended', '-nosplash', '-nop4', '-NoSound', '-stdout', '-FullStdOutLogOutput', '-nullrhi')
 $buildArg = ($Build | ForEach-Object { $_ -split ',' } | Where-Object { $_ }) -join ','
 if ($buildArg) { $args += "-Build=$buildArg" }
 $setArg = ($Set | ForEach-Object { $_ -split ',' } | Where-Object { $_ }) -join ','

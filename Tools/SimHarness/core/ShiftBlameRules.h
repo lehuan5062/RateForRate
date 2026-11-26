@@ -1,4 +1,4 @@
-// Shift Happens - Game Off 2026
+// Rate for Rate - Game Off 2026
 //
 // Shift the Blame: the one answer to the strike that would disqualify the player. Engine independent and header only, so the standalone harness tests the very same code the game
 // runs (Tools\sync_sim_core.ps1 copies it). Every number is a Params field (Blame*), so -Set can tune it without a rebuild.

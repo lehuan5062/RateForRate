@@ -1,4 +1,4 @@
-// Shift Happens - Game Off 2026
+// Rate for Rate - Game Off 2026
 
 // The QA taps inside the composite audio nodes. They have no outputs and are never shown in an asset (the music and the effects are one node each);
 // they publish numbers to FShiftAudioStats while the audio meter run has switched that on, and do nothing otherwise.

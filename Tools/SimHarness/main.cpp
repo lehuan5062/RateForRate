@@ -1,4 +1,4 @@
-// Shift Happens - standalone numeric-core harness.
+// Rate for Rate - standalone numeric-core harness.
 //   harness.exe test                       unit + invariant + determinism tests
 //   harness.exe batch [--seeds 200]        balance table: bots x jams
 //   harness.exe sweep [--seeds 100]        Posts-regen sweep 0.25..0.9 (tipping point)

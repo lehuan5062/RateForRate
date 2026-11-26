@@ -1,4 +1,4 @@
-// Shift Happens - Game Off 2026
+// Rate for Rate - Game Off 2026
 
 #pragma once
 
@@ -170,7 +170,7 @@ private:
 	void PaintScatter(FShiftPainter& P, const FPal& C, float X, float Y, float W, float H, const FString& Title, const TArray<FShiftHudDot>& Dots,
 		const FShiftHudFit& Fit, const FString& Caption) const;
 	void PaintTimeline(FShiftPainter& P, const FPal& C, float X, float Y, float W, float H) const;
-	void PaintKeycap(FShiftPainter& P, const FPal& C, float X, float Y, float S, bool bPressed) const;
+	void PaintKeycap(FShiftPainter& P, const FPal& C, float X, float Y, float S, bool bPressed, const TCHAR* Label = nullptr) const;
 	void PaintLogo(FShiftPainter& P, const FPal& C, float X, float Y, float Px, bool bPressed) const;
 	void MenuRow(FShiftPainter& P, const FPal& C, int32 Id, int32 Rank, float Y, const FString& Label, const FString& KeyHint, int32 EntryColor, float Bar, bool bNudge) const;
 	/** The game's own cursor and the click rings, painted last so they sit above everything, the hover card included. */

@@ -2,7 +2,7 @@
 	"FileVersion": 3,
 	"EngineAssociation": "5.8",
 	"Category": "",
-	"Description": "Shift Happens - a game about rigging a game jam's public vote (GitHub Game Off 2026, theme SHIFT)",
+	"Description": "Rate for Rate - a game about rigging a game jam's public vote (GitHub Game Off 2026, theme SHIFT)",
 	"Modules": [
 		{
 			"Name": "ShiftHappens",

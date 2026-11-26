@@ -25,7 +25,7 @@ $ErrorActionPreference = 'Stop'
 $inv = [cultureinfo]::InvariantCulture
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Exe = Join-Path $EngineRoot 'Engine\Binaries\Win64\UnrealEditor-Cmd.exe'
-$args = @("`"$(Join-Path $Root 'ShiftHappens.uproject')`"", '-run=ShiftForecast', "-Jam=$Jam", "-Tag=$Tag", '-unattended', '-nosplash', '-nop4', '-NoSound', '-stdout', '-FullStdOutLogOutput', '-nullrhi')
+$args = @("`"$(Join-Path $Root 'RateForRate.uproject')`"", '-run=ShiftForecast', "-Jam=$Jam", "-Tag=$Tag", '-unattended', '-nosplash', '-nop4', '-NoSound', '-stdout', '-FullStdOutLogOutput', '-nullrhi')
 if ($Model) {
 	$args += @('-Model', "-Worlds=$Worlds", "-Seed0=$Seed0")
 }

@@ -1,4 +1,4 @@
-"""MetaSound graph-building helpers for Shift Happens (UE 5.8 Builder API, Python).
+"""MetaSound graph-building helpers for Rate for Rate (UE 5.8 Builder API, Python).
 
 Everything audible in the game is a MetaSound Source or Patch built with these helpers (no .wav, no SoundWave assets, no sample
 players). Node keys are the ones registered by `Tools/py/probe_metasound_nodes.py` (see Docs/metasound-nodes-5.8.md).

@@ -1,4 +1,4 @@
-// Shift Happens - Game Off 2026
+// Rate for Rate - Game Off 2026
 
 #include "ShiftGlass.h"
 
@@ -424,7 +424,7 @@ namespace
 			UE_LOG(LogShiftGlass, Log, TEXT("Glass: the RHI asks whether the provider supports RHI %d"), static_cast<int32>(RHIType));
 			return RHIType == ERHIInterfaceType::D3D12;
 		}
-		virtual const TCHAR* GetProviderName() const override { return TEXT("Shift Happens see-through window"); }
+		virtual const TCHAR* GetProviderName() const override { return TEXT("Rate for Rate see-through window"); }
 
 		virtual HRESULT CreateSwapChainForHwnd(IDXGIFactory2* Factory, IUnknown* Device, HWND Window, const DXGI_SWAP_CHAIN_DESC1* Desc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* FullscreenDesc,
 			IDXGIOutput* RestrictToOutput, IDXGISwapChain1** OutSwapChain) override
@@ -584,6 +584,10 @@ bool ShiftGlass::IsRequested()
 		|| FParse::Param(CommandLine, TEXT("NullRHI")))
 	{
 		return false;
+	}
+	if (FParse::Param(CommandLine, TEXT("ShiftNoGlass")) || FParse::Param(CommandLine, TEXT("ShiftTrailer")) || FParse::Value(CommandLine, TEXT("ShiftTrailer="), Ignored))
+	{
+		return false;   // -ShiftNoGlass, and the scripted trailer run (it is filmed as a window: the desktop must not show through the paper)
 	}
 	if (FParse::Param(CommandLine, TEXT("ShiftGlass")) || FParse::Value(CommandLine, TEXT("ShiftGlass="), Ignored))   // -ShiftGlass or -ShiftGlass=<opacity>
 	{

@@ -1,4 +1,4 @@
-// Shift Happens: voter node SDF. Body of a Custom material node; returns float4(color, coverage), non-premultiplied.
+// Rate for Rate: voter node SDF. Body of a Custom material node; returns float4(color, coverage), non-premultiplied.
 // Inputs (world units = design pixels; screen right = +Y world, screen up = +X world for the top-down camera):
 //   PW  float2  pixel world XY            CW  float2  node centre world XY      Rad float   body radius (world units)
 //   Fill float3 owner colour              Conv float  conviction 0..1           Lock float  immunity 0..1

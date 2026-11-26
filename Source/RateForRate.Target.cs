@@ -1,11 +1,11 @@
-// Shift Happens - Game Off 2026
+// Rate for Rate - Game Off 2026
 
 using UnrealBuildTool;
 using System.Collections.Generic;
 
-public class ShiftHappensTarget : TargetRules
+public class RateForRateTarget : TargetRules
 {
-	public ShiftHappensTarget(TargetInfo Target) : base(Target)
+	public RateForRateTarget(TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Game;
 		DefaultBuildSettings = BuildSettingsVersion.V7;

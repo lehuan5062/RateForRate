@@ -1,4 +1,4 @@
-# Builds the Shift Happens standalone sim harness with MSVC (vcvars64.bat) into Tools\SimHarness\out.
+# Builds the Rate for Rate standalone sim harness with MSVC (vcvars64.bat) into Tools\SimHarness\out.
 #   .\Tools\build_harness.ps1                 build only
 #   .\Tools\build_harness.ps1 -Run test       build, then run: harness.exe test
 #   .\Tools\build_harness.ps1 -Run "batch --seeds 200"

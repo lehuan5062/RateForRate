@@ -1,0 +1,25 @@
+Id,Bar,Cmd,Args
+# Makes Data/Trailer/replay_levelfield.shiftrec.txt: a recording of Level Playing Field (jam 3, seed 7) played with scripted human-pace clicks, for the trailer's replay-viewer scene.
+# Run it headless and recorded (a person's clicks are recorded, a bot's are not), then copy the file from Saved/Recordings:
+#   Tools\run.ps1 -Quit -ShotDelay 40 -Shot D:\GameOff111609\Saved\Shots\rec.png -Extra @('-ShiftTrailer=D:\GameOff111609\Tools\trailer\record_levelfield.csv','-ShiftRecord','-ShiftNoTutorial','-UseFixedTimeStep','-FPS=60')
+# Times are bars of the music (1 s = 0.46875 bar). The first clicks are at 1x so that the grey voters are still grey; then the run goes to 12x to finish the 31 days.
+R001,0.05,run,3 7 - 0 1
+R010,0.28,click,450 210
+R011,0.56,click,419 123
+R012,0.84,click,630 529
+R013,1.12,click,279 428
+R014,1.41,click,192 180
+R015,1.69,click,718 586
+R016,1.97,click,718 586
+R017,2.25,click,718 586
+R018,2.53,click,967 459
+R019,2.81,speed,12
+R020,3.19,click,914 502
+R021,3.56,click,759 237
+R022,3.94,click,861 301
+R023,4.31,click,69 236
+R024,4.69,click,180 460
+R025,5.06,click,180 460
+R026,5.44,click,180 460
+R027,5.81,click,419 123
+R099,12.0,end,
