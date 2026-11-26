@@ -30,7 +30,7 @@ PACKS = (
     ("ShiftJam_LevelField", 3, "LevelField", "Level Playing Field",
      "The control group: 60 voters, no head start for anyone. The rival has 41 followers, like you.", "41"),
     ("ShiftJam_Weekend", 4, "Weekend", "Unmoderated Weekend",
-     "64 voters. Three times the Mod Eye looks away, and making fake votes adds no Heat. The rival has 310K followers.", "310K"),
+     "64 voters. The Mod Eye looks away three times, and fake votes add no Heat while it happens. The rival has 310K followers.", "310K"),
 )
 
 PLUGIN_TOOLSET = "PluginToolset.PluginToolset"

@@ -1496,7 +1496,7 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		}
 		if (Model.EyeAwayLeft > 0.0f)
 		{
-			Pin(FString::Printf(TEXT("MOD EYE LOOKS AWAY  %.0fs"), Model.EyeAwayLeft), TEXT("night shift is free: hold SHIFT"), WithAlpha(Purple, 0.92f));
+			Pin(FString::Printf(TEXT("MOD EYE LOOKS AWAY  %.0fs"), Model.EyeAwayLeft), TEXT("no Heat now: hold SHIFT"), WithAlpha(Purple, 0.92f));
 		}
 		else if (Model.EyeAwayWarnIn >= 0.0f)
 		{
