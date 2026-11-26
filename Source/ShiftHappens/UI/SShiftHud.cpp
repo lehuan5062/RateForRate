@@ -886,8 +886,8 @@ void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 	{
 		MostFacts = FMath::Max(MostFacts, Card.Facts.Num());
 	}
-	const float CardW = 360.0f;
-	const float CardStride = 400.0f;
+	const float CardW = 336.0f;
+	const float CardStride = 372.0f;   // three cards and two 36-unit gaps span 1080 of the 1280: a 100-unit gutter each side for the page buttons (16 from the card, 40 from the edge)
 	const float Extra = 19.0f * static_cast<float>(MostFacts - 3);   // a fourth fact pushes the rest of the card down
 	const float CardH = 480.0f + Extra;
 	const int32 Total = Model.JamCards.Num();
@@ -895,7 +895,7 @@ void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 	const int32 Page = FMath::Clamp(Model.JamPage, 0, Pages - 1);
 	const int32 First = Page * JamsPerPage;
 	const int32 Shown = FMath::Min(JamsPerPage, Total - First);
-	const float CardX0 = 60.0f + CardStride * 0.5f * static_cast<float>(JamsPerPage - Shown);   // a short last page is centred
+	const float CardX0 = 100.0f + CardStride * 0.5f * static_cast<float>(JamsPerPage - Shown);   // a short last page is centred
 	for (int32 Slot = 0; Slot < Shown; ++Slot)
 	{
 		const int32 i = First + Slot;
@@ -951,7 +951,7 @@ void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 		// the page arrows beside the cards, the dots and a "jams 4-5 of 5" line under them
 		// round buttons in the style of Back, each holding the game's own arrow (the SHIFT keycap's), turned to point left or right
 		static const FVector2f ArrowShape[7] = { FVector2f(0.50f, 0.04f), FVector2f(0.94f, 0.52f), FVector2f(0.69f, 0.52f), FVector2f(0.69f, 0.96f), FVector2f(0.31f, 0.96f), FVector2f(0.31f, 0.52f), FVector2f(0.06f, 0.52f) };
-		const float Size = 44.0f;   // fits the 60-unit gutter beside the cards with 8 to spare on each side
+		const float Size = 44.0f;   // in the 100-unit gutter: 40 from the window edge, 16 from the card
 		const float ArrowY = 128.0f + CardH * 0.5f - Size * 0.5f;
 		for (int32 Dir = 0; Dir < 2; ++Dir)
 		{
@@ -961,7 +961,7 @@ void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 			{
 				continue;   // nothing that way: no button
 			}
-			const float Ax = bNext ? 1280.0f - 8.0f - Size : 8.0f;
+			const float Ax = bNext ? 1280.0f - 40.0f - Size : 40.0f;
 			const bool bOver = AddHit(Ax, ArrowY, Size, Size, bNext ? EShiftUi::JamNext : EShiftUi::JamPrev);
 			const float Lift = bOver ? -2.0f : 0.0f;
 			P.Rect(Ax, ArrowY + 4.0f + Lift, Size, Size, Hex(0x000000, 0.16f), Size * 0.5f);

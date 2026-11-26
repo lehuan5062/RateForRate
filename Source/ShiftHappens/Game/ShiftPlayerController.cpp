@@ -145,7 +145,7 @@ namespace
 		case 1: return TEXT("52 voters, streamers behind gates and a Mod Eye that sweeps. The rival has 48K followers.");
 		case 2: return TEXT("72 voters, three celebrities and a Mega Campaign in the last days. The rival has 1.2M followers.");
 		case 3: return TEXT("The control group: 60 voters, no head start for anyone. The rival has 41 followers, like you.");
-		default: return TEXT("64 voters and a Mod Eye that takes three breaks: sockpuppet clicks add no Heat while it is away. The rival has 310K followers.");
+		default: return TEXT("64 voters. Three times the Mod Eye looks away, and making fake votes adds no Heat. The rival has 310K followers.");
 		}
 	}
 
@@ -2504,11 +2504,11 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 		case EShiftEventType::EyeAwayWarn:
 			TutEventMask |= EvEyeAway;
 			PlaySfx(EShiftSfx::Tip);
-			ShowToast(FString::Printf(TEXT("The Mod Eye looks away in %.0f s: night shift will be free."), E.Value), PurpleColor(), 3.5f);
+			ShowToast(FString::Printf(TEXT("The Mod Eye looks away in %.0f s: fake votes will add no Heat."), E.Value), PurpleColor(), 3.5f);
 			break;
 		case EShiftEventType::EyeAwayStart:
 			PlaySfx(EShiftSfx::NightOn);
-			ShowToast(FString::Printf(TEXT("THE MOD EYE LOOKS AWAY for %.0f s: sockpuppet clicks add no Heat (held fake votes still warm you)."), E.Value), PurpleColor(), 4.0f);
+			ShowToast(FString::Printf(TEXT("THE MOD EYE LOOKS AWAY for %.0f s: making fake votes adds no Heat. The ones you already hold still warm you a little."), E.Value), PurpleColor(), 4.0f);
 			break;
 		case EShiftEventType::EyeAwayEnd:
 			PlaySfx(EShiftSfx::NightOff);
