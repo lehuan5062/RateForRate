@@ -14,7 +14,7 @@ Shorter option: Rate for Rate | Game Off 2026 trailer
 ## Description
 Rate for Rate is a strategy game about a game jam decided by public vote, where fame counts for more than quality. Flip voters one by one through the follower network, or hold SHIFT for the night shift: sockpuppets, bots and bribes, with a Mod Eye watching for three strikes.
 
-New in 0.3: a fifth jam, Unmoderated Weekend: the Mod Eye goes on break three times, and sockpuppets are free while it looks away. Six more achievements, a colour-blind palette and a switch for the coach tips.
+New in 0.3: a fifth jam, Unmoderated Weekend: the Mod Eye goes on break three times, and sockpuppet clicks cost no Heat while it looks away. Six more achievements, a colour-blind palette and a switch for the coach tips.
 
 New in 0.2: a fourth jam, Level Playing Field, where nobody starts famous (the rival has 41 followers, like you). Replays of every jam you finish, and a replay viewer with speed and seeking.
 

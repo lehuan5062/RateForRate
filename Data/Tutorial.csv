@@ -18,7 +18,7 @@ TUT16,16,FirstSockpuppet,Fake votes keep your Heat high while you hold them. A s
 TUT17,17,FinalAudit,"Final check: all fake votes are removed. Sockpuppet votes from the last {review} seconds are removed too, even if you made them real."
 TUT18,18,RallyHint,Right-click your own voter to Rally: {rallycost} Post protects it and its neighbours for {rallylock}s. Ready again in {rallycd}s.
 TUT19,19,ThreatRing,"A coloured ring closing in on your voter is an attack. Click the voter to parry it, or Rally it and its neighbours."
-TUT20,20,EyeAway,"The Mod Eye looks away! For {eyeaway} seconds, night shift adds no Heat. Hold SHIFT, sockpuppet a big voter, then plug it to make it real."
+TUT20,20,EyeAway,"The Mod Eye looks away! For {eyeaway} seconds, sockpuppet clicks add no Heat, but fake votes you hold still warm you."
 TUT21,21,FirstFake,Sockpuppet votes are fake. They add Heat while you hold them. Keep them under {fakelimit}% or a strike removes them all.
 TUT22,22,FinalPush,"The rival attacks a lot in the last days, then it runs out of Posts. Your Posts come back {pushpct}% faster, so use them!"
 TUT23,23,FirstLead,"You are in first place! The other games attack the leader, so expect rings in every colour."

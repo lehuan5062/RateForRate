@@ -17,7 +17,7 @@ Everything below is for **you** to do or paste: nothing has been uploaded to itc
 >
 > Five jams (one a control group where nobody starts famous, one where the Mod Eye goes on break), a build screen that asks how to spend your last 12 hours, and a results screen that computes, from your own run, how much of the vote was explained by quality and how much by fame.
 >
-> **New in 0.3:** a fifth jam, Unmoderated Weekend, where the Mod Eye looks away three times and sockpuppets are free while it does; six more achievements; a jam list that pages; a colour-blind palette and a switch for the coach tips; a "TIME" banner and softer results.
+> **New in 0.3:** a fifth jam, Unmoderated Weekend, where the Mod Eye looks away three times and sockpuppet clicks cost no Heat while it does; six more achievements; a jam list that pages; a colour-blind palette and a switch for the coach tips; a "TIME" banner and softer results.
 >
 > **New in 0.2:** a fourth jam where nobody starts famous (the control group), a results chart of every entry's share day by day, replays of your own jams (pause, speed, jump), and a look of its own for each jam.
 >
