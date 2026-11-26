@@ -134,3 +134,40 @@ other_leads_3,3,reactor,,other_leads_pct,,,,50,"Control group: An other colour w
 runaway_3,3,reactor,,share_pct,,,,52,Control group: Nobody runs away with the jam: the player's mean final share stays under 52%
 rival_keeps_3,3,reactor,,rival_end_pct,,,8,,Control group: The rival keeps a real share at the end of the jam
 other_wins_3,3,reactor,,other_leads_pct,,,5,,Control group: Every colour has a chance to win: an other colour wins at least 5% of the runs
+idle_4,4,idle,,win_pct,,,,0,Unmoderated Weekend: Doing nothing must never win
+random_4,4,random,,win_pct,,,,5,Unmoderated Weekend: Random clicking must not win (noise allowance)
+greedy_4,4,greedy,,win_pct,,,6,32,Unmoderated Weekend: Honest play that ignores attacks
+finisher_4,4,finisher,,win_pct,greedy,,,5,Unmoderated Weekend: Honest play then a last-moment sockpuppet burst must not beat honest play
+late_4,4,late,,win_pct,,,,5,Unmoderated Weekend: Doing nothing then flipping at the last moment must not win
+sock_4,4,sock,,win_pct,greedy,,,10,Unmoderated Weekend: Reckless sockpuppets never beat honest play
+sock_dq_4,4,sock,,dq_pct,,,50,,Unmoderated Weekend: Holding fake votes heats you up: reckless sockpuppets get caught
+reactor_4,4,reactor,,win_pct,greedy,,3,45,Unmoderated Weekend: Answering announced attacks is not worse than ignoring them
+explorer_4,4,explorer,,best_response,greedy,,,30,Unmoderated Weekend: No searched strategy beats honest play by more than 30 points on fresh seeds (greedy is weaker on them; needs -Explore)
+snowball_4,4,snowball,,win_pct,reactor,,,5,Unmoderated Weekend: Sockpuppeting the biggest hubs and celebrities with no care for the share does not beat honest play that answers attacks
+steady_4,4,steady,,win_pct,reactor,,,10,Unmoderated Weekend: Sockpuppets kept under the share Heat can hold do not beat honest play that answers attacks
+gambler_4,4,gambler,,win_pct,reactor,,,5,Unmoderated Weekend: The search's sockpuppet gambler (hubs, a last-21-s burst, answers attacks) does not beat honest play that answers attacks
+castle_4,4,castle,,win_pct,greedy,,,10,Unmoderated Weekend: Rally-spam on the biggest voter does not beat honest play
+rallyonly_4,4,rallyonly,,win_pct,greedy,,,25,Unmoderated Weekend: Rally alone does not dominate
+parryonly_4,4,parry,,win_pct,greedy,,,20,Unmoderated Weekend: Parrying alone does not dominate
+both_vs_rally_4,4,reactor,,win_pct,rallyonly,,-15,,Unmoderated Weekend: Using both parry and Rally is about as good as Rally alone
+both_vs_parry_4,4,reactor,,win_pct,parry,,-5,,Unmoderated Weekend: Using both parry and Rally is at least as good as parrying alone
+mega_greedy_4,4,greedy,,mega_swing,,,-7,,Unmoderated Weekend: The rival final push takes at most 7 points of share from honest play (it took 8.2)
+build_zero_4,4,greedy,0/0/0,win_pct,greedy,4/4/4,,-5,Unmoderated Weekend: Spending nothing is clearly worse than an even split, so the room under it is smaller)
+build_q0_4,4,greedy,0/4/4,win_pct,greedy,4/4/4,,0,Unmoderated Weekend: Neglecting a lever costs real points
+build_t0_4,4,greedy,4/0/4,win_pct,greedy,4/4/4,,4,Unmoderated Weekend: Neglecting the thumbnail never helps (its effect is small: a Plug costs 3% more Posts)
+build_n0_4,4,greedy,4/4/0,win_pct,greedy,4/4/4,,-2,Unmoderated Weekend: Neglecting a lever costs points
+build_q8_4,4,greedy,8/4/4,win_pct,greedy,4/4/4,,20,Unmoderated Weekend: A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
+build_t8_4,4,greedy,4/8/4,win_pct,greedy,4/4/4,,20,Unmoderated Weekend: A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
+build_n8_4,4,greedy,4/4/8,win_pct,greedy,4/4/4,,20,Unmoderated Weekend: A lever pays but is no free lunch (these 16-hour builds are beyond what the screen allows)
+build_s408_4,4,greedy,4/0/8,win_pct,greedy,4/4/4,-20,18,Unmoderated Weekend: No legal split beats the even one by much
+build_s840_4,4,greedy,8/4/0,win_pct,greedy,4/4/4,-20,18,Unmoderated Weekend: No legal split beats the even one by much
+focus_max_4,4,reactor,,focus_max,,,,9,Unmoderated Weekend: The rival does not hammer one voter: the most attacks it puts on a single voter stay under 9 a run
+focus_voters_4,4,reactor,,focus_voters,,,8,,Unmoderated Weekend: The rival attacks at least 10 different voters a run
+focus_top3_4,4,reactor,,focus_top3_pct,,,,60,Unmoderated Weekend: The three most attacked voters take under 60% of the rival's attacks
+others_rival_4,4,reactor,,others_from_rival,,,4,,Unmoderated Weekend: The other entries take at least 4 voters a run from the rival
+other_leads_4,4,reactor,,other_leads_pct,,,,50,"Unmoderated Weekend: An other colour wins the jam now and then, not most of the time"
+runaway_4,4,reactor,,share_pct,,,,52,Unmoderated Weekend: Nobody runs away with the jam: the player's mean final share stays under 52%
+rival_keeps_4,4,reactor,,rival_end_pct,,,8,,Unmoderated Weekend: The rival keeps a real share at the end of the jam
+other_wins_4,4,reactor,,other_leads_pct,,,5,,Unmoderated Weekend: Every colour has a chance to win: an other colour wins at least 5% of the runs
+window_4,4,window,,win_pct,sock,,2,,Unmoderated Weekend: Timing the sockpuppets to the Mod Eye windows beats reckless sockpuppets
+window_dq_4,4,window,,dq_pct,,,,40,Unmoderated Weekend: Burst only while the Mod Eye looks away: most runs survive

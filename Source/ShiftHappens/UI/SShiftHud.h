@@ -123,6 +123,9 @@ private:
 		float Y = 0.0f;
 		float Share = 0.0f;
 		bool bInit = false;
+		int32 Rank = -1;           // the rank last frame: a change starts the pulse
+		float Pulse = 0.0f;        // 1 just after a rank change, then fading
+		bool bUp = false;          // the change was a gain
 	};
 
 	/** Where a dock puts the design rect, in local pixels: the origin of design (0, 0) and the scale. Set at the start of every paint. */
@@ -171,6 +174,7 @@ private:
 		const FShiftHudFit& Fit, const FString& Caption) const;
 	void PaintTimeline(FShiftPainter& P, const FPal& C, float X, float Y, float W, float H) const;
 	void PaintKeycap(FShiftPainter& P, const FPal& C, float X, float Y, float S, bool bPressed, const TCHAR* Label = nullptr) const;
+	void PaintShiftKey(FShiftPainter& P, const FPal& C, float Cx, float Cy, bool bPressed) const;   // the wide "shift" key (arrow left of the word)
 	void PaintLogo(FShiftPainter& P, const FPal& C, float X, float Y, float Px, bool bPressed) const;
 	void MenuRow(FShiftPainter& P, const FPal& C, int32 Id, int32 Rank, float Y, const FString& Label, const FString& KeyHint, int32 EntryColor, float Bar, bool bNudge) const;
 	/** The game's own cursor and the click rings, painted last so they sit above everything, the hover card included. */
@@ -215,6 +219,7 @@ private:
 	int32 DragId = -1;
 	FHit DragHit;
 	float AnimTime = 0.0f;
+	float ResultsAge = 0.0f;               // seconds the results card has been up (it eases in over 0.4 s)
 	float PulseTime = 0.0f;                // AnimTime, or 0 while Reduce motion is on: every pulse reads it
 	float PressUntil = -1.0f;              // AnimTime until which the cursor is drawn pressed
 	TArray<FRipple> Ripples;

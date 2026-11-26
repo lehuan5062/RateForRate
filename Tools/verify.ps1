@@ -68,9 +68,9 @@ Check 'boot: 26 of 26 effects + music + Harmonix clock bound' (LogHas $runLog 'A
 $beats = Select-String -Path $runLog -Pattern 'Harmonix clock delivered (\d+) beat events' | Select-Object -First 1
 Check 'boot: the Harmonix clock delivers beat events' ($beats -and [int]$beats.Matches[0].Groups[1].Value -ge 4) ($beats.Matches[0].Value)
 Check 'boot: 10 StateTree instances run the behaviour' (LogHas $runLog 'Behaviour: 10 StateTree instances') ''
-Check 'boot: 15 achievements load from the data table' (LogHas $runLog 'achievements=15') ''
+Check 'boot: 21 achievements load from the data table' (LogHas $runLog 'achievements=21') ''
 $packs = @(Select-String -Path $runLog -Pattern 'Jam pack activated').Count
-Check 'boot: four Game Feature jam packs activated' ($packs -ge 4) "$packs activated"
+Check 'boot: five Game Feature jam packs activated' ($packs -ge 5) "$packs activated"
 Check 'boot: no StateTree fallback, no screenshot failure' (-not (LogHas $runLog 'StateTrees MISSING|not ready to run') -and (Test-Path $shot)) ''
 Check 'boot: the see-through window stays off in a headless run' ((LogHas $runLog 'Glass: off') -and -not (LogHas $runLog 'Glass: requested|composition swap chain')) ''
 
@@ -125,7 +125,7 @@ else {
 }
 
 # ---- 5b. guided lessons ----------------------------------------------------------------------------------------------------------
-foreach ($chapter in 1, 2) {
+foreach ($chapter in 1, 2, 3) {
 	& (Join-Path $PSScriptRoot 'run.ps1') -TimeoutSec 400 -Extra @("-ShiftLesson=$chapter", '-ShiftLessonAuto', '-ShiftSpeed=4') | Out-Null
 	$lessonExit = $LASTEXITCODE
 	Check "lessons: lesson $chapter completes by itself (every step proven by the sim or an event)" ($lessonExit -eq 0 -and (LogHas $runLog "Lesson $chapter autoplay: complete")) ''

@@ -32,6 +32,7 @@ bool FShiftRun::Start(int32 InJamIndex, uint32 InSeed, const FShiftBuild& InBuil
 	ShiftSim::Params Params;
 	ShiftSim::JamDef Jam;
 	ShiftSim::SetupJam(JamIndex, Params, Jam);
+	ShiftSim::ApplyJamPolicy(JamIndex, Policy);
 	// QA overrides go in twice: before the build, so that its slopes (Params::Build*) can be tuned by name, and after it, so that an explicit value (-Set PostsMax=3) wins over what
 	// the build made of it.
 	for (int32 Pass = 0; Pass < 2; ++Pass)

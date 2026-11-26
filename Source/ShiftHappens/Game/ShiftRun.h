@@ -197,6 +197,9 @@ public:
 	/** Shift the Blame (Sim/ShiftBlameRules.h): the strike that would disqualify the player can be handed to the rival for a few seconds, once per run, when the fake votes it took
 	 *  were few enough to pass for the rival's doing. Refused while paused. */
 	bool TakeBlame();
+	/** Guided lesson 3 (Shift the Blame): the strike the mods would give now, with the Blame offer it brings; and the offer held open while the lesson is read. */
+	void StageFatalStrike() { ApplyModStrike(); }
+	void HoldBlameOffer() { if (BlameRemaining > 0.0 && !bBlameUsed) { BlameRemaining = BlameWindowLength; } }
 	bool BlameAvailable() const { return BlameRemaining > 0.0 && !bBlameUsed; }
 	double BlameSecondsLeft() const { return BlameRemaining; }
 	double BlameWindowSeconds() const { return BlameWindowLength; }

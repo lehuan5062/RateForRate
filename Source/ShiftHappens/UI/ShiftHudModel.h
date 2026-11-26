@@ -24,7 +24,9 @@ namespace EShiftUi
 		None = -1,
 		TitleStart = 1,
 		Back = 2,
-		JamCard0 = 10,            // 10, 11, 12, 13
+		JamCard0 = 10,            // 10, 11, 12: the three card slots of the jam page on show (the page decides which jams they are)
+		JamPrev = 91,             // jam select: the previous page of jams (also the Left key)
+		JamNext = 92,             // jam select: the next page of jams (also the Right key)
 		SliderQuality = 20,       // 20, 21, 22 (value = 0..1 along the track)
 		SliderThumbnail = 21,
 		SliderNetwork = 22,
@@ -61,6 +63,8 @@ namespace EShiftUi
 		Markers = 67,             // settings menu: shapes on every voter and leaderboard row, so colour is not the only signal
 		LargeText = 68,           // settings menu: a floor for the text size
 		ReduceMotion = 69,        // settings menu: steady instead of pulsing
+		ColourBlind = 57,         // settings menu: the colour-blind-safe entry colours
+		Hints = 58,               // settings menu: the coach tips on / off
 		Quit = 73,                // title: leave the game (also Esc)
 		GlassToggle = 74,         // settings menu: the see-through window on / off (next launch)
 		GlassOpacity = 75,        // settings menu: slider, how opaque the paper behind the board is (value = 0..1 along the track)
@@ -139,6 +143,9 @@ struct FShiftHudReplayRow
 };
 
 /** One jam card on the select screen. */
+/** The jam select screen shows this many jam cards at a time and pages through the rest, so any number of jam packs fits. */
+constexpr int32 JamsPerPage = 3;
+
 struct FShiftHudJamCard
 {
 	FString Title;
@@ -368,6 +375,7 @@ struct FShiftHudModel
 	int32 WindowMode = 2;             // EWindowMode as an int: 0 fullscreen, 1 borderless (windowed fullscreen), 2 windowed
 	bool bSettingsOpen = false;        // the settings menu (effects, music, window mode) dropped from the gear button
 	TArray<FShiftHudJamCard> JamCards;
+	int32 JamPage = 0;                     // jam select shows JamsPerPage cards at a time: the page on show
 	int32 SelectedJam = 0;
 	FShiftHudBuild Build;
 	FString CoachText;                 // tutorial card, empty when none
@@ -456,6 +464,10 @@ struct FShiftHudModel
 	bool bMarkers = false;                 // accessibility: a shape per entry next to its colour
 	bool bLargeText = false;
 	bool bReduceMotion = false;
+	bool bColourBlind = false;             // accessibility: the colour-blind-safe entry colours
+	bool bHintsOn = true;                  // the coach tips
+	bool bEase = false;                    // presentation easing is on (not Calm, not a QA run): the results card eases in, a leaderboard row pulses when its rank changes
+	float TimeBanner = 0.0f;               // 0..1: the jam-end "TIME" banner over the board while the results are held back for a moment
 	bool bGlassActive = false;             // the window is see-through right now
 	bool bGlassSaved = false;              // the saved switch (differs from bGlassActive until the next launch)
 	int32 GlassOpacity = 70;               // percent

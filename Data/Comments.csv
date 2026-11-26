@@ -219,3 +219,21 @@ CM217,Suspicious,BotComment,"Nice. Vote cast. Beep. I mean, hello."
 CM218,Positive,BotComment,Five stars. Would exist again.
 CM219,Suspicious,BotComment,Like and subscribe to this game page.
 CM220,Suspicious,BotComment,"Wow, so game. Much fun. Very rate."
+CM221,Positive,FlipToYou@Weekend,Finally a mod-free zone. You have my vote.
+CM222,Neutral,FlipToYou@Weekend,Voted from the sofa. The mods are at the beach.
+CM223,Positive,FlipToYou@Weekend,Weekend vibes. Switching my vote to you.
+CM224,Suspicious,Sockpuppet@Weekend,New account and already so passionate.
+CM225,Suspicious,Sockpuppet@Weekend,Nobody is watching. Everybody is voting.
+CM226,Neutral,Sockpuppet@Weekend,Fresh account. Fresh opinions. Free of charge.
+CM227,Neutral,ModScan@Weekend,The mod is back. Everyone act natural.
+CM228,Suspicious,ModScan@Weekend,Is that the Mod Eye or my cat on the keyboard?
+CM229,Neutral,ModScan@Weekend,Quick sweep and back to the weekend.
+CM230,Negative,ModScan@Weekend,One sweep a weekend. They call that moderation.
+CM231,Neutral,Idle@Weekend,It is Saturday. I regret nothing.
+CM232,Neutral,Idle@Weekend,Mods on break. Votes on holiday.
+CM233,Neutral,Idle@Weekend,Is this thing on? Nobody is reporting anything.
+CM234,Positive,Idle@Weekend,Best weekend of my jam life.
+CM235,Neutral,Drama@Weekend,Drama thread at 3 am. Classic weekend.
+CM236,Negative,Drama@Weekend,No mods. Just vibes and receipts.
+CM237,Suspicious,GateOpen@Weekend,The gate is open and nobody is guarding it.
+CM238,Neutral,Strike@Weekend,A strike on a weekend. Someone is working overtime.

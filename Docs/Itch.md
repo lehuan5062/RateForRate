@@ -15,7 +15,9 @@ Everything below is for **you** to do or paste: nothing has been uploaded to itc
 >
 > Click through the follower network to flip voters one by one: every hub you win drags its followers along. Or hold **SHIFT** and work the night shift: sockpuppets, bots, bribes. Powerful, fragile and risky. The Mod Eye is watching, three strikes and you are disqualified, and the last one can be **blamed on your rival**, once, if all your strikes together took only a few fake votes. A big pile of them, over several strikes, is too much to pin on anyone.
 >
-> Four jams (the last one a control group where nobody starts famous), a build screen that asks how to spend your last 12 hours, and a results screen that computes, from your own run, how much of the vote was explained by quality and how much by fame.
+> Five jams (one a control group where nobody starts famous, one where the Mod Eye goes on break), a build screen that asks how to spend your last 12 hours, and a results screen that computes, from your own run, how much of the vote was explained by quality and how much by fame.
+>
+> **New in 0.3:** a fifth jam, Unmoderated Weekend, where the Mod Eye looks away three times and sockpuppets are free while it does; six more achievements; a jam list that pages; a colour-blind palette and a switch for the coach tips; a "TIME" banner and softer results.
 >
 > **New in 0.2:** a fourth jam where nobody starts famous (the control group), a results chart of every entry's share day by day, replays of your own jams (pause, speed, jump), and a look of its own for each jam.
 >

@@ -70,3 +70,11 @@ HL068,YouWin,{you} wins! Analysts blame a very motivated minority.
 HL069,YouWin,New champion: {you}. {rival} is 'taking a break from games'.
 HL070,YouWin,"{you} wins. The thesis is shaken, but not stirred."
 HL071,YouWin,Shift complete: {you} tops the leaderboard.
+HL072,ModSweep@Weekend,Mod Eye glances at the board. @{handle} says it is just routine.
+HL073,ModSweep@Weekend,Weekend sweep: the Mod Eye looked and moved along.
+HL074,LeadChange@Weekend,"WEEKEND SHAKE-UP: {entry} leads, and nobody is moderating it."
+HL075,LeadChange@Weekend,{entry} takes the lead while the mods are off the clock.
+HL076,FinalHours@Weekend,Final hours: the mods are due back on Monday. Too late.
+HL077,FinalHours@Weekend,Last hours of the weekend. {rival} is still on break.
+HL078,AlgorithmBoost@Weekend,Unattended algorithm boosts {entry}. Nobody checks the numbers.
+HL079,AlgorithmBoost@Weekend,{entry} trends on a quiet weekend. Suspiciously quiet.

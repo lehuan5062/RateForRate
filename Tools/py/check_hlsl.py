@@ -20,9 +20,9 @@ FXC_CANDIDATES = [
 SIGNATURES = {
     "node": [("float2", "PW"), ("float2", "CW"), ("float", "Rad"), ("float3", "Fill"), ("float", "Conv"), ("float", "Lock"),
              ("float", "Gate"), ("float", "Hover"), ("float", "Flash"), ("float", "Role"), ("float", "Expr"),
-             ("float", "Sock"), ("float", "Pressure"), ("float", "Threat"), ("float3", "PushCol"), ("float", "Shield"), ("float", "Night"), ("float", "Tm"), ("float", "Heat"), ("float2", "Cur")],
+             ("float", "Sock"), ("float", "Pressure"), ("float", "Threat"), ("float3", "PushCol"), ("float", "Shield"), ("float", "Night"), ("float", "Tm"), ("float", "Heat"), ("float2", "Cur"), ("float", "Solid")],
     "edge": [("float2", "PW"), ("float2", "P0"), ("float2", "P1"), ("float", "Bulge"), ("float3", "Col"), ("float", "Base"),
-             ("float", "Pulse"), ("float", "Seed"), ("float", "Speed"), ("float", "Wid"), ("float", "Night"), ("float", "Tm")],
+             ("float", "Pulse"), ("float", "Seed"), ("float", "Speed"), ("float", "Wid"), ("float", "Night"), ("float", "Tm"), ("float", "Solid")],
     "glow": [("float2", "PW"), ("float2", "CW"), ("float", "Rad"), ("float3", "Fill"), ("float", "Flash"), ("float", "Hover"),
              ("float", "Night"), ("float", "Pow")],
     "bg": [("float2", "PW"), ("float3", "PaperA"), ("float3", "PaperB"), ("float3", "InkA"), ("float3", "InkB"),

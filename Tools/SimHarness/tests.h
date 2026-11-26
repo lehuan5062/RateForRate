@@ -2098,7 +2098,7 @@ inline void TestQueries(const Config& Cfg)
 inline void TestJamSetup(const Config& Cfg)
 {
     std::printf("[jam setup]\n");
-    T_CHECK(kJamCount == 4);
+    T_CHECK(kJamCount == 5);
     T_CHECK(static_cast<int>(Cfg.jams.size()) == kJamCount);
     const Params Defaults;
     for (int J = 0; J < kJamCount; ++J)
@@ -2116,7 +2116,7 @@ inline void TestJamSetup(const Config& Cfg)
             GetParam(Defaults, ParamNameAt(I), &B);
             if (A != B) { Same = false; }
         }
-        T_CHECK(J < 3 ? Same : !Same);   // jams 0..2 exactly the shared defaults; jam 3 carries its tweaks
+        T_CHECK(J == 3 ? !Same : Same);   // jams 0..2 and 4 are exactly the shared defaults (jam 4 differs in its JamDef and its policy); jam 3 carries its tweaks
     }
     // The control group: nobody has a head start, and the rival is the others' kind of entry.
     {

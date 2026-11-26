@@ -255,7 +255,7 @@ int32 UShiftExploreCommandlet::Main(const FString& Params)
 		}
 	}
 	TArray<int32> Jams;
-	if (JamArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { Jams = { 0, 1, 2 }; }
+	if (JamArg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { Jams = { 0, 1, 2, 3, 4 }; }
 	else { Jams.Add(FCString::Atoi(*JamArg)); }
 
 	UE_LOG(LogShift, Display, TEXT("Explore: %d random samples + %d climb steps per jam, %d runs each, seeds from %d, search seed %d, behaviour %s, mods %d"),

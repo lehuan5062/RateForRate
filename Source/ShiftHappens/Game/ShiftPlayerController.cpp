@@ -144,7 +144,8 @@ namespace
 		case 0: return TEXT("A cosy 36-voter jam. The rival has 3K followers. Learn the ropes, then try the night shift.");
 		case 1: return TEXT("52 voters, streamers behind gates and a Mod Eye that sweeps. The rival has 48K followers.");
 		case 2: return TEXT("72 voters, three celebrities and a Mega Campaign in the last days. The rival has 1.2M followers.");
-		default: return TEXT("The control group: 60 voters, no head start for anyone. The rival has 41 followers, like you.");
+		case 3: return TEXT("The control group: 60 voters, no head start for anyone. The rival has 41 followers, like you.");
+		default: return TEXT("64 voters and a Mod Eye that goes on break three times: sockpuppets are free while it looks away. The rival has 310K followers.");
 		}
 	}
 
@@ -155,7 +156,8 @@ namespace
 		case 0: return TEXT("3K");
 		case 1: return TEXT("48K");
 		case 2: return TEXT("1.2M");
-		default: return TEXT("41");
+		case 3: return TEXT("41");
+		default: return TEXT("310K");
 		}
 	}
 
@@ -431,14 +433,22 @@ void AShiftPlayerController::BeginPlay()
 	bMarkers = ShiftSave::GetFlag(TEXT("Markers")) || FParse::Param(FCommandLine::Get(), TEXT("ShiftMarkers"));
 	bLargeText = ShiftSave::GetFlag(TEXT("LargeText")) || FParse::Param(FCommandLine::Get(), TEXT("ShiftLargeText"));
 	bReduceMotion = ShiftSave::GetFlag(TEXT("ReduceMotion")) || FParse::Param(FCommandLine::Get(), TEXT("ShiftCalm"));
+	bColourBlind = ShiftSave::GetFlag(TEXT("ColourBlind")) || FParse::Param(FCommandLine::Get(), TEXT("ShiftColourBlind"));
+	ShiftPalette::ColourBlind() = bColourBlind;
+	bHintsOn = !ShiftSave::GetFlag(TEXT("NoHints"));
 	bGlassSaved = ShiftSave::GlassWindow();
 	GlassAlphaForced = ShiftGlass::CommandLineOpacity();   // -ShiftGlass=<opacity>: the real opacity of the paper; the slider then shows the position that gives it
 	GlassOpacityPct = GlassAlphaForced >= 0.0f ? FMath::Clamp(FMath::RoundToInt(GlassAlphaForced * 100.0f), 0, 100) : ShiftSave::GlassOpacity();
 	LeaderboardMode = ShiftSave::LeaderboardMode();
 	ApplySoundSettings();
+	if (UGameUserSettings* Settings = GEngine ? GEngine->GetGameUserSettings() : nullptr; Settings && Settings->GetFullscreenMode() == EWindowMode::Fullscreen && !GIsEditor)
+	{
+		SetWindowMode(1);   // a saved exclusive fullscreen (an older build offered it) becomes fullscreen as it is now: borderless
+	}
 
 	FShiftContent::EnsureLoaded();
 	RefreshJamCards();
+	FParse::Value(Cmd, TEXT("ShiftJamPage="), JamPage);   // QA: open the jam select on this page (0-based)
 
 	FString ScreenArg;
 	EShiftScreen Start = bQaRun ? EShiftScreen::Play : EShiftScreen::Title;
@@ -533,6 +543,7 @@ void AShiftPlayerController::BeginPlay()
 
 void AShiftPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+
 	if (Hud.IsValid() && GEngine && GEngine->GameViewport)
 	{
 		GEngine->GameViewport->RemoveViewportWidgetContent(Hud.ToSharedRef());
@@ -554,6 +565,7 @@ void AShiftPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void AShiftPlayerController::StartRun(int32 InJamIndex, uint32 InSeed, bool bInAttract)
 {
+	FShiftContent::SetActiveJam(InJamIndex);   // jam-specific chatter lines join the shared pools
 	SaveRecording(TEXT("abandoned"));   // the jam that is being replaced, if it was left unfinished
 	bAttract = bInAttract;
 	const bool bLesson = bLessonRun && !bInAttract && Lesson.IsValid();   // a guided lesson: the practice board of ShiftLesson.h
@@ -824,7 +836,9 @@ void AShiftPlayerController::TickLesson(float DeltaTime)
 			// the pop-up cards this lesson covered need not say it again
 			const int32 Covered = LessonChapter == 1
 				? 0xFF | (1 << TutRally) | (1 << TutThreat)
-				: (1 << TutShiftUnlocked) | (1 << TutFirstHeat) | (1 << TutFirstModEye) | (1 << TutFirstSockpuppet);
+				: (LessonChapter == 2
+					? (1 << TutShiftUnlocked) | (1 << TutFirstHeat) | (1 << TutFirstModEye) | (1 << TutFirstSockpuppet)
+					: (1 << TutBlameAvailable) | (1 << TutBlameRule));
 			CoachSeenMask |= Covered;
 			if (bCoachPersist)
 			{
@@ -921,6 +935,10 @@ void AShiftPlayerController::TickLesson(float DeltaTime)
 	case FShiftLessonAuto::EKind::NightOff:
 		NightOverride = 0.0f;
 		bNightLatch = false;
+		break;
+	case FShiftLessonAuto::EKind::Blame:
+		bPlayerActed = true;
+		HandleUi(EShiftUi::Blame, 0.0f);   // the button, or the B key: the same path
 		break;
 	default:
 		break;
@@ -1026,7 +1044,13 @@ void AShiftPlayerController::RefreshJamCards()
 			Card.Facts.Add(FString::Printf(TEXT("%d voters in %d communities"), Def.nodes, Def.communities));
 			Card.Facts.Add(Def.celebs > 0 ? FString::Printf(TEXT("%d celebrity hubs behind gates"), Def.celebs) : FString(TEXT("No celebrities: nobody starts famous")));
 			Card.Facts.Add(FString::Printf(TEXT("Mod sweeps every %.0f-%.0f seconds"), Def.modIntervalMin, Def.modIntervalMax));
-			Card.Difficulty = Jam < 3 ? Jam + 1 : 0;   // 0: no star rating, the card says "fair" (the control group)
+			ShiftSim::PolicyParams JamPolicy;
+			ShiftSim::ApplyJamPolicy(Jam, JamPolicy);
+			if (JamPolicy.EyeAwayCount >= 0.5)
+			{
+				Card.Facts.Add(FString::Printf(TEXT("The Mod Eye looks away %d times"), FMath::RoundToInt(static_cast<float>(JamPolicy.EyeAwayCount))));
+			}
+			Card.Difficulty = Jam < 3 ? Jam + 1 : (Jam == 4 ? 2 : 0);   // 0: no star rating, the card says "fair" (the control group)
 			Card.BestRank = ShiftSave::BestRank(Jam);
 			JamCards.Add(Card);
 			CardJam.Add(Jam);
@@ -1048,6 +1072,22 @@ void AShiftPlayerController::RefreshJamCards()
 			AddCard(i, FString(UTF8_TO_TCHAR(ShiftSim::DefaultJam(i).name.c_str())), JamSubtitle(i));
 		}
 	}
+}
+
+int32 AShiftPlayerController::JamPageCount() const
+{
+	return FMath::Max(1, FMath::DivideAndRoundUp(JamCards.Num(), JamsPerPage));
+}
+
+void AShiftPlayerController::SelectJamCard(int32 CardIndex)
+{
+	if (!CardJam.IsValidIndex(CardIndex))
+	{
+		return;
+	}
+	JamIndex = CardJam[CardIndex];
+	Seed = NewSeed();
+	EnterScreen(EShiftScreen::Build);
 }
 
 /** The build screen's forecast of this world: the quality list is exact and instant, the vote list is the average of the plays the service makes in the background (the lists
@@ -1145,7 +1185,7 @@ int32 AShiftPlayerController::CurrentWindowMode() const
 	// Alt+Enter and F11 update the game user settings too, so the buttons stay in step with them.
 	const UGameUserSettings* Settings = GEngine ? GEngine->GetGameUserSettings() : nullptr;
 	const int32 Mode = Settings ? static_cast<int32>(Settings->GetFullscreenMode()) : static_cast<int32>(EWindowMode::Windowed);
-	return Mode == 0 && ShiftGlass::IsActive() ? 1 : Mode;   // the swap chain of a see-through window is never exclusive fullscreen
+	return Mode == static_cast<int32>(EWindowMode::Windowed) ? 2 : 1;   // there is no exclusive fullscreen: Fullscreen is the borderless kind (a window the size of the monitor)
 }
 
 void AShiftPlayerController::SetWindowMode(int32 Mode)
@@ -1163,10 +1203,11 @@ void AShiftPlayerController::SetWindowMode(int32 Mode)
 	{
 		return;
 	}
-	if (Mode == 0 && ShiftGlass::IsActive())
+	// No exclusive fullscreen: it left the swap chain unable to present after a focus change (the Windows screenshot overlay, Alt+Tab; DXGI_ERROR_INVALID_CALL, the 5.8
+	// renderer stops the game), it is not always the monitor's own resolution, and a see-through window cannot use it. Fullscreen is the borderless kind.
+	if (Mode == 0)
 	{
-		Mode = 1;   // a see-through window cannot be exclusive fullscreen: borderless fills the screen the same way
-		ShowToast(TEXT("Fullscreen becomes borderless while the window is see-through."), AmberColor(), 2.8f);
+		Mode = 1;
 	}
 	const EWindowMode::Type NewMode = EWindowMode::ConvertIntToWindowMode(FMath::Clamp(Mode, 0, 2));
 	FIntPoint Desktop = Settings->GetDesktopResolution();
@@ -1283,7 +1324,16 @@ void AShiftPlayerController::FinishAchievements()
 	const ShiftSim::Sim& S = Run->GetSim();
 	const FShiftResultFacts Facts = ShiftResults::MakeFacts(S, Run->GetFlipStats(), Run->GetBlameStats().Taken > 0, InitialShares);
 	Ach.OnFinished(Facts, Run->GetFlipStats(), JamIndex);
-	UE_LOG(LogShift, Display, TEXT("Achievements: finished jam=%d won=%d dq=%d rank=%d qualityRank=%d cheated=%d rivalCollapsed=%d earned mask=0x%x"), JamIndex, Facts.bWon ? 1 : 0, Facts.bDisqualified ? 1 : 0, Facts.Rank, Facts.QualityRank, Facts.bCheated ? 1 : 0, Facts.bRivalCollapsed ? 1 : 0, Ach.Mask());
+	{
+		// the career ones: every jam won at least once (this run counts, it is recorded below), and both guided lessons finished before a jam is
+		bool bWonEvery = !Facts.bDisqualified && Facts.bWon;
+		for (int32 Jam = 0; Jam < ShiftSim::kJamCount && bWonEvery; ++Jam)
+		{
+			bWonEvery = Jam == JamIndex || ShiftSave::CareerWins(Jam) > 0;
+		}
+		Ach.OnCareer(bWonEvery, (ShiftSave::LessonsDone() & 7) == 7 && !FParse::Param(FCommandLine::Get(), TEXT("ShiftAchTest")));
+	}
+	UE_LOG(LogShift, Display, TEXT("Achievements: finished jam=%d won=%d dq=%d rank=%d qualityRank=%d cheated=%d rivalCollapsed=%d earned mask=0x%x parries=%d bestRally=%d maxStrikes=%d"), JamIndex, Facts.bWon ? 1 : 0, Facts.bDisqualified ? 1 : 0, Facts.Rank, Facts.QualityRank, Facts.bCheated ? 1 : 0, Facts.bRivalCollapsed ? 1 : 0, Ach.Mask(), Ach.ParryCount(), Ach.BiggestRally(), Ach.StrikesMax());
 	PollAchievements();
 	if (!FParse::Param(FCommandLine::Get(), TEXT("ShiftAchTest")))
 	{
@@ -1436,6 +1486,9 @@ void AShiftPlayerController::FillAccessModel(FShiftHudModel& M) const
 	M.bMarkers = bMarkers;
 	M.bLargeText = bLargeText;
 	M.bReduceMotion = bReduceMotion;
+	M.bEase = bTransitions && !bReduceMotion;
+	M.bColourBlind = bColourBlind;
+	M.bHintsOn = bHintsOn;
 	M.TransitionCover = TransitionAge < TransitionLength ? FMath::Square(1.0f - TransitionAge / TransitionLength) : 0.0f;
 	M.Floats = FloatTexts;
 	M.bGlassActive = ShiftGlass::IsActive();
@@ -1847,10 +1900,15 @@ void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 	case EShiftUi::JamCard0:
 	case EShiftUi::JamCard0 + 1:
 	case EShiftUi::JamCard0 + 2:
-	case EShiftUi::JamCard0 + 3:
-		JamIndex = CardJam.IsValidIndex(Id - EShiftUi::JamCard0) ? CardJam[Id - EShiftUi::JamCard0] : FMath::Clamp(Id - EShiftUi::JamCard0, 0, ShiftSim::kJamCount - 1);
-		Seed = NewSeed();
-		EnterScreen(EShiftScreen::Build);
+		SelectJamCard(JamPage * JamsPerPage + (Id - EShiftUi::JamCard0));
+		break;
+	case EShiftUi::JamPrev:
+		JamPage = FMath::Max(0, JamPage - 1);
+		PlaySfx(EShiftSfx::Tip, 0.5f);
+		break;
+	case EShiftUi::JamNext:
+		JamPage = FMath::Min(JamPageCount() - 1, JamPage + 1);
+		PlaySfx(EShiftSfx::Tip, 0.5f);
 		break;
 	case EShiftUi::SliderQuality:
 	case EShiftUi::SliderThumbnail:
@@ -1899,6 +1957,15 @@ void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 	case EShiftUi::ReduceMotion:
 		bReduceMotion = !bReduceMotion;
 		if (!bQaRunFlag) { ShiftSave::SetFlag(TEXT("ReduceMotion"), bReduceMotion); }
+		break;
+	case EShiftUi::ColourBlind:
+		bColourBlind = !bColourBlind;
+		ShiftPalette::ColourBlind() = bColourBlind;
+		if (!bQaRunFlag) { ShiftSave::SetFlag(TEXT("ColourBlind"), bColourBlind); }
+		break;
+	case EShiftUi::Hints:
+		bHintsOn = !bHintsOn;
+		if (!bQaRunFlag) { ShiftSave::SetFlag(TEXT("NoHints"), !bHintsOn); }
 		break;
 	case EShiftUi::GlassToggle:
 		bGlassSaved = !bGlassSaved;
@@ -1958,7 +2025,7 @@ void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 		SetPaused(false);
 		break;
 	case EShiftUi::Blame:
-		if (Run.IsValid() && !bLessonRun)
+		if (Run.IsValid() && (!bLessonRun || (Lesson.IsValid() && Lesson->Chapter() == 3)))   // the lessons teach it only in lesson 3
 		{
 			Run->TakeBlame();
 		}
@@ -2168,10 +2235,16 @@ void AShiftPlayerController::HandleHudKey(const FKey& Key)
 		}
 		break;
 	case EShiftScreen::JamSelect:
-		if (Key == EKeys::One) { HandleUi(EShiftUi::JamCard0, 0.0f); }
-		else if (Key == EKeys::Two) { HandleUi(EShiftUi::JamCard0 + 1, 0.0f); }
-		else if (Key == EKeys::Three) { HandleUi(EShiftUi::JamCard0 + 2, 0.0f); }
-		else if (Key == EKeys::Four) { HandleUi(EShiftUi::JamCard0 + 3, 0.0f); }
+		{
+			// the number keys pick a jam by its number on the cards (1..9), on whatever page it is
+			static const FKey Numbers[9] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine };
+			for (int32 n = 0; n < 9; ++n)
+			{
+				if (Key == Numbers[n]) { SelectJamCard(n); break; }
+			}
+		}
+		if (Key == EKeys::Left) { HandleUi(EShiftUi::JamPrev, 0.0f); }
+		else if (Key == EKeys::Right) { HandleUi(EShiftUi::JamNext, 0.0f); }
 		else if (Key == EKeys::Escape || Key == EKeys::BackSpace) { HandleUi(EShiftUi::Back, 0.0f); }
 		break;
 	case EShiftScreen::Build:
@@ -2244,6 +2317,10 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			PlaySfx(E.bSock ? EShiftSfx::Sock : EShiftSfx::Flip);
 			if (Run.IsValid() && E.Node >= 0 && E.Node < Run->GetSim().NodeCount())
 			{
+				if (bTransitions && !bReduceMotion && Run->GetSim().GetGraph().nodes[static_cast<size_t>(E.Node)].role != ShiftSim::NodeRole::Member)
+				{
+					PlaySfx(EShiftSfx::Tip, 0.35f);   // the vote count of a hub or a celebrity rises from it: a soft tick with the big number
+				}
 				SpawnFloat(E.Node, FString::Printf(TEXT("+%d"), FMath::RoundToInt(static_cast<float>(Run->GetSim().GetGraph().nodes[static_cast<size_t>(E.Node)].weight))), E.bSock ? PurpleColor() : TealColor());
 			}
 			const FString Line = FShiftContent::PickComment(E.bSock ? TEXT("Sockpuppet") : TEXT("FlipToYou"), CosmeticRng);
@@ -2365,6 +2442,14 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			EdgeColor = RedColor();
 			break;
 		}
+		case EShiftEventType::Finished:
+			if (bTransitions && !bReduceMotion && !bAttract && !(Run.IsValid() && Run->IsReplaying()))
+			{
+				// the jam ran out: "TIME" over the board for a moment before the results card (a disqualification has its own alert and hold; Calm and QA runs go straight to the results)
+				ResultsHold = TimeHoldSeconds;
+				bTimeHold = true;
+			}
+			break;
 		case EShiftEventType::PlayerLostVoter:
 			TutEventMask |= EvLost;
 			if (Run.IsValid() && E.Node >= 0 && E.Node < Run->GetSim().NodeCount())
@@ -2543,6 +2628,10 @@ void AShiftPlayerController::PushAlert(int32 Kind, const FString& Title, const F
 void AShiftPlayerController::TickAlerts(float DeltaTime)
 {
 	ResultsHold = FMath::Max(0.0f, ResultsHold - DeltaTime);
+	if (ResultsHold <= 0.0f)
+	{
+		bTimeHold = false;
+	}
 	if (Screen != EShiftScreen::Play || bAttract || !Run.IsValid() || bPaused)
 	{
 		return;
@@ -2755,7 +2844,7 @@ void AShiftPlayerController::DismissCoach()
 
 void AShiftPlayerController::TickTutorial(float DeltaTime)
 {
-	const bool bActive = bCoachEnabled && !bLessonRun && !bViewer && Screen == EShiftScreen::Play && !bAttract && Run.IsValid() && !Run->IsOver();
+	const bool bActive = bCoachEnabled && bHintsOn && !bLessonRun && !bViewer && Screen == EShiftScreen::Play && !bAttract && Run.IsValid() && !Run->IsOver();
 	if (!bActive)
 	{
 		CoachAlpha = 0.0f;
@@ -3300,6 +3389,8 @@ void AShiftPlayerController::BuildMenuModel(FShiftHudModel& M)
 	M.Night = NightBlend;
 	M.bNightActive = M.bShiftDown;
 	M.JamCards = JamCards;
+	JamPage = FMath::Clamp(JamPage, 0, JamPageCount() - 1);
+	M.JamPage = JamPage;
 	M.SelectedJam = JamIndex;
 
 	FShiftHudBuild& B = M.Build;
@@ -3403,6 +3494,11 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 	M.bPaused = bPaused;
 	FillBuildEffects(M.Build);
 	M.bOver = ResultsShown();   // after a disqualification the results wait a moment, so the alert is seen
+	if (bTimeHold && ResultsHold > 0.0f && Run->IsOver())
+	{
+		// the banner fades in over 0.2 s and out over the last 0.3 s of the hold
+		M.TimeBanner = FMath::Clamp((TimeHoldSeconds - ResultsHold) / 0.2f, 0.0f, 1.0f) * FMath::Clamp(ResultsHold / 0.3f, 0.0f, 1.0f);
+	}
 	M.Feed.Reset();
 	for (const FFeedItem& Item : Feed)
 	{
@@ -3809,7 +3905,7 @@ void AShiftPlayerController::PlayerTick(float DeltaTime)
 	View.Time = GetWorld()->GetTimeSeconds();
 	View.Night = NightBlend;
 	View.Heat = static_cast<float>(S.Heat() / S.GetParams().HeatMax);
-	View.Beat = Audio ? Audio->BeatPulse() : 0.0f;
+	View.Beat = (Audio && !bReduceMotion) ? Audio->BeatPulse() : 0.0f;   // Calm: the board's beat pulse stands still too
 	View.EdgeMode = EdgeMode;
 	View.BackgroundOpacity = PaperAlpha();
 	View.Mood = (Screen == EShiftScreen::Title || Screen == EShiftScreen::JamSelect) ? -1 : JamIndex;   // the title and the jam list keep the dots; a jam, and its build screen, wear their own look

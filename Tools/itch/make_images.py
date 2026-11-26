@@ -85,6 +85,29 @@ def arrow_points(cx, cy, size):
     return [(cx + (x - 0.5) * size, cy + (y - 0.5) * size) for x, y in pts]
 
 
+def rounded_arrow_points(cx, cy, size, radius=0.07, steps=10):
+    """The same arrow with every corner rounded by a quadratic curve (the shape of the title key's arrow in the game's trailer scene): a dense polygon, so an outline drawn
+    along it with joint='curve' is one seamless stroke with no spikes at the wing tips and the top. The icon and the favicon use it."""
+    base = arrow_points(cx, cy, size)
+    r = radius * size
+    out = []
+    n = len(base)
+    for i, cur in enumerate(base):
+        prev, nxt = base[i - 1], base[(i + 1) % n]
+        def toward(p, q, dist):
+            dx, dy = q[0] - p[0], q[1] - p[1]
+            length = math.hypot(dx, dy) or 1.0
+            k = min(dist, length * 0.5) / length
+            return (p[0] + dx * k, p[1] + dy * k)
+        a = toward(cur, prev, r)
+        b = toward(cur, nxt, r)
+        for s in range(steps + 1):
+            t = s / steps
+            out.append(((1 - t) ** 2 * a[0] + 2 * t * (1 - t) * cur[0] + t * t * b[0],
+                        (1 - t) ** 2 * a[1] + 2 * t * (1 - t) * cur[1] + t * t * b[1]))
+    return out
+
+
 def keycap(size, pressed=False, ink=INK, heavy=1.0):
     """The title screen's `shift` keycap without its label: a white key on a darker base, the outline arrow; pressed = the key sunk and the arrow violet."""
     s = size * SS
@@ -97,7 +120,7 @@ def keycap(size, pressed=False, ink=INK, heavy=1.0):
     cap_bot = s * 0.86 + s * 0.07 - lift
     d.rounded_rectangle((s * 0.04, cap_top, s * 0.96, cap_bot), r, fill=CAP, outline=ink, width=int(s * 0.035 * heavy))
     glyph = PRESSED if pressed else ink
-    pts = arrow_points(s * 0.5, (cap_top + cap_bot) / 2, s * 0.46)
+    pts = rounded_arrow_points(s * 0.5, (cap_top + cap_bot) / 2, s * 0.46, radius=0.10)
     d.line(pts + [pts[0]], fill=glyph, width=int(s * 0.045 * heavy), joint='curve')
     return img.resize((size, size), Image.LANCZOS)
 
@@ -191,7 +214,7 @@ def favicon(size=512):
     s = size * 4
     img = Image.new('RGBA', (s, s), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    pts = arrow_points(s / 2, s / 2, s * 0.90)
+    pts = rounded_arrow_points(s / 2, s / 2, s * 0.90)
     d.polygon(pts, fill=TEAL + (255,))
     ring = Image.new('L', (s, s), 0)
     ImageDraw.Draw(ring).line(pts + [pts[0]], fill=255, width=int(s * 0.075), joint='curve')
@@ -223,7 +246,7 @@ def icon(size=512, split=True):
     d.ellipse(box(R * 1.27), outline=(128, 128, 150, 120), width=int(R * 0.17))
     d.arc(box(R * 1.27), -90, 180, fill=TEAL + (255,), width=int(R * 0.17))
     d.ellipse(box(R), fill=TEAL + (255,), outline=INK + (255,), width=int(R * 0.09))
-    pts = arrow_points(c, c, R * 1.36)   # the shift arrow alone, a solid white block with an ink outline so it is still a shape at 16 px
+    pts = rounded_arrow_points(c, c, R * 1.36)   # the shift arrow alone, a solid white block with an ink outline so it is still a shape at 16 px
     d.polygon(pts, fill=WHITE + (255,))
     d.line(pts + [pts[0]], fill=INK + (255,), width=int(R * 0.085), joint='curve')
     return img.resize((size, size), Image.LANCZOS)

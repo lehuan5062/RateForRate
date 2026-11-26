@@ -1205,4 +1205,16 @@ namespace ShiftSim
 		return (Index >= 0 && Index < N) ? F[Index].Name : "";
 	}
 
+	/**
+	 * Policy values a jam sets for itself (ApplyJamTuning only reaches Params). Called by FShiftRun::Start before the QA overrides, so -Set and the lessons still win. Jams 0..3 set
+	 * nothing, so they play exactly as before. The Unmoderated Weekend (index 4) schedules three Mod Eye windows (EyeAwayCount; the rest of the window is the shared default).
+	 */
+	inline void ApplyJamPolicy(int Index, PolicyParams& P)
+	{
+		if (Index == 4)
+		{
+			P.EyeAwayCount = 3.0;
+		}
+	}
+
 } // namespace ShiftSim

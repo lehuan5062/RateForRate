@@ -88,6 +88,8 @@ private:
 	void TickLesson(float DeltaTime);
 	void EnterScreen(EShiftScreen NewScreen);
 	void RefreshJamCards();
+	int32 JamPageCount() const;
+	void SelectJamCard(int32 CardIndex);   // start the build screen for the card with this index (all pages)
 	void RefreshForecast();
 	void SetBuildHours(int32 Slider, float Value01);
 	uint32 NewSeed() const;
@@ -204,6 +206,7 @@ private:
 	float ForecastSpread = 0.0f;                   // how far one play of a steady player strays from the average (0..1)
 	TArray<FShiftHudJamCard> JamCards;
 	TArray<int32> CardJam;          // jam index behind each card
+	int32 JamPage = 0;              // the page of jam cards on show (JamsPerPage at a time)
 	uint32 LastRegistryVersion = 0;
 
 	int32 JamIndex = 2;
@@ -246,6 +249,8 @@ private:
 	float BlameCue = 0.0f;          // seconds to the next warning sound while it is
 	float EdgeFlash = 0.0f;         // 0..1, decays
 	FLinearColor EdgeColor = FLinearColor::White;
+	static constexpr float TimeHoldSeconds = 1.5f;   // how long the "TIME" banner holds the results back
+	bool bTimeHold = false;         // that hold is the jam-end "TIME" banner (the jam ran out; a disqualification has its own alert)
 	float ResultsHold = 0.0f;       // after a disqualification the results screen waits this long (real seconds) so the alert is seen first
 	bool bBlameRefused = false;     // the fatal strike took too many fake votes to blame on the rival
 	float BlameRefusedShare = 0.0f;
@@ -301,6 +306,8 @@ private:
 	bool bMarkers = false;                    // accessibility switches (saved; -ShiftMarkers / -ShiftLargeText / -ShiftCalm force them on for a QA session)
 	bool bLargeText = false;
 	bool bReduceMotion = false;
+	bool bColourBlind = false;                // the colour-blind-safe entry colours (saved; -ShiftColourBlind forces them for a session)
+	bool bHintsOn = true;                     // the coach tips (saved as NoHints)
 	bool bGlassSaved = false;                 // the saved see-through window switch (it changes at the next launch)
 	int32 GlassOpacityPct = 85;               // the Paper opacity slider of the see-through window, percent (saved); the paper's real opacity is ShiftSave::GlassPaperAlpha of it (linear)
 	float GlassAlphaForced = -1.0f;           // -ShiftGlass=<0..1> (QA): the paper's real opacity for this session, until the slider is moved; negative = the slider rules

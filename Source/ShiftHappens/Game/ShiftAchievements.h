@@ -25,6 +25,13 @@ enum class EShiftAch : uint8
 	Schadenfreude,
 	NobodyPlayedIt,
 	FairAndSquare,
+	// appended in 0.3 (the save stores one bit per entry: append only)
+	NotOnMyWatch,
+	WallOfSupport,
+	OffTheClock,
+	TwoStrikesStanding,
+	GrandSlam,
+	TopOfTheClass,
 	Count
 };
 
@@ -47,9 +54,14 @@ public:
 	void OnNightLatch();
 	/** The run is over: the achievements that depend on how it ended. */
 	void OnFinished(const FShiftResultFacts& Facts, const FShiftFlipStats& Flips, int32 JamIndex);
+	/** The achievements that depend on the career, asked once a run has ended: this win completes the set of jams won, and the guided lessons are finished. */
+	void OnCareer(bool bWonEveryJam, bool bLessonsFinished);
 
 	uint32 Mask() const { return Earned; }
 	float NightSeconds() const { return NightHeld; }
+	int32 ParryCount() const { return Parries; }
+	int32 BiggestRally() const { return RallyBest; }
+	int32 StrikesMax() const { return MaxStrikes; }
 
 private:
 	void Earn(EShiftAch A) { Earned |= (1u << static_cast<uint32>(A)); }
@@ -60,4 +72,7 @@ private:
 	double SnowStart = 0.0;
 	int32 SnowGains0 = 0;
 	int32 SnowClicks = 0;
+	int32 Parries = 0;          // announced attacks the player answered this run
+	int32 MaxStrikes = 0;       // the most strikes the player had at once this run
+	int32 RallyBest = 0;        // the most voters one Rally boosted this run
 };

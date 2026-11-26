@@ -14,3 +14,9 @@ StickySituation,Sticky Situation,Toggle night with the N key instead of holding 
 Schadenfreude,Schadenfreude,Win after your rival collapses. Technically not your fault.,true
 NobodyPlayedIt,Nobody Played It,Win with a bottom-three quality rank. Nobody played it. Everybody voted.,true
 FairAndSquare,Fair and Square,Win Level Playing Field. Nobody famous to blame it on: it was just you.,false
+NotOnMyWatch,Not on My Watch,Answer ten announced attacks in a single jam.,false
+WallOfSupport,Wall of Support,Rally a cluster of eight or more voters with one click.,false
+OffTheClock,Off the Clock,Win Unmoderated Weekend. The mods were on break. Your conscience was too.,false
+TwoStrikesStanding,Two Strikes Standing,Reach the end of a jam with two strikes against you. Still in it.,true
+GrandSlam,Grand Slam,Win every jam at least once. Every rival. Every mood.,false
+TopOfTheClass,Top of the Class,Finish all three guided lessons and then finish a jam. Teacher is proud.,true

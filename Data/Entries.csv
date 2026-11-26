@@ -31,6 +31,14 @@ LF_Other05,LevelField,Other,Even Steven's Heist,steven_even,Split the loot equal
 LF_Other06,LevelField,Other,Gear Shift Goats,clutch_cleo,Goats take turns driving. Right of way is by lottery.
 LF_Other07,LevelField,Other,Tie Breaker,coinflip_cam,Every match ends in a draw. The sequel is a coin toss.
 LF_Other08,LevelField,Other,Unranked,nobody_nell,No leaderboard. No followers. Just the game and a very quiet chat.
+WK_Other01,Weekend,Other,Weekend Warrior,saturday_sam,Two days and one cat and no sleep. The cat is the lead designer.
+WK_Other02,Weekend,Other,Mod Squad Simulator,banhammer_bea,Run a forum for a weekend. Do not look at the reports.
+WK_Other03,Weekend,Other,Lunch Break Legends,sandwich_sven,A roguelike you can only play between 12:00 and 12:30.
+WK_Other04,Weekend,Other,Unattended Luggage,carousel_cora,Guess whose bag it is. Nobody is watching the airport.
+WK_Other05,Weekend,Other,Out of Office,autoreply_ash,Every enemy has an automatic reply. Defeat them by waiting.
+WK_Other06,Weekend,Other,Back in Five,brb_bruno,A platformer where the exit keeps moving. Back in five.
+WK_Other07,Weekend,Other,Honor System,trusty_tess,A shop with no cashier. Your conscience is the final boss.
+WK_Other08,Weekend,Other,Rules Were Made,loophole_lou,Find the gap in the rules. Then find the gap in the gap.
 You01,All,You,Lantern Keeper,you,"Light the lanterns before the fog does. Cozy, with mild dread."
 You02,All,You,Sprocket and Spark,you,A tiny robot fixes a tiny town. Fixes some of it.
 You03,All,You,Moonlight Mechanic,you,Repair machines at night. They only break when you look away.
@@ -49,3 +57,4 @@ Rival_TJ,TinyJam7,Rival,Prince of Pixels,@pixel_prince,3K followers and a pinned
 Rival_RB,Rumble48,Rival,LEGEND OF DEV,DevLegend,"48K followers. Streams the devlog, not the game."
 Rival_GO,GameOff2026,Rival,ULTRA GAME 9 (AAA),MEGA STUDIOS,1.2M followers. The trailer is huge. The game is a folder somewhere.
 Rival_LF,LevelField,Rival,Beginner's Luck,just_started,41 followers. The same as you. A first jam and a fair fight.
+Rival_WK,Weekend,Rival,Off-Duty Mod,mod_on_break,"310K followers. Posts 'on break' every hour, on the hour."

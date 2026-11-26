@@ -188,12 +188,25 @@ SENT = ["Positive", "Negative", "Neutral", "Suspicious"]
 CTX = ["FlipToYou", "FlipToRival", "FlipToOther", "Dent", "Reinforce", "GateOpen", "Sockpuppet", "Shadowban", "Strike",
        "ModScan", "AlgorithmBoost", "StreamerFeature", "Drama", "Idle", "BotComment"]
 C = load("Comments.csv", ["Id", "Sentiment", "Context", "Text"])
+
+def split_jam(value):
+    """'FlipToYou@Weekend' -> ('FlipToYou', 'Weekend'): a line drawn from only while that jam is on (jam-specific chatter, added to the shared pool for it)."""
+    base, _, jam = value.partition("@")
+    return base, jam
+
+
+for d in C:
+    base, jam = split_jam(d["Context"])
+    if jam and jam not in ("Weekend",):
+        err(f"Comments.csv:{d['_line']}: unknown jam suffix in Context={d['Context']!r}")
+    d["_ctx_full"] = d["Context"]
+    d["Context"] = base
 check_enum("Comments.csv", C, "Sentiment", SENT)
 check_enum("Comments.csv", C, "Context", CTX)
 check_len("Comments.csv", C, "Text", 70)
 if len(C) < 200:
     err(f"Comments.csv: {len(C)} rows (need >= 200)")
-check_min_per("Comments.csv", C, "Context", CTX, 8)
+check_min_per("Comments.csv", [d for d in C if "@" not in d["_ctx_full"]], "Context", CTX, 8)
 check_min_per("Comments.csv", C, "Sentiment", SENT, 10)
 check_placeholders("Comments.csv", C, "Text", lambda d: set())
 check_dups("Comments.csv", C, "Text")
@@ -214,11 +227,16 @@ HL_ALLOWED = {
     "YouWin": {"you", "rival"},
 }
 HL = load("Headlines.csv", ["Id", "Event", "Text"])
+for d in HL:
+    d["Event"], jam = split_jam(d["Event"])
+    if jam and jam not in ("Weekend",):
+        err(f"Headlines.csv:{d['_line']}: unknown jam suffix in Event={d['Event']!r}")
+    d["_jam"] = jam
 check_enum("Headlines.csv", HL, "Event", set(HL_ALLOWED))
 check_len("Headlines.csv", HL, "Text", 100)
 if len(HL) < 60:
     err(f"Headlines.csv: {len(HL)} rows (need >= 60)")
-check_min_per("Headlines.csv", HL, "Event", list(HL_ALLOWED), 5)
+check_min_per("Headlines.csv", [d for d in HL if not d["_jam"]], "Event", list(HL_ALLOWED), 5)
 check_placeholders("Headlines.csv", HL, "Text", lambda d: HL_ALLOWED.get(d["Event"], set()))
 check_dups("Headlines.csv", HL, "Text")
 # Events that are about a specific party must name it, so the ticker never reads as generic filler.
@@ -230,7 +248,7 @@ for d in HL:
 summary.append(("Headlines.csv", len(HL)))
 
 # ----------------------------------------------------------------------------- Entries
-JAMS = ["TinyJam7", "Rumble48", "GameOff2026", "LevelField"]
+JAMS = ["TinyJam7", "Rumble48", "GameOff2026", "LevelField", "Weekend"]
 E = load("Entries.csv", ["Id", "Jam", "Role", "Name", "Author", "Blurb"])
 check_enum("Entries.csv", E, "Jam", set(JAMS) | {"All"})
 check_enum("Entries.csv", E, "Role", {"Other", "You", "Rival"})
@@ -253,7 +271,8 @@ yous = [d for d in E if d["Role"] == "You"]
 if len(yous) < 12:
     err(f"Entries.csv: {len(yous)} You rows (need >= 12)")
 RIVALS = {"TinyJam7": ("Prince of Pixels", "@pixel_prince"), "Rumble48": ("LEGEND OF DEV", "DevLegend"),
-          "GameOff2026": ("ULTRA GAME 9 (AAA)", "MEGA STUDIOS"), "LevelField": ("Beginner's Luck", "just_started")}
+          "GameOff2026": ("ULTRA GAME 9 (AAA)", "MEGA STUDIOS"), "LevelField": ("Beginner's Luck", "just_started"),
+          "Weekend": ("Off-Duty Mod", "mod_on_break")}
 for d in E:
     if d["Role"] == "Rival" and d["Jam"] in RIVALS and (d["Name"], d["Author"]) != RIVALS[d["Jam"]]:
         err(f"Entries.csv:{d['_line']}: rival for {d['Jam']} should be {RIVALS[d['Jam']]}")
@@ -316,8 +335,8 @@ A = load("Achievements.csv", ["Id", "Name", "Description", "Hidden"])
 check_enum("Achievements.csv", A, "Hidden", {"true", "false"})
 check_len("Achievements.csv", A, "Name", 28)
 check_len("Achievements.csv", A, "Description", 90)
-if len(A) != 15:
-    err(f"Achievements.csv: {len(A)} rows (need exactly 15)")
+if len(A) != 21:
+    err(f"Achievements.csv: {len(A)} rows (need exactly 21)")
 if len({d["Name"].lower() for d in A}) != len(A):
     err("Achievements.csv: duplicate achievement names")
 check_placeholders("Achievements.csv", A, "Description", lambda d: set())
@@ -368,8 +387,8 @@ for d in LS:
     chapters.setdefault(int(d["Chapter"]), []).append(int(d["Step"]))
     if d["Id"] != f"L{d['Chapter']}S{int(d['Step']):02d}":
         err(f"Lessons.csv:{d['_line']}: Id {d['Id']!r} should be L{d['Chapter']}S{int(d['Step']):02d}")
-if sorted(chapters) != [0, 1, 2]:
-    err(f"Lessons.csv: chapters {sorted(chapters)} (expected 0 = reference, 1 = basics, 2 = night shift)")
+if sorted(chapters) != [0, 1, 2, 3]:
+    err(f"Lessons.csv: chapters {sorted(chapters)} (expected 0 = reference, 1 = basics, 2 = night shift, 3 = Shift the Blame)")
 for ch, steps in chapters.items():
     if steps != list(range(1, len(steps) + 1)):
         err(f"Lessons.csv: chapter {ch}: Step must run 1..{len(steps)} in file order, got {steps}")

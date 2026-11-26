@@ -25,7 +25,7 @@ struct FShiftLessonSetup
 /** What a player would do now: the QA autoplay (-ShiftLessonAuto) performs it through the same paths a click or key takes. */
 struct FShiftLessonAuto
 {
-	enum class EKind : uint8 { None, Continue, Hover, Click, RightClick, NightOn, NightOff };
+	enum class EKind : uint8 { None, Continue, Hover, Click, RightClick, NightOn, NightOff, Blame };
 	EKind Kind = EKind::None;
 	int32 Node = -1;
 	bool bNight = false;
@@ -37,6 +37,7 @@ struct FShiftLessonAuto
  *
  *   chapter 1: the basics (hover, plug, conviction, reinforce, gates, parry, Rally), no Mod Eye
  *   chapter 2: night shift (sockpuppets, Heat, backing them, the Mod Eye)
+ *   chapter 3: Shift the Blame (the strike that would end the jam, handed to the rival)
  *
  * Every step stages its own scene, so a step can be started on its own (-ShiftLesson=<chapter>:<step>) and a scene that was lost is put back.
  */
@@ -51,7 +52,7 @@ public:
 		AllowNight = 1u << 3,       // SHIFT / N
 	};
 
-	static int32 ChapterCount() { return 2; }
+	static int32 ChapterCount() { return 3; }
 
 	/** The practice board of a chapter: jam, seed, build and the overrides that silence the world. */
 	static void Configure(int32 Chapter, FShiftLessonSetup& Out);

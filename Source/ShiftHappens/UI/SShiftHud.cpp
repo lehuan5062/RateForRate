@@ -454,6 +454,7 @@ void SShiftHud::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 {
 	AnimTime += InDeltaTime;
 	PulseTime = Model.bReduceMotion ? 0.0f : AnimTime;   // the pulses stand still
+	ResultsAge = Model.bOver ? ResultsAge + InDeltaTime : 0.0f;
 	Ripples.RemoveAll([this](const FRipple& R) { return AnimTime - R.Start > RippleSeconds; });
 	const float Rate = FMath::Min(1.0f, InDeltaTime * 9.0f);
 	for (const FShiftHudRow& Row : Model.Rows)
@@ -464,8 +465,16 @@ void SShiftHud::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 		{
 			Anim.Y = TargetY;
 			Anim.Share = Row.Share;
+			Anim.Rank = Row.Rank;
 			Anim.bInit = true;
 		}
+		if (Model.bEase && Anim.Rank != Row.Rank)
+		{
+			Anim.Pulse = 1.0f;   // an entry moved up or down the board: its row flashes teal (gain) or red (loss)
+			Anim.bUp = Row.Rank < Anim.Rank;
+		}
+		Anim.Rank = Row.Rank;
+		Anim.Pulse = FMath::Max(0.0f, Anim.Pulse - InDeltaTime * 1.5f);
 		Anim.Y += (TargetY - Anim.Y) * Rate;
 		Anim.Share += (Row.Share - Anim.Share) * Rate;
 	}
@@ -569,7 +578,7 @@ void SShiftHud::PaintSettings(FShiftPainter& P, const FPal& C) const
 	AddWindowHit(P, EShiftUi::SettingsClose);
 
 	const float W = 380.0f;
-	const float H = 482.0f;
+	const float H = 532.0f;
 	const float Pad = 28.0f;
 	const bool bTitle = Model.Screen == EShiftScreen::Title;   // on the title it opens beside the menu, inside the safe zone
 	Dock(P, bTitle ? EShiftDock::C : EShiftDock::TR);          // elsewhere it hangs from the gear button, in the top right corner of the window
@@ -602,12 +611,10 @@ void SShiftHud::PaintSettings(FShiftPainter& P, const FPal& C) const
 	Button(P, C, EShiftUi::MusicOff, MusicX + Small + 8.0f, Y + 82.0f, Small, BtnH, TEXT("Off"), !Model.bMusicOn, 13.0f);
 
 	P.Text(TEXT("WINDOW"), X + Pad, Y + 140.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
-	static const TCHAR* const Labels[3] = { TEXT("Fullscreen"), TEXT("Borderless"), TEXT("Windowed") };
-	const float Third = (Inner - 2.0f * Gap) / 3.0f;
-	for (int32 i = 0; i < 3; ++i)
-	{
-		Button(P, C, EShiftUi::WindowFullscreen + i, X + Pad + static_cast<float>(i) * (Third + Gap), Y + 160.0f, Third, BtnH, Labels[i], Model.WindowMode == i, 12.0f);
-	}
+	// two choices: Fullscreen is the borderless kind (a window the size of the monitor; there is no exclusive fullscreen) and Windowed
+	const float HalfW = (Inner - Gap) * 0.5f;
+	Button(P, C, EShiftUi::WindowFullscreen + 1, X + Pad, Y + 160.0f, HalfW, BtnH, TEXT("Fullscreen"), Model.WindowMode != 2, 13.0f);
+	Button(P, C, EShiftUi::WindowFullscreen + 2, X + Pad + HalfW + Gap, Y + 160.0f, HalfW, BtnH, TEXT("Windowed"), Model.WindowMode == 2, 13.0f);
 
 	// the see-through window: the desktop shows through the paper behind the board (needs a restart; Windows only)
 	P.Text(TEXT("BACKGROUND"), X + Pad, Y + 218.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
@@ -635,6 +642,65 @@ void SShiftHud::PaintSettings(FShiftPainter& P, const FPal& C) const
 	const float Half = (Inner - Gap) * 0.5f;
 	Button(P, C, EShiftUi::LargeText, X + Pad, Y + 428.0f, Half, BtnH, Model.bLargeText ? TEXT("Large text: on") : TEXT("Large text: off"), Model.bLargeText, 13.0f);
 	Button(P, C, EShiftUi::ReduceMotion, X + Pad + Half + Gap, Y + 428.0f, Half, BtnH, Model.bReduceMotion ? TEXT("Calm: on") : TEXT("Calm: off"), Model.bReduceMotion, 13.0f);
+	Button(P, C, EShiftUi::ColourBlind, X + Pad, Y + 478.0f, Half, BtnH, Model.bColourBlind ? TEXT("Colour-blind: on") : TEXT("Colour-blind: off"), Model.bColourBlind, 13.0f);
+	Button(P, C, EShiftUi::Hints, X + Pad + Half + Gap, Y + 478.0f, Half, BtnH, Model.bHintsOn ? TEXT("Coach tips: on") : TEXT("Coach tips: off"), Model.bHintsOn, 13.0f);
+}
+
+/** The arrow's outline without stroked joints: offsets a closed polygon by Dist (positive = inwards) with mitred corners. */
+static TArray<FVector2f> ShiftInsetPolygon(const TArray<FVector2f>& In, float Dist)
+{
+	float Area = 0.0f;
+	for (int32 i = 0; i < In.Num(); ++i)
+	{
+		const FVector2f& A = In[i];
+		const FVector2f& B = In[(i + 1) % In.Num()];
+		Area += A.X * B.Y - B.X * A.Y;
+	}
+	const float Side = Area > 0.0f ? 1.0f : -1.0f;   // which side of an edge is the inside
+	TArray<FVector2f> Out;
+	for (int32 i = 0; i < In.Num(); ++i)
+	{
+		const FVector2f& Prev = In[(i + In.Num() - 1) % In.Num()];
+		const FVector2f& Cur = In[i];
+		const FVector2f& Next = In[(i + 1) % In.Num()];
+		FVector2f E1 = (Cur - Prev).GetSafeNormal();
+		FVector2f E2 = (Next - Cur).GetSafeNormal();
+		const FVector2f N1(-E1.Y * Side, E1.X * Side);   // inward normals of the two edges
+		const FVector2f N2(-E2.Y * Side, E2.X * Side);
+		const float Denominator = FMath::Max(0.35f, 1.0f + FVector2f::DotProduct(N1, N2));
+		Out.Add(Cur + (N1 + N2) * (Dist / Denominator));   // a mitred corner
+	}
+	return Out;
+}
+
+/** Rounds every corner of a closed polygon with a quadratic curve through the corner. */
+static TArray<FVector2f> ShiftRoundPolygon(const TArray<FVector2f>& In, float Radius)
+{
+	TArray<FVector2f> Out;
+	for (int32 i = 0; i < In.Num(); ++i)
+	{
+		const FVector2f& Prev = In[(i + In.Num() - 1) % In.Num()];
+		const FVector2f& Cur = In[i];
+		const FVector2f& Next = In[(i + 1) % In.Num()];
+		const float R1 = FMath::Min(Radius, (Prev - Cur).Size() * 0.5f);
+		const float R2 = FMath::Min(Radius, (Next - Cur).Size() * 0.5f);
+		const FVector2f A = Cur + (Prev - Cur).GetSafeNormal() * R1;
+		const FVector2f B = Cur + (Next - Cur).GetSafeNormal() * R2;
+		for (int32 s = 0; s <= 6; ++s)
+		{
+			const float T = static_cast<float>(s) / 6.0f;
+			Out.Add(A * ((1.0f - T) * (1.0f - T)) + Cur * (2.0f * T * (1.0f - T)) + B * (T * T));
+		}
+	}
+	return Out;
+}
+
+/** The shift arrow as one seamless outlined shape: Outline filled, then the same shape shrunk by Stroke filled in Face (the corners rounded by Radius first). */
+static void ShiftPaintArrow(FShiftPainter& P, const TArray<FVector2f>& Arrow, float Radius, float Stroke, const FLinearColor& Outline, const FLinearColor& Face)
+{
+	const TArray<FVector2f> Smooth = ShiftRoundPolygon(Arrow, Radius);
+	P.FillPolygon(ShiftInsetPolygon(Smooth, -Stroke * 0.55f), Outline);
+	P.FillPolygon(ShiftInsetPolygon(Smooth, Stroke * 0.45f), Face);
 }
 
 void SShiftHud::PaintKeycap(FShiftPainter& P, const FPal& C, float X, float Y, float S, bool bPressed, const TCHAR* Label) const
@@ -678,7 +744,43 @@ void SShiftHud::PaintKeycap(FShiftPainter& P, const FPal& C, float X, float Y, f
 	{
 		P.Text(Label, Cx, CapTop + S * 0.52f, S * 0.22f, Glyph, EShiftAlign::Center, true);
 	}
-	P.Polygon(Arrow, Glyph, S * (bLabelled ? 0.035f : 0.045f));
+	ShiftPaintArrow(P, Arrow, ArrowSize * 0.10f, S * (bLabelled ? 0.035f : 0.045f), Glyph, Cap);
+}
+
+void SShiftHud::PaintShiftKey(FShiftPainter& P, const FPal& C, float Cx, float Cy, bool bPressed) const
+{
+	// the wide "shift" key of the first title screen (commit 82e5fc3): the outlined arrow on the left of the word; the trailer's "OR HOLD" scene uses it
+	const float W = 190.0f;
+	const float H = 112.0f;
+	const float X = Cx - W * 0.5f;
+	const float Y = Cy - H * 0.5f;
+	const float Off = bPressed ? 9.0f : 0.0f;
+	const float Pulse = 0.5f + 0.5f * FMath::Sin(PulseTime * 2.4f);
+
+	P.Disc(Cx, Cy, 150.0f + 10.0f * Pulse, bPressed ? Hex(0x8B6CFF, 0.20f) : WithAlpha(C.Teal, 0.07f + 0.05f * Pulse));
+	P.Disc(Cx, Cy, 108.0f, bPressed ? Hex(0x8B6CFF, 0.22f) : WithAlpha(C.Teal, 0.08f));
+
+	const FLinearColor Base = Mix(Hex(0xB9B3A6), Hex(0x1A1D3A), C.N);
+	const FLinearColor Cap = Mix(Hex(0xFBFAF6), Hex(0x2B2F57), C.N);
+	const FLinearColor Face = Mix(Hex(0xFFFFFF), Hex(0x363B6B), C.N);
+	const FLinearColor Glyph = bPressed ? Hex(0x7B55FF) : Mix(Hex(0x1B1930), Hex(0xEDEDFF), C.N);
+
+	P.Rect(X, Y + 12.0f, W, H, Base, 26.0f);
+	P.Rect(X, Y + Off, W, H, Cap, 26.0f);
+	P.Rect(X + 9.0f, Y + Off + 8.0f, W - 18.0f, H - 28.0f, Face, 20.0f);
+
+	const float Ay = Y + Off + H * 0.42f;
+	TArray<FVector2f> Arrow;
+	const float Ax = X + 56.0f;
+	Arrow.Add(FVector2f(Ax, Ay - 22.0f));
+	Arrow.Add(FVector2f(Ax + 20.0f, Ay));
+	Arrow.Add(FVector2f(Ax + 8.0f, Ay));
+	Arrow.Add(FVector2f(Ax + 8.0f, Ay + 22.0f));
+	Arrow.Add(FVector2f(Ax - 8.0f, Ay + 22.0f));
+	Arrow.Add(FVector2f(Ax - 8.0f, Ay));
+	Arrow.Add(FVector2f(Ax - 20.0f, Ay));
+	ShiftPaintArrow(P, Arrow, 4.5f, 4.0f, Glyph, Face);
+	P.Text(TEXT("shift"), X + 92.0f, Ay - 20.0f, 36.0f, Glyph, EShiftAlign::Left, true);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -778,19 +880,29 @@ void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 	P.Text(TEXT("Pick a jam"), 640.0f, 34.0f, 36.0f, C.Ink, EShiftAlign::Center, true);
 	P.Text(TEXT("Each jam has its own rival, its own network and its own mood."), 640.0f, 84.0f, 15.0f, C.InkDim, EShiftAlign::Center);
 
-	// Up to three jams: the wide cards of old. A fourth makes them narrower (the same 1280 design units) and a little taller, so the text still has its room.
-	const bool bCompact = Model.JamCards.Num() > 3;
-	const float CardW = bCompact ? 288.0f : 360.0f;
-	const float CardStride = bCompact ? 304.0f : 400.0f;
-	const float CardX0 = bCompact ? 40.0f : 60.0f;
-	const float Extra = bCompact ? 22.0f : 0.0f;
-	const float CardH = 480.0f + Extra;
-	for (int32 i = 0; i < Model.JamCards.Num(); ++i)
+	// Three wide cards at a time; more jams page with the arrows (or Left and Right), so any number of jam packs fits. The card height is the same on every page.
+	int32 MostFacts = 3;
+	for (const FShiftHudJamCard& Card : Model.JamCards)
 	{
+		MostFacts = FMath::Max(MostFacts, Card.Facts.Num());
+	}
+	const float CardW = 360.0f;
+	const float CardStride = 400.0f;
+	const float Extra = 19.0f * static_cast<float>(MostFacts - 3);   // a fourth fact pushes the rest of the card down
+	const float CardH = 480.0f + Extra;
+	const int32 Total = Model.JamCards.Num();
+	const int32 Pages = FMath::Max(1, FMath::DivideAndRoundUp(Total, JamsPerPage));
+	const int32 Page = FMath::Clamp(Model.JamPage, 0, Pages - 1);
+	const int32 First = Page * JamsPerPage;
+	const int32 Shown = FMath::Min(JamsPerPage, Total - First);
+	const float CardX0 = 60.0f + CardStride * 0.5f * static_cast<float>(JamsPerPage - Shown);   // a short last page is centred
+	for (int32 Slot = 0; Slot < Shown; ++Slot)
+	{
+		const int32 i = First + Slot;
 		const FShiftHudJamCard& Card = Model.JamCards[i];
-		const float X = CardX0 + CardStride * static_cast<float>(i);
+		const float X = CardX0 + CardStride * static_cast<float>(Slot);
 		const float Y0 = 128.0f;
-		const bool bHover = AddHit(X, Y0 - 6.0f, CardW, CardH + 6.0f, EShiftUi::JamCard0 + i);
+		const bool bHover = AddHit(X, Y0 - 6.0f, CardW, CardH + 6.0f, EShiftUi::JamCard0 + Slot);
 		const float Y = Y0 + (bHover ? -6.0f : 0.0f);
 
 		P.Rect(X, Y + 8.0f, CardW, CardH, Hex(0x000000, 0.18f), 18.0f);
@@ -798,21 +910,20 @@ void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 		P.Rect(X, Y, CardW, CardH, C.PanelSolid, 18.0f);
 
 		P.Text(FString::Printf(TEXT("JAM %d"), i + 1), X + 24.0f, Y + 22.0f, 12.0f, C.Teal, EShiftAlign::Left, true);
-		const float TitleSize = bCompact ? 22.0f : 26.0f;
-		P.Text(P.Fit(Card.Title, CardW - 48.0f, TitleSize, true), X + 24.0f, Y + (bCompact ? 46.0f : 42.0f), TitleSize, C.Ink, EShiftAlign::Left, true);
+		P.Text(P.Fit(Card.Title, CardW - 48.0f, 26.0f, true), X + 24.0f, Y + 42.0f, 26.0f, C.Ink, EShiftAlign::Left, true);
 		P.TextBlock(Card.Subtitle, X + 24.0f, Y + 84.0f, CardW - 48.0f, 13.0f, 18.0f, C.InkDim);
 
 		P.Rect(X + 24.0f, Y + 150.0f, CardW - 48.0f, 1.0f, C.Stroke);
 		P.Text(TEXT("THE RIVAL"), X + 24.0f, Y + 166.0f, 11.0f, C.InkDim, EShiftAlign::Left, true);
 		P.Text(P.Fit(Card.RivalGame, CardW - 48.0f, 19.0f, true), X + 24.0f, Y + 184.0f, 19.0f, C.Ink, EShiftAlign::Left, true);
-		P.Text(FString::Printf(TEXT("by @%s"), *Card.RivalAuthor), X + 24.0f, Y + 212.0f, 13.0f, C.InkDim);
+		P.Text(P.Fit(FString::Printf(TEXT("by @%s"), *Card.RivalAuthor), CardW - 48.0f, 13.0f), X + 24.0f, Y + 212.0f, 13.0f, C.InkDim);
 		P.TextBlock(Card.RivalBlurb, X + 24.0f, Y + 240.0f, CardW - 48.0f, 13.0f, 18.0f, C.Ink);
 
-		float Fy = Y + 292.0f + Extra;
+		float Fy = Y + 292.0f;
 		for (const FString& Fact : Card.Facts)
 		{
 			P.Disc(X + 30.0f, Fy + 8.0f, 2.5f, C.Teal);
-			P.Text(Fact, X + 42.0f, Fy, 12.0f, C.InkDim);
+			P.Text(P.Fit(Fact, CardW - 54.0f, 12.0f), X + 42.0f, Fy, 12.0f, C.InkDim);
 			Fy += 19.0f;
 		}
 
@@ -833,6 +944,52 @@ void SShiftHud::PaintJamSelect(FShiftPainter& P, const FPal& C) const
 
 		P.Rect(X + 24.0f, Y + CardH - 62.0f, CardW - 48.0f, 40.0f, bHover ? C.Teal : WithAlpha(C.Teal, 0.16f), 20.0f);
 		P.Text(TEXT("Build your entry"), X + CardW * 0.5f, Y + CardH - 52.0f, 16.0f, bHover ? FLinearColor::White : C.Teal, EShiftAlign::Center, true);
+	}
+
+	if (Pages > 1)
+	{
+		// the page arrows beside the cards, the dots and a "jams 4-5 of 5" line under them
+		// round buttons in the style of Back, each holding the game's own arrow (the SHIFT keycap's), turned to point left or right
+		static const FVector2f ArrowShape[7] = { FVector2f(0.50f, 0.04f), FVector2f(0.94f, 0.52f), FVector2f(0.69f, 0.52f), FVector2f(0.69f, 0.96f), FVector2f(0.31f, 0.96f), FVector2f(0.31f, 0.52f), FVector2f(0.06f, 0.52f) };
+		const float Size = 44.0f;   // fits the 60-unit gutter beside the cards with 8 to spare on each side
+		const float ArrowY = 128.0f + CardH * 0.5f - Size * 0.5f;
+		for (int32 Dir = 0; Dir < 2; ++Dir)
+		{
+			const bool bNext = Dir == 1;
+			const bool bEnabled = bNext ? Page < Pages - 1 : Page > 0;
+			if (!bEnabled)
+			{
+				continue;   // nothing that way: no button
+			}
+			const float Ax = bNext ? 1280.0f - 8.0f - Size : 8.0f;
+			const bool bOver = AddHit(Ax, ArrowY, Size, Size, bNext ? EShiftUi::JamNext : EShiftUi::JamPrev);
+			const float Lift = bOver ? -2.0f : 0.0f;
+			P.Rect(Ax, ArrowY + 4.0f + Lift, Size, Size, Hex(0x000000, 0.16f), Size * 0.5f);
+			P.Rect(Ax - 1.0f, ArrowY + Lift - 1.0f, Size + 2.0f, Size + 2.0f, bOver ? C.Teal : C.Stroke, Size * 0.5f + 1.0f);
+			P.Rect(Ax, ArrowY + Lift, Size, Size, bOver ? C.Teal : C.PanelSolid, Size * 0.5f);
+			const float Cx = Ax + Size * 0.5f;
+			const float Cy = ArrowY + Lift + Size * 0.5f;
+			const float A = Size * 0.46f;
+			TArray<FVector2f> Arrow;
+			for (const FVector2f& Pt : ArrowShape)
+			{
+				// the shape points up; (x, y) -> (y, x) points it left, mirrored it points right
+				const float Px = (Pt.Y - 0.5f) * A;
+				const float Py = (Pt.X - 0.5f) * A;
+				Arrow.Add(FVector2f(Cx + (bNext ? -Px : Px), Cy + Py));
+			}
+			const FLinearColor Ink = bOver ? FLinearColor::White : C.Teal;
+			P.FillPolygon(Arrow, Ink);
+			P.Polygon(Arrow, Ink, 1.5f);
+		}
+		const float DotsY = 128.0f + CardH + 30.0f;
+		const float DotsX0 = 640.0f - 9.0f * static_cast<float>(Pages - 1);
+		for (int32 p = 0; p < Pages; ++p)
+		{
+			P.Disc(DotsX0 + 18.0f * static_cast<float>(p), DotsY, p == Page ? 5.5f : 4.0f, p == Page ? C.Teal : C.Track);
+		}
+		const FString Range = Shown > 1 ? FString::Printf(TEXT("Jams %d-%d of %d"), First + 1, First + Shown, Total) : FString::Printf(TEXT("Jam %d of %d"), First + 1, Total);
+		P.Text(Range, 640.0f, DotsY + 16.0f, 12.0f, C.InkDim, EShiftAlign::Center);
 	}
 
 	Dock(P, EShiftDock::TL);   // Back and the gear hold their corners
@@ -1072,6 +1229,10 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 			const FRowAnim* Anim = RowAnims.Find(Row.EntryId);
 			const float Y = PanelY + 34.0f + (Anim ? Anim->Y : static_cast<float>(Row.Rank) * RowHeight);
 			const float Share = Anim ? Anim->Share : Row.Share;
+			if (Anim && Anim->Pulse > 0.01f)
+			{
+				P.Rect(PanelX + 4, Y - 3, 266, RowHeight + 1, WithAlpha(Anim->bUp ? C.Teal : C.Red, 0.40f * Anim->Pulse), 8);
+			}
 			if (Row.bPlayer)
 			{
 				P.Rect(PanelX + 6, Y - 2, 262, RowHeight - 1, WithAlpha(C.Teal, 0.18f), 8);
@@ -1097,6 +1258,10 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		for (const FShiftHudRow& Row : Model.Rows)
 		{
 			const float Y = PanelY + 18.0f + CompactRowH * static_cast<float>(Row.Rank);
+			if (const FRowAnim* Pulse = RowAnims.Find(Row.EntryId); Pulse && Pulse->Pulse > 0.01f)
+			{
+				P.Rect(PanelX + 3, Y - 2, PanelW - 6, CompactRowH + 2, WithAlpha(Pulse->bUp ? C.Teal : C.Red, 0.45f * Pulse->Pulse), 5);
+			}
 			if (Row.bPlayer)
 			{
 				P.Rect(PanelX + 4, Y - 1, PanelW - 8, CompactRowH, WithAlpha(C.Teal, 0.24f), 5);
@@ -1414,6 +1579,17 @@ void SShiftHud::PaintPlay(FShiftPainter& P, const FPal& C) const
 		}
 	}
 
+	// ------------------------------------------------------------------ the jam ran out: "TIME" across the board while the results are held back a moment
+	if (Model.TimeBanner > 0.01f)
+	{
+		Dock(P, EShiftDock::C);
+		const FVector4f Win = WindowRect(P);
+		const float A = Model.TimeBanner;
+		P.Rect(Win.X, 288.0f, Win.Z - Win.X, 136.0f, WithAlpha(Hex(0x04060F), 0.72f * A));
+		P.Text(TEXT("TIME"), 640.0f, 296.0f, 72.0f, WithAlpha(FLinearColor::White, A), EShiftAlign::Center, true);
+		P.Text(TEXT("The vote is closed. Counting the votes..."), 640.0f, 392.0f, 16.0f, WithAlpha(C.Teal, A), EShiftAlign::Center, true);
+	}
+
 	// ------------------------------------------------------------------ tooltip (it belongs to the board: the centre dock)
 	Dock(P, EShiftDock::C);
 	if (Model.Tooltip.bVisible && !Model.bOver && !Model.bPaused)
@@ -1596,7 +1772,11 @@ void SShiftHud::PaintResults(FShiftPainter& P, const FPal& C) const
 {
 	Hits.Reset();
 	Dock(P, EShiftDock::C);
-	FillWindow(P, Hex(0x000000, 0.58f));
+	// the card eases in: the dim fades up and the card rises into place over 0.4 s (not under Calm, not in QA runs)
+	const float Ease = Model.bEase ? 1.0f - FMath::Pow(1.0f - FMath::Clamp(ResultsAge / 0.4f, 0.0f, 1.0f), 3.0f) : 1.0f;
+	FillWindow(P, Hex(0x000000, 0.58f * Ease));
+	P.Origin.Y += (1.0f - Ease) * 30.0f * P.Scale;
+	HitOrigin.Y = P.Origin.Y;
 	P.Rect(90, 44, 1100, 632, Mix(Hex(0xFFFFFF, 0.98f), Hex(0x0A0D1C, 0.98f), C.N), 20);
 
 	P.Text(Model.OutcomeTitle, 640, 58, 40, Model.OutcomeColor, EShiftAlign::Center, true);
@@ -1947,7 +2127,7 @@ void SShiftHud::PaintExtras(FShiftPainter& P, const FPal& C) const
 	const float X = 90.0f;
 	const float Y = 28.0f;
 	const float W = 1100.0f;
-	const float H = 664.0f;   // room for 15 achievements in two columns (8 rows) under the career strip
+	const float H = 664.0f;   // room for 24 achievements in three columns (8 rows) under the career strip
 	P.Rect(X, Y, W, H, C.PanelSolid, 18.0f);
 	int32 Earned = 0;
 	for (const FShiftHudAchItem& Item : Model.Achievements)
@@ -1972,14 +2152,14 @@ void SShiftHud::PaintExtras(FShiftPainter& P, const FPal& C) const
 		P.Text(Best, Bx + 14.0f, StripY + 42.0f, 12.0f, C.InkDim);
 	}
 
-	// the grid: two columns
+	// the grid: three columns
 	const float GridY = StripY + 82.0f;
-	const float CellW = (W - 72.0f - 16.0f) * 0.5f;
+	const float CellW = (W - 72.0f - 32.0f) / 3.0f;
 	for (int32 I = 0; I < Model.Achievements.Num(); ++I)
 	{
 		const FShiftHudAchItem& Item = Model.Achievements[I];
-		const float Cx = X + 36.0f + static_cast<float>(I % 2) * (CellW + 16.0f);
-		const float Cy = GridY + static_cast<float>(I / 2) * 58.0f;
+		const float Cx = X + 36.0f + static_cast<float>(I % 3) * (CellW + 16.0f);
+		const float Cy = GridY + static_cast<float>(I / 3) * 58.0f;
 		P.Rect(Cx, Cy, CellW, 52.0f, WithAlpha(Item.bEarned ? C.Teal : C.Ink, Item.bEarned ? 0.14f : 0.05f), 10.0f);
 		P.Disc(Cx + 26.0f, Cy + 26.0f, 13.0f, Item.bEarned ? C.Teal : WithAlpha(C.Ink, 0.20f));
 		P.Text(Item.bEarned ? TEXT("+") : TEXT("?"), Cx + 26.0f, Cy + 15.0f, 18.0f, Item.bEarned ? C.PanelSolid : C.InkDim, EShiftAlign::Center, true);
@@ -2115,7 +2295,7 @@ void SShiftHud::PaintTrailer(FShiftPainter& P, const FPal& C) const
 		const float CardX = 640.0f - CardW * 0.5f;
 		const float CardY = 200.0f;
 		P.TextFx(TEXT("OR HOLD"), 640.0f, CardY + 22.0f, 62.0f, WithAlpha(FLinearColor::White, A), EShiftAlign::Center, EShiftTrailerFont::Black, 90, 5.0f, WithAlpha(Ink, 0.9f * A));   // no box: the words carry their own outline, like a slam without one
-		PaintKeycap(P, C, 640.0f - 70.0f, CardY + 110.0f, 140.0f, Model.bNightActive || Model.bShiftDown, TEXT("SHIFT"));
+		PaintShiftKey(P, C, 640.0f, CardY + 184.0f, Model.bNightActive || Model.bShiftDown);
 	}
 
 	const bool bOnCard = T.Black > 0.9f;

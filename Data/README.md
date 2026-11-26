@@ -125,7 +125,7 @@ entries mine the jam's suggested readings of SHIFT (night shift, dimensions, gea
 shapeshifting, the Shift keys as the only controls) plus the "Cat Game" and "Untitled Platformer (Final).exe"
 gags; each jam uses six of the seven readings and both gags, so names never repeat between jams.
 Rivals: `@pixel_prince` / "Prince of Pixels" (Tiny Jam #7), `DevLegend` / "LEGEND OF DEV" (48h Pixel Rumble),
-`MEGA STUDIOS` / "ULTRA GAME 9 (AAA)" (GAME OFF 2026), `just_started` / "Beginner's Luck" (Level Playing Field, key `LevelField`). Follower counts (3K, 48K, 1.2M) in the rival blurbs are flavour
+`MEGA STUDIOS` / "ULTRA GAME 9 (AAA)" (GAME OFF 2026), `just_started` / "Beginner's Luck" (Level Playing Field, key `LevelField`), `mod_on_break` / "Off-Duty Mod" (Unmoderated Weekend, key `Weekend`). Follower counts (3K, 48K, 1.2M) in the rival blurbs are flavour
 only; the numeric source of truth is `Jams.csv`.
 
 Note: the brief listed only the three jam ids for `Jam`; You rows use the extra value `All` because the same
@@ -175,7 +175,7 @@ NobodyPlayed, QualityIgnored, Landslide, then NarrowWin/NearMiss, then CleanWin/
 seeded PRNG, and if nothing applies fall back to any line with the same Outcome. Each valid combination has at least
 2 lines; Wink has 6.
 
-### Achievements.csv  (`Id,Name,Description,Hidden`)  14 rows
+### Achievements.csv  (`Id,Name,Description,Hidden`)  21 rows
 
 | Column | Meaning |
 |---|---|
@@ -233,7 +233,7 @@ python -I Data/validate_text.py
 Run it from the repo root (it locates the CSVs next to itself). It checks: header and column count per row (an
 unquoted comma shows up as a wrong column count), pure ASCII, unique ids, enum values, minimum counts (Handles 120,
 Bios 80, Comments 200 with at least 8 per Context, Headlines 60 with at least 5 per Event, Blurbs 40 results lines
-plus 6 Wink lines, Achievements exactly 14, Tutorial 12 to 30 rows), length limits, the placeholder whitelist per file and
+plus 6 Wink lines, Achievements exactly 21, Tutorial 12 to 30 rows), length limits, the placeholder whitelist per file and
 Event, exactly 8 Other and 1 Rival entries per jam, duplicate and near-duplicate lines, and a blocklist of real brand
 names. It exits with status 1 and a list of problems if anything fails.
 

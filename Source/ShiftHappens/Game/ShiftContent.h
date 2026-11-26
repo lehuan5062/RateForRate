@@ -34,6 +34,8 @@ public:
 	static void BuildIdentities(const ShiftSim::Sim& Sim, uint32 Seed, TArray<FString>& OutHandles, TArray<FString>& OutBios);
 
 	/** A random line for a comment context (FlipToYou, Dent, Strike, ...); empty if the table is missing. */
+	/** The jam the chatter is for (set when a run starts): a pool also holds the lines tagged "<Context>@<JamKey>" for it. Jams without tagged lines draw exactly as before. */
+	static void SetActiveJam(int32 JamIndex);
 	static FString PickComment(const FString& Context, FRandomStream& Rng);
 	/** Like PickComment (one draw from Rng), and the line's Sentiment: "Positive", "Negative", "Neutral" or "Suspicious" (empty when there is no line). */
 	static FString PickCommentLine(const FString& Context, FRandomStream& Rng, FString& OutSentiment);

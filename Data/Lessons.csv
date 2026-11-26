@@ -23,3 +23,7 @@ L2S05,2,5,"Heat is high now. See the red mark on the Heat bar? The Mod Eye (top 
 L2S06,2,6,Let go of SHIFT (or press N again). Heat goes down by itself. Wait until the Heat bar is below the red mark.
 L2S07,2,7,"A strike removes all your fake votes. {strikes} strikes and you are out. Strikes never go away. At the end, a final check removes fake votes that are not real. Once, you can press B to Shift the Blame, if you have few fake votes."
 L2S08,2,8,"Now you know the whole game. Night shift is strong but risky: use it early, then make the votes real. Pick a jam, build your game with 12 hours, and win!"
+L3S01,3,1,"Night shift can get you caught. Each strike from the Mod Eye removes your fake votes and bans you from voting for {ban} seconds. {strikes} strikes and you are out. Here you already have two strikes."
+L3S02,3,2,"The Mod Eye strikes again. This is strike {strikes}: it ends your jam. But you have a few seconds: press B (or click the Blame button) to Shift the Blame and hand the strike to your rival."
+L3S03,3,3,"The strike is gone. The rival loses some votes and stands still for a moment. It works only once, and only when the mods took few fake votes (up to {blamefake}% of the vote). More than that, and the jam ends at once."
+L3S04,3,4,"Shift the Blame is a last chance, not a plan: use night shift early, make the votes real, and keep Heat low. Now pick a jam, build your game with 12 hours, and win!"

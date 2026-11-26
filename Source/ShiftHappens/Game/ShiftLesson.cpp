@@ -435,6 +435,64 @@ void FShiftLesson::BuildSteps()
 		return;
 	}
 
+	// ---- chapter 3: Shift the Blame
+	if (ChapterIx == 3)
+	{
+		// 1. two strikes are on the board already: read what they mean first
+		{
+			FStep& S = Step();
+			S.bRead = true;
+			S.Stage = [L](FShiftRun& R)
+				{
+					Sim& Sm = R.GetSim();
+					L->StepKey = -1;
+					while (Sm.Strikes() > 0)
+					{
+						Sm.ForgiveStrike();
+					}
+					Sm.ApplyStrike();
+					Sm.ApplyStrike();
+					Sm.SetHeat(0.0);
+					Sm.SetPosts(Sm.GetParams().PostsMax);
+				};
+			S.Targets = [](const Sim&, TArray<int32>&) {};
+		}
+		// 2. the strike that would end the jam lands: the player has a few seconds to hand it to the rival (the offer is held open while it is read)
+		{
+			FStep& S = Step();
+			S.Stage = [L](FShiftRun& R)
+				{
+					Sim& Sm = R.GetSim();
+					L->StepKey = -1;
+					if (!Sm.Disqualified() && !R.BlameAvailable() && !R.BlameUsed())
+					{
+						while (Sm.Strikes() < 2)
+						{
+							Sm.ApplyStrike();
+						}
+						R.StageFatalStrike();
+					}
+				};
+			S.Targets = [](const Sim&, TArray<int32>&) {};
+			S.Keep = [](FShiftRun& R) { R.HoldBlameOffer(); };
+			S.Done = [L](FShiftRun&) { return L->Saw(EShiftEventType::BlameTaken, -1); };
+			S.AutoAct = [](const Sim&) { return FShiftLessonAuto{ FShiftLessonAuto::EKind::Blame, -1, false }; };
+		}
+		// 3. what it did and what it will not do
+		{
+			FStep& S = Step();
+			S.bRead = true;
+			S.Stage = [L](FShiftRun&) { L->StepKey = -1; };
+			S.Targets = [](const Sim&, TArray<int32>&) {};
+		}
+		// 4. the end
+		{
+			FStep& S = Step();
+			S.bRead = true;
+		}
+		return;
+	}
+
 	// ---- chapter 2: night shift
 	// 1. a celebrity behind its gate
 	{
@@ -622,7 +680,7 @@ void FShiftLesson::Tick(FShiftRun& Run, float DeltaTime, const TArray<FShiftEven
 		{
 			S.SetHeat(Ceiling);
 		}
-		if (S.Strikes() > 0)
+		if (S.Strikes() > 0 && ChapterIx != 3)   // (lesson 3 is about strikes: it stages them, and the Blame offer is held open while it is read)
 		{
 			S.ForgiveStrike();
 		}
@@ -702,7 +760,7 @@ void FShiftLesson::RefreshView(const ShiftSim::Sim& S)
 	V.Chapter = ChapterIx;
 	V.Step = StepIx + 1;
 	V.Steps = Steps.Num();
-	V.Title = ChapterIx == 1 ? TEXT("LESSON 1 OF 2: THE BASICS") : TEXT("LESSON 2 OF 2: NIGHT SHIFT");
+	V.Title = ChapterIx == 1 ? TEXT("LESSON 1 OF 3: THE BASICS") : (ChapterIx == 2 ? TEXT("LESSON 2 OF 3: NIGHT SHIFT") : TEXT("LESSON 3 OF 3: SHIFT THE BLAME"));
 	const FString Raw = FShiftContent::LessonText(ChapterIx, StepIx + 1);
 	V.Body = Expand ? Expand(Raw) : Raw;
 	V.bReading = Phase == EPhase::Reading;

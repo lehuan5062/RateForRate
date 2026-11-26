@@ -1,6 +1,6 @@
 // Rate for Rate: background. Body of a Custom node; returns the opaque emissive colour float3.
 // Inputs: PW float2 pixel world XY, PaperA/PaperB float3 (day/night base colours), InkA/InkB float3 (day/night dot colours),
-//         Night float 0..1, Tm float seconds, Beat float 0..1, Pat float (the jam's pattern: 0 dots, 1 pixel grid, 2 graph paper, 3 level rules).
+//         Night float 0..1, Tm float seconds, Beat float 0..1, Pat float (the jam's pattern: 0 dots, 1 pixel grid, 2 graph paper, 3 level rules, 4 caution stripes).
 float3 Paper = lerp(PaperA, PaperB, Night);
 float3 Ink = lerp(InkA, InkB, Night);
 float2 g = PW / 48.0;
@@ -33,13 +33,22 @@ if (Pat > 0.5)
         float2 L = 1.0 - smoothstep(0.9, 0.9 + px, E);
         dots = max(max(l.x, l.y) * 0.45, max(L.x, L.y) * 0.95);
     }
-    else
+    else if (Pat < 3.5)
     {
         // level rules: horizontal lines every 48 units (a spirit level: everything on the same line), the one through the middle bolder
         float e = (0.5 - abs(frac(PW.x / 48.0) - 0.5)) * 48.0;
         float rule = 1.0 - smoothstep(0.55, 0.55 + px.x, e);
         float mid = 1.0 - smoothstep(1.4, 1.4 + px.x, abs(PW.x));
         dots = max(rule * 0.60, mid * 0.95);
+    }
+    else
+    {
+        // caution stripes (the Unmoderated Weekend): diagonal hatching, 28-unit period, stripes a third as wide as the gap, with a bolder one through the middle
+        float d = (PW.x + PW.y) / 28.0;
+        float e = (0.5 - abs(frac(d) - 0.5)) * 28.0;
+        float stripe = 1.0 - smoothstep(2.2, 2.2 + px.x * 1.4, e);
+        float mid = 1.0 - smoothstep(2.0, 2.0 + px.x * 1.4, abs(PW.x + PW.y));
+        dots = max(stripe * 0.55, mid * 0.95);
     }
 }
 float r = min(length(PW) / 1000.0, 1.5);   // the window is not letterboxed any more: a wide or tall one shows paper far from the board, which must not go dark

@@ -146,7 +146,7 @@ namespace ShiftSim
 			J.celebExtraFollowers = 4.0;
 			J.modIntervalMin = 12.0; J.modIntervalMax = 20.0;
 		}
-		else
+		else if (Index == 3)
 		{
 			// Level Playing Field: the control group. Nobody starts famous, the rival included (its clout, its celebrity followers and its pace are set to the others' level: see
 			// ApplyJamTuning for the Params part), so what decides the vote is what the game says it never is: the entries' quality and what the player does.
@@ -159,14 +159,25 @@ namespace ShiftSim
 			J.rivalInterval = 4.5;            // between the other entries' 8 s and the rival's usual 3.3 s: with nobody famous and most voters grey, a rival that acts every 8 s is no rival at all
 			J.modIntervalMin = 14.0; J.modIntervalMax = 22.0;
 		}
+		else
+		{
+			// Unmoderated Weekend: the moderators are off for the weekend. The Mod Eye sweeps rarely and goes on break three times (ApplyJamPolicy: EyeAwayCount; while it looks away
+			// a sockpuppet costs no Heat), so the night shift is a matter of timing: bank Posts, then burst when the window opens. The rival is a mid-size account, not a giant.
+			J.name = "Unmoderated Weekend";
+			J.nodes = 64; J.communities = 8; J.bridges = 3; J.celebs = 2;
+			J.days = 31; J.secPerDay = 6.0; J.regen = 0.380;
+			J.localGate = 0.25; J.celebGate = 0.20;
+			J.celebExtraFollowers = 4.0;
+			J.modIntervalMin = 20.0; J.modIntervalMax = 30.0;
+		}
 		return J;
 	}
 
 	void ApplyJamTuning(int Index, Params& P)
 	{
-		if (Index < 3)
+		if (Index != 3)
 		{
-			return;   // jams 0..2: the shared defaults, exactly as before
+			return;   // jams 0..2 and 4: the shared defaults (the Unmoderated Weekend's differences are in its JamDef and its policy, ApplyJamPolicy)
 		}
 		// Level Playing Field: the rival is one entry among nine. Its first look at the undecided is no more than another entry's (OtherCloutMax is 0.5; the shared default is 3.0),
 		// and the celebrity hubs are no firmer than the rest.

@@ -199,7 +199,8 @@ const TCHAR* FShiftContent::JamKey(int32 JamIndex)
 	case 0: return TEXT("TinyJam7");
 	case 1: return TEXT("Rumble48");
 	case 2: return TEXT("GameOff2026");
-	default: return TEXT("LevelField");
+	case 3: return TEXT("LevelField");
+	default: return TEXT("Weekend");
 	}
 }
 
@@ -348,28 +349,57 @@ void FShiftContent::BuildIdentities(const ShiftSim::Sim& Sim, uint32 Seed, TArra
 	}
 }
 
+namespace
+{
+	int32 GActiveJam = -1;
+
+	/** The shared pool of a key and, when the active jam has lines of its own under "<key>@<JamKey>", those after it. */
+	TArray<FString> PoolFor(const TMap<FString, TArray<FString>>& Map, const FString& Key)
+	{
+		TArray<FString> Out;
+		if (const TArray<FString>* Shared = Map.Find(Key))
+		{
+			Out = *Shared;
+		}
+		if (GActiveJam >= 0)
+		{
+			if (const TArray<FString>* Own = Map.Find(Key + TEXT("@") + FShiftContent::JamKey(GActiveJam)))
+			{
+				Out.Append(*Own);
+			}
+		}
+		return Out;
+	}
+}
+
+void FShiftContent::SetActiveJam(int32 JamIndex)
+{
+	GActiveJam = JamIndex;
+}
+
 FString FShiftContent::PickComment(const FString& Context, FRandomStream& Rng)
 {
 	EnsureLoaded();
-	return PickFrom(Cache().CommentsByContext.Find(Context), Rng);
+	const TArray<FString> Pool = PoolFor(Cache().CommentsByContext, Context);
+	return PickFrom(&Pool, Rng);
 }
 
 FString FShiftContent::PickCommentLine(const FString& Context, FRandomStream& Rng, FString& OutSentiment)
 {
 	EnsureLoaded();
 	OutSentiment.Reset();
-	const TArray<FString>* Pool = Cache().CommentsByContext.Find(Context);
-	if (!Pool || Pool->Num() == 0)
+	const TArray<FString> Pool = PoolFor(Cache().CommentsByContext, Context);
+	if (Pool.Num() == 0)
 	{
 		return FString();
 	}
-	const int32 Index = Rng.RandRange(0, Pool->Num() - 1);   // the same single draw as PickComment
-	const TArray<FString>* Sentiments = Cache().CommentSentiments.Find(Context);
-	if (Sentiments && Sentiments->IsValidIndex(Index))
+	const int32 Index = Rng.RandRange(0, Pool.Num() - 1);   // the same single draw as PickComment
+	const TArray<FString> Sentiments = PoolFor(Cache().CommentSentiments, Context);
+	if (Sentiments.IsValidIndex(Index))
 	{
-		OutSentiment = (*Sentiments)[Index];
+		OutSentiment = Sentiments[Index];
 	}
-	return (*Pool)[Index];
+	return Pool[Index];
 }
 
 FString FShiftContent::PickHandleOfKind(const FString& Kind, FRandomStream& Rng)
@@ -381,7 +411,8 @@ FString FShiftContent::PickHandleOfKind(const FString& Kind, FRandomStream& Rng)
 FString FShiftContent::PickHeadline(const FString& Event, FRandomStream& Rng)
 {
 	EnsureLoaded();
-	return PickFrom(Cache().HeadlinesByEvent.Find(Event), Rng);
+	const TArray<FString> Pool = PoolFor(Cache().HeadlinesByEvent, Event);
+	return PickFrom(&Pool, Rng);
 }
 
 FString FShiftContent::PickBlurb(const FString& Outcome, const FString& Condition, FRandomStream& Rng)
