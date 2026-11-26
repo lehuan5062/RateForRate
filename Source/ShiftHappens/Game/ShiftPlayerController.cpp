@@ -2503,10 +2503,16 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			break;
 		case EShiftEventType::EyeAwayWarn:
 			TutEventMask |= EvEyeAway;
+			// a double chime, so it is not missed while the eyes are on the board (Tip is a quiet sound, -12 dB: twice, a third of a second apart)
 			PlaySfx(EShiftSfx::Tip);
+			{
+				FTimerHandle Second;
+				GetWorldTimerManager().SetTimer(Second, FTimerDelegate::CreateWeakLambda(this, [this]() { PlaySfx(EShiftSfx::Tip); }), 0.35f, false);
+			}
 			ShowToast(FString::Printf(TEXT("The Mod Eye looks away in %.0f s: fake votes will add no Heat."), E.Value), PurpleColor(), 3.5f);
 			break;
 		case EShiftEventType::EyeAwayStart:
+			PlaySfx(EShiftSfx::Blame);   // the window opens: the relief sting (it plays at most three times a jam) over the night-on sound
 			PlaySfx(EShiftSfx::NightOn);
 			ShowToast(FString::Printf(TEXT("THE MOD EYE LOOKS AWAY for %.0f s: fake votes add no Heat while it happens. The ones you already hold still warm you a little."), E.Value), PurpleColor(), 4.0f);
 			break;
