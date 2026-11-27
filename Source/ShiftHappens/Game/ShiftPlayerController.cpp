@@ -1511,6 +1511,7 @@ void AShiftPlayerController::FillExtrasModel(FShiftHudModel& M) const
 	}
 	if (ExtrasPage == 1)
 	{
+		M.AchPage = FMath::Clamp(AchPage, 0, FMath::Max(1, FMath::DivideAndRoundUp(ShiftAch::Num, AchPerPage)) - 1);
 		const uint32 Saved = ShiftSave::Achievements();
 		for (int32 I = 0; I < ShiftAch::Num; ++I)
 		{
@@ -1985,7 +1986,16 @@ void AShiftPlayerController::HandleUi(int32 Id, float Value01)
 	}
 	case EShiftUi::Achievements:
 		ExtrasPage = 1;
+		AchPage = 0;
 		bSettingsOpen = false;
+		break;
+	case EShiftUi::AchPrev:
+		AchPage = FMath::Max(0, AchPage - 1);
+		PlaySfx(EShiftSfx::Tip, 0.5f);
+		break;
+	case EShiftUi::AchNext:
+		AchPage = FMath::Min(FMath::Max(1, FMath::DivideAndRoundUp(ShiftAch::Num, AchPerPage)) - 1, AchPage + 1);
+		PlaySfx(EShiftSfx::Tip, 0.5f);
 		break;
 	case EShiftUi::Credits:
 		ExtrasPage = 2;
@@ -2183,6 +2193,8 @@ void AShiftPlayerController::HandleHudKey(const FKey& Key)
 	}
 	if (ExtrasPage != 0)
 	{
+		if (ExtrasPage == 1 && Key == EKeys::Left) { HandleUi(EShiftUi::AchPrev, 0.0f); return; }
+		if (ExtrasPage == 1 && Key == EKeys::Right) { HandleUi(EShiftUi::AchNext, 0.0f); return; }
 		if (Key == EKeys::Escape || Key == EKeys::Enter || Key == EKeys::SpaceBar || (Key == EKeys::A && ExtrasPage == 1) || (Key == EKeys::C && ExtrasPage == 2) || (Key == EKeys::R && ExtrasPage == 3))
 		{
 			ExtrasPage = 0;
@@ -2192,6 +2204,7 @@ void AShiftPlayerController::HandleHudKey(const FKey& Key)
 	if (Screen == EShiftScreen::Title && !bLessonRun && !bSettingsOpen && (Key == EKeys::A || Key == EKeys::C || Key == EKeys::R))
 	{
 		ExtrasPage = Key == EKeys::A ? 1 : (Key == EKeys::C ? 2 : 3);
+		AchPage = 0;
 		if (ExtrasPage == 3)
 		{
 			RefreshReplays();

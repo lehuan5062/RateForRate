@@ -287,6 +287,7 @@ private:
 	FShiftAchTracker Ach;
 	uint32 AchSaved = 0;                      // the achievements already in the save
 	TArray<FString> AchNewThisRun;            // their names, for the results card
+	int32 AchPage = 0;                        // the page of achievements on show (AchPerPage at a time)
 	int32 ExtrasPage = 0;                     // title: 0 none, 1 achievements, 2 credits
 	float SpotFlashClock = 0.0f;              // heartbeat of the spotlighted voter
 

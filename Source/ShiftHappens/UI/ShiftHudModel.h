@@ -27,6 +27,8 @@ namespace EShiftUi
 		JamCard0 = 10,            // 10, 11, 12: the three card slots of the jam page on show (the page decides which jams they are)
 		JamPrev = 91,             // jam select: the previous page of jams (also the Left key)
 		JamNext = 92,             // jam select: the next page of jams (also the Right key)
+		AchPrev = 93,             // achievements page: the previous page of achievements (also the Left key)
+		AchNext = 94,             // achievements page: the next page (also the Right key)
 		SliderQuality = 20,       // 20, 21, 22 (value = 0..1 along the track)
 		SliderThumbnail = 21,
 		SliderNetwork = 22,
@@ -145,6 +147,9 @@ struct FShiftHudReplayRow
 /** One jam card on the select screen. */
 /** The jam select screen shows this many jam cards at a time and pages through the rest, so any number of jam packs fits. */
 constexpr int32 JamsPerPage = 3;
+
+/** The achievements page shows this many achievements at a time (two columns of four) and pages through the rest. */
+constexpr int32 AchPerPage = 8;
 
 struct FShiftHudJamCard
 {
@@ -476,6 +481,7 @@ struct FShiftHudModel
 	TArray<FMarker> Markers;               // one per voter, in design pixels (only while bMarkers)
 	int32 ExtrasPage = 0;                  // title: 0 none, 1 the achievements and career page, 2 the credits
 	TArray<FShiftHudAchItem> Achievements;
+	int32 AchPage = 0;                     // the page of achievements on show (AchPerPage at a time)
 	TArray<FShiftHudCareerRow> Career;
 	TArray<FString> CreditsText;           // one line each; a line ending in ":" is a heading
 	TArray<FString> NewAchievements;       // results: the names earned in this run

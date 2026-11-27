@@ -2127,7 +2127,7 @@ void SShiftHud::PaintExtras(FShiftPainter& P, const FPal& C) const
 	const float X = 90.0f;
 	const float Y = 28.0f;
 	const float W = 1100.0f;
-	const float H = 664.0f;   // room for 24 achievements in three columns (8 rows) under the career strip
+	const float H = 664.0f;
 	P.Rect(X, Y, W, H, C.PanelSolid, 18.0f);
 	int32 Earned = 0;
 	for (const FShiftHudAchItem& Item : Model.Achievements)
@@ -2137,35 +2137,71 @@ void SShiftHud::PaintExtras(FShiftPainter& P, const FPal& C) const
 	P.Text(TEXT("ACHIEVEMENTS"), X + W * 0.5f, Y + 18.0f, 32.0f, C.Ink, EShiftAlign::Center, true);
 	P.Text(FString::Printf(TEXT("%d of %d earned"), Earned, Model.Achievements.Num()), X + W * 0.5f, Y + 58.0f, 13.0f, C.InkDim, EShiftAlign::Center);
 
-	// the career strip: one block per jam
-	const float StripY = Y + 90.0f;
-	const int32 Blocks = FMath::Max(1, Model.Career.Num());
-	const float BlockW = (W - 72.0f - static_cast<float>(Blocks - 1) * 16.0f) / static_cast<float>(Blocks);
-	for (int32 I = 0; I < Model.Career.Num(); ++I)
+	// the career, one row per jam in a column on the left: the rows share the height, so any number of jams fits
+	const float ColX = X + 36.0f;
+	const float ColW = 300.0f;
+	const float TopY = Y + 104.0f;
+	P.Text(TEXT("CAREER"), ColX, TopY, 12.0f, C.Teal, EShiftAlign::Left, true);
+	const int32 Jams = Model.Career.Num();
+	if (Jams > 0)
 	{
-		const FShiftHudCareerRow& R = Model.Career[I];
-		const float Bx = X + 36.0f + static_cast<float>(I) * (BlockW + 16.0f);
-		P.Rect(Bx, StripY, BlockW, 62.0f, WithAlpha(C.Ink, 0.06f), 10.0f);
-		P.Text(R.Jam, Bx + 14.0f, StripY + 8.0f, 13.0f, C.Teal, EShiftAlign::Left, true);
-		const FString Best = R.BestRank > 0 ? FString::Printf(TEXT("best %s place, %.1f%% of the vote"), *HudOrdinal(R.BestRank), R.BestShare * 100.0f) : FString(TEXT("not finished yet"));
-		P.Text(FString::Printf(TEXT("%d run%s, %d won, %d disqualified"), R.Runs, R.Runs == 1 ? TEXT("") : TEXT("s"), R.Wins, R.Dq), Bx + 14.0f, StripY + 26.0f, 12.0f, C.Ink);
-		P.Text(Best, Bx + 14.0f, StripY + 42.0f, 12.0f, C.InkDim);
+		const float Avail = H - 104.0f - 66.0f - 28.0f;
+		const float Pitch = FMath::Clamp(Avail / static_cast<float>(Jams), 40.0f, 74.0f);
+		for (int32 I = 0; I < Jams; ++I)
+		{
+			const FShiftHudCareerRow& R = Model.Career[I];
+			const float Ry = TopY + 26.0f + static_cast<float>(I) * Pitch;
+			P.Rect(ColX, Ry, ColW, Pitch - 6.0f, WithAlpha(C.Ink, 0.06f), 10.0f);
+			P.Text(R.Jam, ColX + 12.0f, Ry + 6.0f, 13.0f, C.Teal, EShiftAlign::Left, true);
+			P.Text(P.Fit(FString::Printf(TEXT("%d run%s, %d won, %d disqualified"), R.Runs, R.Runs == 1 ? TEXT("") : TEXT("s"), R.Wins, R.Dq), ColW - 84.0f, 12.0f), ColX + 72.0f, Ry + 7.0f, 12.0f, C.Ink);
+			const FString Best = R.BestRank > 0 ? FString::Printf(TEXT("best %s place, %.1f%% of the vote"), *HudOrdinal(R.BestRank), R.BestShare * 100.0f) : FString(TEXT("not finished yet"));
+			P.Text(P.Fit(Best, ColW - 24.0f, 12.0f), ColX + 12.0f, Ry + 24.0f, 12.0f, C.InkDim);
+		}
 	}
 
-	// the grid: three columns
-	const float GridY = StripY + 82.0f;
-	const float CellW = (W - 72.0f - 32.0f) / 3.0f;
-	for (int32 I = 0; I < Model.Achievements.Num(); ++I)
+	// the achievements, eight to a page in two columns, with a pager
+	const float GridX = ColX + ColW + 28.0f;
+	const float GridW = X + W - 36.0f - GridX;
+	const float CellW = (GridW - 16.0f) * 0.5f;
+	const float CellH = 96.0f;
+	const float CellPitch = CellH + 10.0f;
+	const int32 Total = Model.Achievements.Num();
+	const int32 Pages = FMath::Max(1, FMath::DivideAndRoundUp(Total, AchPerPage));
+	const int32 Page = FMath::Clamp(Model.AchPage, 0, Pages - 1);
+	P.Text(TEXT("ACHIEVEMENTS"), GridX, TopY, 12.0f, C.Teal, EShiftAlign::Left, true);
+	const int32 First = Page * AchPerPage;
+	const int32 Shown = FMath::Min(AchPerPage, Total - First);
+	for (int32 Slot = 0; Slot < Shown; ++Slot)
 	{
-		const FShiftHudAchItem& Item = Model.Achievements[I];
-		const float Cx = X + 36.0f + static_cast<float>(I % 3) * (CellW + 16.0f);
-		const float Cy = GridY + static_cast<float>(I / 3) * 58.0f;
-		P.Rect(Cx, Cy, CellW, 52.0f, WithAlpha(Item.bEarned ? C.Teal : C.Ink, Item.bEarned ? 0.14f : 0.05f), 10.0f);
-		P.Disc(Cx + 26.0f, Cy + 26.0f, 13.0f, Item.bEarned ? C.Teal : WithAlpha(C.Ink, 0.20f));
-		P.Text(Item.bEarned ? TEXT("+") : TEXT("?"), Cx + 26.0f, Cy + 15.0f, 18.0f, Item.bEarned ? C.PanelSolid : C.InkDim, EShiftAlign::Center, true);
+		const FShiftHudAchItem& Item = Model.Achievements[First + Slot];
+		const float Cx = GridX + static_cast<float>(Slot % 2) * (CellW + 16.0f);
+		const float Cy = TopY + 26.0f + static_cast<float>(Slot / 2) * CellPitch;
+		P.Rect(Cx, Cy, CellW, CellH, WithAlpha(Item.bEarned ? C.Teal : C.Ink, Item.bEarned ? 0.14f : 0.05f), 12.0f);
+		P.Disc(Cx + 30.0f, Cy + 30.0f, 15.0f, Item.bEarned ? C.Teal : WithAlpha(C.Ink, 0.20f));
+		P.Text(Item.bEarned ? TEXT("+") : TEXT("?"), Cx + 30.0f, Cy + 17.0f, 20.0f, Item.bEarned ? C.PanelSolid : C.InkDim, EShiftAlign::Center, true);
 		const bool bShow = Item.bEarned || !Item.bHidden;
-		P.Text(bShow ? Item.Name : FString(TEXT("Hidden achievement")), Cx + 52.0f, Cy + 6.0f, 14.0f, Item.bEarned ? C.Ink : C.InkDim, EShiftAlign::Left, true);
-		P.TextBlock(bShow ? Item.Desc : FString(TEXT("Keep playing to find out.")), Cx + 52.0f, Cy + 25.0f, CellW - 64.0f, 11.0f, 13.0f, C.InkDim);
+		P.Text(P.Fit(bShow ? Item.Name : FString(TEXT("Hidden achievement")), CellW - 70.0f, 15.0f, true), Cx + 58.0f, Cy + 12.0f, 15.0f, Item.bEarned ? C.Ink : C.InkDim, EShiftAlign::Left, true);
+		P.TextBlock(bShow ? Item.Desc : FString(TEXT("Keep playing to find out.")), Cx + 58.0f, Cy + 38.0f, CellW - 74.0f, 12.0f, 16.0f, C.InkDim);
+	}
+	if (Pages > 1)
+	{
+		const float PagerY = TopY + 26.0f + 4.0f * CellPitch + 4.0f;
+		for (int32 Dir = 0; Dir < 2; ++Dir)
+		{
+			const bool bNext = Dir == 1;
+			const bool bEnabled = bNext ? Page < Pages - 1 : Page > 0;
+			const float Ax = bNext ? GridX + GridW - 40.0f : GridX;
+			const bool bOver = bEnabled && AddHit(Ax, PagerY, 40.0f, 40.0f, bNext ? EShiftUi::AchNext : EShiftUi::AchPrev);
+			P.Rect(Ax, PagerY, 40.0f, 40.0f, bOver ? C.Teal : WithAlpha(C.Ink, bEnabled ? 0.10f : 0.04f), 20.0f);
+			P.Text(bNext ? TEXT(">") : TEXT("<"), Ax + 20.0f, PagerY + 8.0f, 20.0f, bOver ? FLinearColor::White : (bEnabled ? C.Teal : C.InkDim), EShiftAlign::Center, true);
+		}
+		const float Mid = GridX + GridW * 0.5f;
+		const float DotsX0 = Mid - 9.0f * static_cast<float>(Pages - 1);
+		for (int32 p = 0; p < Pages; ++p)
+		{
+			P.Disc(DotsX0 + 18.0f * static_cast<float>(p), PagerY + 12.0f, p == Page ? 5.5f : 4.0f, p == Page ? C.Teal : C.Track);
+		}
+		P.Text(FString::Printf(TEXT("%d-%d of %d   (arrows or Left / Right)"), First + 1, First + Shown, Total), Mid, PagerY + 24.0f, 11.0f, C.InkDim, EShiftAlign::Center);
 	}
 	P.Text(TEXT("Click anywhere to close"), X + W * 0.5f, Y + H - 22.0f, 11.0f, C.InkDim, EShiftAlign::Center);
 }
