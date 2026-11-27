@@ -66,7 +66,7 @@ Before the first **public** publish (it fixes the page's place in "Most Recent")
 ## What is left for you
 
 1. **GitHub**: the repository (`lehuan5062/RateForRate`) is pushed but currently **private**; the jam needs a public repository, so make it public (Settings, Danger zone) before you submit. No Git LFS is used: the largest tracked file is under 2 MB, and `Saved/`, `Intermediate/`, `Binaries/` are git-ignored.
-2. **License**: none chosen yet (the README says TBD). Pick one before you publish.
+2. **License**: done. GPL-3.0-only with an Unreal Engine exception for the code and the content (`LICENSE`, `LICENSE-EXCEPTION`, the README's Licence section).
 3. **Package** a Windows build with `Tools\package.ps1 -Config Shipping` (cook, stage, pak, archive into `Saved\PackageShipping`; the first run compiles the shaders and takes a while). A Shipping package of version 0.2.0 was staged and smoke-tested headless on 25 Nov (see Known limits); rebuild it if the code changed since. Zip the staged `Windows` folder and upload it as the Windows download. The packaged game needs the DX12 runtime that ships with Windows 10/11.
 4. **itch.io**: create the project, upload the zip, add the page copy and screenshots above, then **submit it to the jam** (pushing code is not submitting) before **Dec 1 2026, 13:37 PST (21:37 UTC)**.
 5. **Listen to it**: the audio was verified with in-graph meters only (levels, spectra, clock, every lane firing), not by ear. All of it is MetaSound and Harmonix, so it is tweakable in the MetaSound editor, and the levels can be re-trimmed with `Tools\calibrate_audio.ps1`.

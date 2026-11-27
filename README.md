@@ -8,7 +8,7 @@ When a jam is decided by public vote, it barely matters how good your game is: w
 Nine games enter. Yours is fine. The rival's is fine too. The rival has 1.2 million followers; you have a few. You have 31 days of voting to change that.
 
 > **Platform:** Windows 10/11 with a DirectX 12 capable GPU (Shader Model 6). The game is DX12-only. (Unreal Engine 5 has no browser export, so this is a Windows download.)
-> **License:** not decided yet (TBD).
+> **License:** GPL-3.0-only with an Unreal Engine exception, code and content alike (see [Licence](#licence)).
 
 ## How to play
 
@@ -121,6 +121,16 @@ Docs/                  Audio.md, QA.md, Itch.md, mcp-toolsets.md, metasound-node
 This game was developed with AI assistance. The code, the data text (jokes, headlines, blurbs), the MetaSound graphs that synthesise the music and sound effects, and the build scripts were written
 by an AI model (Claude, through Claude Code) under the direction of the project owner, who reviewed the results. No generative image, audio or video models were used for the assets: all graphics are procedural (shaders) and all audio is synthesised in MetaSound graphs from code.
 The names, handles and "entries" in the game are fictional.
+
+## Licence
+
+Copyright (C) 2026 HUANREAL.
+
+The code and the content of this repository (the game's source, scripts, data, art, text, music and levels) are licensed under the **GNU General Public License version 3, only** (see `LICENSE`). Section 7 of that licence is extended by `LICENSE-EXCEPTION`, which allows the code to be combined with **Unreal Engine** and with the platform SDKs needed to publish a game built with it. Unreal Engine itself is not part of this repository and stays under Epic Games' End User License Agreement.
+
+* Anyone may use, change and sell the game, commercially too, as long as what they distribute is licensed under GPL-3.0 with its source code.
+* The copyright holder also licenses this work under other terms, for closed-source use. Contact the repository owner.
+* Contributions are accepted only if the contributor agrees that HUANREAL may also license their contribution under other terms.
 
 ## Credits
 

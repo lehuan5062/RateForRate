@@ -1,0 +1,11 @@
+GNU General Public License version 3: additional permission for Unreal Engine
+
+Copyright (C) 2026 HUANREAL
+
+This exception applies to the software and content in this repository (the "Program"), which are licensed under the GNU General Public License version 3 (see LICENSE). It adds the following additional permission under section 7 of that licence.
+
+1. Permission. If you modify the Program, or any covered work based on it, by linking or combining it with Unreal Engine (or a modified version of it), or with the libraries and software development kits of a game distribution platform or console that are needed to publish a game built with it (together, the "Non-GPL Components"), the copyright holders grant you permission to convey the resulting work, even though the Non-GPL Components are covered by licences that are not the GNU General Public License.
+
+2. Corresponding Source. The Corresponding Source of such a combined work must include the source code of the Program and of every covered work, but it need not include the source code of the Non-GPL Components themselves.
+
+3. No other rights. This permission grants no rights in Unreal Engine or in the other Non-GPL Components. They remain under their own licences, including Epic Games' End User License Agreement for Unreal Engine. It does not change the licence of any other code or content.
