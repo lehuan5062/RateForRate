@@ -29,7 +29,7 @@ class AShiftPlayerController;   // a real circular dependency: the controller ow
  *   flash <seconds>                  a white flash that fades out
  *   title                            the title screen with its attract run
  *   seed <n>                         fix the seed the next jam started from the interface uses (a card click then plays that world)
- *   jams                             the jam list (four cards) over the attract board
+ *   jams                             the jam list (three cards a page; `press 92` flips to the next page) over the attract board
  *   press <UiId> [value]             the controller's button action by id (EShiftUi; value 0..1 for a slider such as the viewer's seek bar 78); glide the cursor there first with hover
  *   replay <file> [speed 0..3]       the replay viewer on a recording (a path next to the cue file, e.g. Trailer/replay_levelfield.shiftrec.txt); speed 0..3 = 1x, 2x, 4x, 8x
  *   run <jam> <seed> <bot|-> <warpSimSeconds> [speed]   a fresh run (bot as -ShiftBot, warp as -ShiftWarp)

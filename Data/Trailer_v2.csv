@@ -1,0 +1,96 @@
+Id,Bar,Cmd,Args
+# The scripted trailer run (Source/ShiftHappens/Trailer/ShiftTrailer.h). Read at start, so edit and rerun without a rebuild.
+# Bar = position in bars of the music (112.5 BPM, 1 bar = 2.1333 s, 0.25 = one beat). The music loop restarts at bar 0, 8, 16, 24 (the drops). 31 bars + the 0.4 s fade = 66.5 s.
+# Commands: black, flash, title, jams, run, seed, replay, press, warp, bot, speed, night, holdshift, tension, click, hover, spot, zoom, slam, caption, end. Plain ASCII, no commas in the text.
+# Part 1 (bars 0 to 8) starts with the rename announcement, then shows what is new in 0.2, through the interface: the jam list zoomed on the new fourth jam, then the title menu, the Replays page and the viewer. Part 2 (bars 8 to 31)
+# is the original story (Data/Trailer_v1.csv moved 8 bars later, so its drops stay on the music's drops) with the OR HOLD scene reworked.
+# The Replays page lists Saved/Trailer/recordings (Tools/trailer/stage_recordings.ps1 fills it from Data/Trailer/replay_*.shiftrec.txt; the game gets -ShiftRecordingsDir).
+# The music's tension layer (hats, rims, the riser) is pinned off for the whole trailer: it only made it uneasy to listen to
+T000,0,tension,0
+# ---------------------------------------------------------------- Part 1: new in 0.2
+T001,0,black,1 0
+# the rename: the old name on the first beat, the new one on the third; "NEW IN 0.2" moved into the first caption
+T002,0.05,slam,1.9 y=250 px=100 box=0 SHIFT HAPPENS|IS NOW
+T003,0.5,slam,1.45 y=480 px=140 box=0 RATE FOR RATE.
+# the jam list under the black card, revealed on bar 1: the cursor goes straight to the new fourth card and the view zooms in on it
+N010,0.95,jams,
+N011,1,black,0 0
+N012,1,flash,0.18
+N013,1.05,hover,1096 330 0.6
+N014,1.2,zoom,0.6 3.7 0.4 1.4 1240 380
+N015,1.3,caption,2.0 NEW IN 0.2: A FOURTH JAM.
+# the rival of the new jam: 41 followers, like you
+N020,2.2,spot,968 286 256 134 2.2
+N021,2.25,caption,2.2 THE RIVAL HAS 41 FOLLOWERS. LIKE YOU.
+# the card is clicked, then the title menu: the Replays row, the page, Watch
+N022,3.3,click,1096 330
+N060,3.5,flash,0.2
+N061,3.55,title,
+N042,3.6,hover,383 480 0.4
+N043,3.65,caption,2.0 NEW: EVERY JAM IS RECORDED.
+N044,4.35,press,76
+N045,4.5,hover,946 310 0.4
+N046,4.6,caption,2.6 NEW: WATCH ANY JAM AGAIN.
+N047,5.3,press,110
+N048,5.3,flash,0.15
+# the viewer: 8x, then a jump in the jam
+N050,5.5,spot,280 678 512 32 1.8
+N052,5.6,hover,468 694 0.4
+N054,6,press,103
+N055,6.3,hover,564 694 0.4
+N056,6.7,press,78 0.3
+N057,7.8,black,1 0.2
+# ---------------------------------------------------------------- Part 2: the original story (bars 8 to 31)
+# Cold open: a black card on the music's first beat
+T001,8,black,1 0
+T002,8.05,slam,3.0 EVERY GAME JAM|HAS A WINNER.
+# Day 1: nine games, yours, theirs (the run starts under the card)
+T010,9.2,run,2 7 - 0
+T011,9.5,black,0 0.3
+T070,9.5,zoom,0.7 2.6 0.6 1.6 1272 100
+T071,11.5,zoom,0.7 2.2 0.5 1.8 568 437
+T012,9.5,spot,1084 46 188 172 2.0
+T013,9.55,caption,2.2 NINE GAMES ENTER.
+T014,10.5,spot,1086 191 186 22 1.9
+T015,10.55,caption,2.0 YOURS IS FINE.
+T017,11.5,spot,488 357 160 160 3.2
+T018,11.55,caption,3.2 THEIRS HAS 1.2 MILLION FOLLOWERS.
+# Thirty-one days go by
+T020,13,spot,500 6 280 34 2.2
+T021,13.05,caption,2.2 YOU HAVE 31 DAYS.
+# the player works the board at a human pace: the cursor glides to a voter, rests on it for its hover card, then plugs it (about 1.5 s apart)
+T023,13,speed,3
+T090,13.6,click,487 664
+T091,14.3,click,868 372
+T092,15,click,568 600
+T093,15.7,click,742 233
+T094,16.4,click,899 538
+T095,17.1,click,820 547
+# Bar 14.9: "OR HOLD" and a SHIFT keycap over the same game; the shift is held from bar 15.6 on (the keycap presses like the title logo's), and the run goes on to the celebrity
+H001,14.9,holdshift,3.4
+H002,15.6,night,1
+H006,18.7,speed,1
+# Night, the same run: sockpuppets on the celebrity
+T034,19.3,click,568 437 n
+T035,19.72,click,568 437 n
+T036,20.14,click,568 437 n
+T037,20.56,click,568 437 n
+T038,19.4,caption,3.2 SOCKPUPPETS. BOTS. BRIBES.
+T072,19.2,zoom,0.5 2.4 0.6 1.6 568 437
+# The Mod Eye and the strikes: a sock bot on a run that is already 26 s in, at double speed, is disqualified near bar 26
+T041,21.9,flash,0.15
+T042,22,run,2 7 sock 34.5 2
+T043,22,spot,mods 2.0
+T044,22.05,caption,2.2 THE MOD EYE IS WATCHING.
+T073,22,zoom,0.6 1.8 0.5 2.0 945 0
+T045,24.1,slam,1.9 y=250 px=70 box=1 THREE STRIKES.
+# Or play it straight: the real final push, final audit and win
+T050,24.9,flash,0.2
+T051,25,night,0 now
+T052,25,run,2 7 rally 231.77 2
+T053,25.1,caption,3.6 OR PLAY IT STRAIGHT.
+T054,28.9,slam,1.9 y=250 px=70 box=1 FINAL AUDIT.
+# End card
+T060,30,black,1 0.4
+T061,30.2,slam,2.4 RATE FOR RATE|HOLD SHIFT.
+T063,31.2,end,

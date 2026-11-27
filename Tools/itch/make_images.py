@@ -5,6 +5,8 @@ drawn with Pillow, the keycap and the arrow are polygons. Output goes to Saved/I
 
   python Tools/itch/make_images.py logo        the transparent logo and the favicon, with a review sheet
   python Tools/itch/make_images.py promo       cover, social, wide cover, banner, thumbnail (GIF + PNG), from the hero frames
+  python Tools/itch/make_images.py thumb       only the trailer thumbnail (11_trailer_thumbnail_1280x720.png) and its animated twin, the devlog cover (14_devlog_cover_1280x720.gif), from the hero frames
+  python Tools/itch/make_images.py devlog      only the devlog cover
   python Tools/itch/make_images.py bg          the page background: a seamless 6 s loop of the follower network (GIF) and its PNG fallback; needs no frames
   python Tools/itch/make_images.py scenes      the screenshot GIFs from the scene frames (flip, plug, night, mod eye) and the results still
   python Tools/itch/make_images.py check       sizes, aspect ratios, loops, first frames and the flash rule of everything in upload/
@@ -427,6 +429,35 @@ def tagline_text(target_w, max_w):
     return img.resize((img.width // SS, img.height // SS), Image.LANCZOS)
 
 
+def project_version():
+    """'0.3' from ProjectVersion=0.3.0 in Config/DefaultGame.ini: the major and minor numbers, as the pages and the trailer say them."""
+    with open(os.path.join(ROOT, 'Config', 'DefaultGame.ini'), encoding='utf-8') as f:
+        for line in f:
+            if line.startswith('ProjectVersion='):
+                return '.'.join(line.strip().split('=', 1)[1].split('.')[:2])
+    return ''
+
+
+def version_badge(img, size):
+    """A 'v0.3' pill in the top right corner of the trailer thumbnail and the devlog cover (teal fill, ink outline, white Roboto Black like the wordmark)."""
+    text = 'v' + project_version()
+    W, H = size
+    ss = 4
+    px = int(H * 0.095) * ss
+    f = font('Roboto-Black.ttf', px)
+    bbox = f.getbbox(text, anchor='ls')
+    tw, th = bbox[2] - bbox[0], -bbox[1]
+    padx, pady = int(px * 0.42), int(px * 0.30)
+    bw, bh = tw + 2 * padx, th + 2 * pady
+    layer = Image.new('RGBA', (bw, bh), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    d.rounded_rectangle((0, 0, bw - 1, bh - 1), bh // 2, fill=TEAL + (255,), outline=INK + (255,), width=max(2, int(px * 0.07)))
+    d.text((padx - bbox[0], pady + th), text, font=f, fill=WHITE + (255,), anchor='ls', stroke_width=max(1, int(px * 0.05)), stroke_fill=INK + (255,))
+    layer = layer.resize((bw // ss, bh // ss), Image.LANCZOS)
+    margin = int(H * 0.05)
+    shadowed(img, layer, (W - layer.width - margin, margin), blur=max(3, W // 300), alpha=0.5)
+
+
 def promo_frame(key, day, night, p, pressed):
     stem, size, (cx, cy), wsrc, lfrac, tag = PROMOS[key]
     W, H = size
@@ -445,6 +476,8 @@ def promo_frame(key, day, night, p, pressed):
     top = int((H - (lg.height + gap + line.height)) / 2)
     shadowed(img, lg, ((W - lg.width) // 2, top), blur=blur)
     shadowed(img, line, ((W - line.width) // 2, top + lg.height + gap), blur=max(3, W // 300), alpha=0.5)
+    if key in ('thumb', 'devlog'):
+        version_badge(img, size)   # the thumbnail and the devlog cover (its animated twin) carry the version
     return img.convert('RGB')
 
 
@@ -453,12 +486,15 @@ def sweep(n, amp=0.20, mid=0.5):
     return [mid + amp * math.sin(2 * math.pi * i / n) for i in range(n)]
 
 
-def make_promos(max_bytes):
+def make_promos(max_bytes, only=None):
+    """All the promo pictures, or only those whose key is in `only` (the 'thumb' and 'devlog' commands)."""
     day, night = hero()
     ensure(OUT, TMP)
     fps = 12.5
     n = 50   # 4 s
     for key, (stem, size, *_rest) in PROMOS.items():
+        if only and key not in only:
+            continue
         ps = sweep(n)[:1] if key == 'thumb' else sweep(n)   # the YouTube thumbnail is a still
         frames = []
         d = os.path.join(TMP, 'promo_' + key)
@@ -841,6 +877,11 @@ def main(argv):
         make_logo()
     if cmd in ('promo', 'all'):
         make_promos(MAX_BYTES)
+    if cmd == 'thumb':
+        make_promos(MAX_BYTES, ('thumb', 'devlog'))   # the devlog cover is the thumbnail animated: one picture, so they are always made together
+        print('thumbnail:', os.path.join(OUT, PROMOS['thumb'][0] + '.png'))
+    if cmd == 'devlog':
+        make_promos(MAX_BYTES, ('devlog',))
     if cmd in ('bg', 'all'):
         make_background(MAX_BYTES)
     if cmd in ('scenes', 'all'):

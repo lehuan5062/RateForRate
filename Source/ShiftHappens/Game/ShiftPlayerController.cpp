@@ -2515,6 +2515,7 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			}
 			break;
 		case EShiftEventType::EyeAwayWarn:
+			UE_LOG(LogShift, Display, TEXT("Eye break: warning at t=%.1f, it starts in %.1f s"), Run.IsValid() ? Run->GetSim().Time() : 0.0, E.Value);   // QA log: when a Mod Eye break comes (the trailer is cued on it)
 			TutEventMask |= EvEyeAway;
 			// a double chime, so it is not missed while the eyes are on the board (Tip is a quiet sound, -12 dB: twice, a third of a second apart)
 			PlaySfx(EShiftSfx::Tip);
@@ -2525,11 +2526,13 @@ void AShiftPlayerController::HandleEvents(const TArray<FShiftEvent>& Events)
 			ShowToast(FString::Printf(TEXT("The Mod Eye looks away in %.0f s: fake votes will add no Heat."), E.Value), PurpleColor(), 3.5f);
 			break;
 		case EShiftEventType::EyeAwayStart:
+			UE_LOG(LogShift, Display, TEXT("Eye break: starts at t=%.1f for %.1f s"), Run.IsValid() ? Run->GetSim().Time() : 0.0, E.Value);
 			PlaySfx(EShiftSfx::Blame);   // the window opens: the relief sting (it plays at most three times a jam) over the night-on sound
 			PlaySfx(EShiftSfx::NightOn);
 			ShowToast(FString::Printf(TEXT("THE MOD EYE LOOKS AWAY for %.0f s: fake votes add no Heat while it happens. The ones you already hold still warm you a little."), E.Value), PurpleColor(), 4.0f);
 			break;
 		case EShiftEventType::EyeAwayEnd:
+			UE_LOG(LogShift, Display, TEXT("Eye break: ends at t=%.1f"), Run.IsValid() ? Run->GetSim().Time() : 0.0);
 			PlaySfx(EShiftSfx::NightOff);
 			ShowToast(TEXT("The Mod Eye is back. Fake votes you hold heat you up again."), AmberColor(), 3.0f);
 			break;
@@ -3136,7 +3139,7 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 		T.Status = FString::Printf(TEXT("Immune for %.1fs"), S.LockRemaining(HoverNode));
 		T.StatusColor = AmberColor();
 	}
-	else if (bNight && P.SockOverheatRefuse > 0.5 && S.Heat() + P.SockHeat >= P.HeatMax - 1.0e-9)
+	else if (bNight && P.SockOverheatRefuse > 0.5 && S.Heat() + P.SockHeat * (S.EyeAwayRemaining() > 0.0 ? P.EyeAwayHeatMult : 1.0) >= P.HeatMax - 1.0e-9)
 	{
 		T.Cursor = EShiftCursor::Blocked;
 		T.Status = TEXT("Overheated: let Heat cool before the next sockpuppet");
@@ -3145,7 +3148,7 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 	else if (bNight)
 	{
 		T.Cursor = EShiftCursor::Sock;
-		const double HeatAfter = FMath::Min(S.Heat() + P.SockHeat, P.HeatMax);
+		const double HeatAfter = FMath::Min(S.Heat() + P.SockHeat * (S.EyeAwayRemaining() > 0.0 ? P.EyeAwayHeatMult : 1.0), P.HeatMax);   // a Mod Eye break: the click costs what the sim will charge
 		const bool bRed = HeatAfter > P.HeatRedZone;
 		T.Status = FString::Printf(TEXT("%s. Heat %.0f -> %.0f%s"), S.IsGated(HoverNode) ? TEXT("Sockpuppet: ignores the gate") : TEXT("Sockpuppet: fast but fragile"),
 			S.Heat(), HeatAfter, bRed ? TEXT(" (red zone)") : TEXT(""));
@@ -3186,7 +3189,7 @@ void AShiftPlayerController::BuildHoverTooltip(FShiftHudTooltip& T) const
 		};
 	const bool bNightOk = !(bLessonRun && Lesson.IsValid() && !Lesson->NightAllowed());
 	const double PostsHeld = S.Posts();
-	const FString SockText = FString::Printf(TEXT("Sockpuppet: %s, +%.0f Heat"), S.IsGated(HoverNode) ? TEXT("skips the gate") : TEXT("fast but fake"), P.SockHeat);
+	const FString SockText = FString::Printf(TEXT("Sockpuppet: %s, +%.0f Heat"), S.IsGated(HoverNode) ? TEXT("skips the gate") : TEXT("fast but fake"), P.SockHeat * (S.EyeAwayRemaining() > 0.0 ? P.EyeAwayHeatMult : 1.0));
 	if (OwnerId == ShiftSim::kPlayerId)
 	{
 		int32 AttackerId = -1;
@@ -3503,7 +3506,7 @@ void AShiftPlayerController::BuildHudModel(FShiftHudModel& M)
 	const bool bNight = IsNightHeldNow();
 	M.bShowHeat = true;
 	M.bHeatActive = bNight || S.Heat() > 0.5 || S.Strikes() > 0;
-	M.HeatProjected = bNight ? static_cast<float>(FMath::Min(S.Heat() + P.SockHeat, P.HeatMax) / P.HeatMax) : 0.0f;
+	M.HeatProjected = bNight ? static_cast<float>(FMath::Min(S.Heat() + P.SockHeat * (S.EyeAwayRemaining() > 0.0 ? P.EyeAwayHeatMult : 1.0), P.HeatMax) / P.HeatMax) : 0.0f;   // a Mod Eye break: the next sockpuppet costs what the sim will charge (nothing by default), so no preview segment
 	M.bModsEnabled = Run->ModsEnabled();
 	M.NextSweepIn = static_cast<float>(Run->NextModSweep() - S.Time());
 	const double SecondsLeft = S.TotalSeconds() - S.Time();

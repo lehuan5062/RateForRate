@@ -2,43 +2,47 @@ Id,Bar,Cmd,Args
 # The scripted trailer run (Source/ShiftHappens/Trailer/ShiftTrailer.h). Read at start, so edit and rerun without a rebuild.
 # Bar = position in bars of the music (112.5 BPM, 1 bar = 2.1333 s, 0.25 = one beat). The music loop restarts at bar 0, 8, 16, 24 (the drops). 31 bars + the 0.4 s fade = 66.5 s.
 # Commands: black, flash, title, jams, run, seed, replay, press, warp, bot, speed, night, holdshift, tension, click, hover, spot, zoom, slam, caption, end. Plain ASCII, no commas in the text.
-# Part 1 (bars 0 to 8) starts with the rename announcement, then shows what is new in 0.2, through the interface: the jam list zoomed on the new fourth jam, then the title menu, the Replays page and the viewer. Part 2 (bars 8 to 31)
-# is the original story (Data/Trailer_v1.csv moved 8 bars later, so its drops stay on the music's drops) with the OR HOLD scene reworked.
-# The Replays page lists Saved/Trailer/recordings (Tools/trailer/stage_recordings.ps1 fills it from Data/Trailer/replay_*.shiftrec.txt; the game gets -ShiftRecordingsDir).
+# The 0.3 cut. Part 1 (bars 0 to 8) is what is new in 0.3: the fifth jam, Unmoderated Weekend, whose Mod Eye goes on break three times (the old 0.2 intro is Data/Trailer_v2.csv).
+# It goes through the interface: the jam list (three cards a page), the round next-page arrow, the new card on page 2, then the first break of the Weekend run (jam 4 seed 7: the warning
+# at sim 34.1 s, the break from 39.0 to 48.0 s; the run is warped to 33 s at double speed so the whole break lands before bar 7.5). Part 2 (bars 8 to 31) is the original story
+# (Data/Trailer_v1.csv moved 8 bars later, so its drops stay on the music's drops) with the OR HOLD scene reworked.
 # The music's tension layer (hats, rims, the riser) is pinned off for the whole trailer: it only made it uneasy to listen to
 T000,0,tension,0
-# ---------------------------------------------------------------- Part 1: new in 0.2
+# ---------------------------------------------------------------- Part 1: new in 0.3
 T001,0,black,1 0
-# the rename: the old name on the first beat, the new one on the third; "NEW IN 0.2" moved into the first caption
-T002,0.05,slam,1.9 y=250 px=100 box=0 SHIFT HAPPENS|IS NOW
-T003,0.5,slam,1.45 y=480 px=140 box=0 RATE FOR RATE.
-# the jam list under the black card, revealed on bar 1: the cursor goes straight to the new fourth card and the view zooms in on it
+# the hook, on the first beat
+T002,0.05,slam,1.9 px=100 box=0 THE MODS ARE|ON BREAK.
+# the jam list under the black card, revealed on bar 1: page 1 (jams 1 to 3); the cursor goes to the round next-page arrow
 N010,0.95,jams,
 N011,1,black,0 0
 N012,1,flash,0.18
-N013,1.05,hover,1096 330 0.6
-N014,1.2,zoom,0.6 3.7 0.4 1.4 1240 380
-N015,1.3,caption,2.0 NEW IN 0.2: A FOURTH JAM.
-# the rival of the new jam: 41 followers, like you
-N020,2.2,spot,968 286 256 134 2.2
-N021,2.25,caption,2.2 THE RIVAL HAS 41 FOLLOWERS. LIKE YOU.
-# the card is clicked, then the title menu: the Replays row, the page, Watch
-N022,3.3,click,1096 330
-N060,3.5,flash,0.2
-N061,3.55,title,
-N042,3.6,hover,383 480 0.4
-N043,3.65,caption,2.0 NEW: EVERY JAM IS RECORDED.
-N044,4.35,press,76
-N045,4.5,hover,946 310 0.4
-N046,4.6,caption,2.6 NEW: WATCH ANY JAM AGAIN.
-N047,5.3,press,110
-N048,5.3,flash,0.15
-# the viewer: 8x, then a jump in the jam
-N050,5.5,spot,280 678 512 32 1.8
-N052,5.6,hover,468 694 0.4
-N054,6,press,103
-N055,6.3,hover,564 694 0.4
-N056,6.7,press,78 0.3
+N013,1.05,hover,1218 378 0.7
+N015,1.25,caption,1.9 NEW IN 0.3: A FIFTH JAM.
+# the arrow is pressed: page 2 with the new card
+N020,2,press,92
+N021,2.05,hover,930 215 0.5
+N022,2.1,zoom,0.5 0.7 0.4 1.35 826 300
+# its facts: the Mod Eye looks away 3 times
+N023,3,spot,668 410 312 92 1.6
+N024,3.05,caption,1.7 THE MOD EYE GOES ON BREAK. THREE TIMES.
+# the card is clicked (press -1: the click ring only, the jam list stays, so the Build screen never shows), then the Weekend run under a flash
+N030,3.35,hover,826 585 0.4
+N031,3.7,press,-1
+N032,3.8,flash,0.18
+# the Weekend run: sim 33 s at double speed; the warning at bar 4.2 (MOD EYE AWAY IN 5s), the break from bar 5.3 to 7.4
+N040,3.85,run,4 7 - 33 2
+N041,4.2,spot,1080 220 196 48 2.0
+N042,4.25,caption,2.2 THE MOD EYE IS ABOUT TO LOOK AWAY.
+# the break: night shift on, four sockpuppets on small voters (a big voter's held fake votes would warm Heat; on these the bar stays flat, as the caption says)
+N051,4.7,hover,192 180 0.6
+N043,5.25,night,1
+N044,5.45,click,192 180 n
+N045,5.85,click,281 253 n
+N046,6.25,click,211 300 n
+N047,6.65,click,110 309 n
+N048,5.4,caption,2.9 THE EYE LOOKS AWAY. CLICKS ADD NO HEAT.
+N050,7.38,night,0
+# into the unchanged bar 8
 N057,7.8,black,1 0.2
 # ---------------------------------------------------------------- Part 2: the original story (bars 8 to 31)
 # Cold open: a black card on the music's first beat
@@ -83,13 +87,13 @@ T042,22,run,2 7 sock 34.5 2
 T043,22,spot,mods 2.0
 T044,22.05,caption,2.2 THE MOD EYE IS WATCHING.
 T073,22,zoom,0.6 1.8 0.5 2.0 945 0
-T045,24.1,slam,1.9 y=250 px=70 box=1 THREE STRIKES.
+T045,24.1,slam,1.9 px=70 box=1 THREE STRIKES.
 # Or play it straight: the real final push, final audit and win
 T050,24.9,flash,0.2
 T051,25,night,0 now
 T052,25,run,2 7 rally 231.77 2
 T053,25.1,caption,3.6 OR PLAY IT STRAIGHT.
-T054,28.9,slam,1.9 y=250 px=70 box=1 FINAL AUDIT.
+T054,28.9,slam,1.9 px=70 box=1 FINAL AUDIT.
 # End card
 T060,30,black,1 0.4
 T061,30.2,slam,2.4 RATE FOR RATE|HOLD SHIFT.

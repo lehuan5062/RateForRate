@@ -1,5 +1,6 @@
 # One command for the itch.io images: shoots every scene headless, then makes, encodes and checks everything. Output: Saved\Itch\upload (git-ignored), report in Saved\Itch\report.md.
 #   Tools\itch\build.ps1                  everything (about 8 minutes, mostly editor starts)
+#   Tools\itch\build.ps1 -Thumb           only the YouTube trailer thumbnail and the devlog cover (its animated twin): shoots the two hero frames (about 1 minute, skipped with -SkipShoot) and makes 11_trailer_thumbnail_1280x720.png and 14_devlog_cover_1280x720.gif
 #   Tools\itch\build.ps1 -SkipShoot       only re-make from the frames already in Saved\Itch\frames (logo, promos, background, encodes, checks: about 5 minutes)
 #   Tools\itch\build.ps1 -MaxMB 2         a lower size cap for every GIF if the uploader refuses a file (itch.io states no limit; the default is 3)
 #   Tools\itch\build.ps1 -Keep            keep the frames afterwards (about 1 GB)
@@ -7,12 +8,21 @@
 param(
 	[double]$MaxMB = 3,
 	[switch]$SkipShoot,
+	[switch]$Thumb,
 	[switch]$Keep
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $shoot = Join-Path $PSScriptRoot 'shoot.ps1'
 $hero = @('-ShiftNoUI', '-ShiftNoTutorial', '-ShiftScreen=play', '-ShiftBot=greedy', '-ShiftJam=2', '-ShiftSeed=7', '-ShiftSpeed=8')
+if ($Thumb) {
+	if (-not $SkipShoot) {
+		& $shoot -Name hero_day -Start 22 -Seconds 1 -Fps 1 -ResX 3840 -ResY 2160 -Extra ($hero + '-ShiftNight=0')
+		& $shoot -Name hero_night -Start 22 -Seconds 1 -Fps 1 -ResX 3840 -ResY 2160 -Extra ($hero + '-ShiftNight=1')
+	}
+	& python (Join-Path $PSScriptRoot 'make_images.py') thumb --max-mb $MaxMB
+	exit $LASTEXITCODE
+}
 if (-not $SkipShoot) {
 	# the hero board: one sim state at 22 s of film time, rendered in both themes at 4K so the crops stay sharp (same sim, only the theme differs)
 	& $shoot -Name hero_day -Start 22 -Seconds 1 -Fps 1 -ResX 3840 -ResY 2160 -Extra ($hero + '-ShiftNight=0')
